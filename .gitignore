@@ -1,0 +1,9 @@
+FPase-bikesharing/data/
+FPase-bikesharing/plots/
+data/*
+figures/*
+.spyproject/
+__pycache__/
+python_variables/big_data/
+.pylint.d/
+.Rhistory

@@ -10,6 +10,7 @@ import numpy as np
 import os
 import pickle
 import calendar
+import datetime
 import time
 import warnings
 from pyproj import Transformer
@@ -117,11 +118,11 @@ def get_JC_blacklist():
         df = pd.read_csv('data/' + file)
         df = df.rename(columns = dataframe_key.get_key('nyc'))
 
-        JC_start_stat_indices = df.loc[df['start_stat_long'] < 74.02]
-        JC_end_stat_indices = df.loc[df['end_stat_long'] < 74.02]
+        JC_start_stat_indices = np.where(df['start_stat_long'] < -74.02)
+        JC_end_stat_indices = np.where(df['end_stat_long'] < -74.02)
 
         stat_IDs = set(
-            df['start_stat_id'][JC_start_stat_indices]) | set(df['end_stat_id'][JC_end_stat_indices])
+            df['start_stat_id'].iloc[JC_start_stat_indices]) | set(df['end_stat_id'].iloc[JC_end_stat_indices])
 
         blacklist = blacklist | stat_IDs
 
@@ -2270,9 +2271,41 @@ class Data:
             plt.savefig('figures/graph_compare.png')
 
         return deg_compare
+    
+    def daily_traffic(self, stat_index, day, plot = False):
+    
+        df_stat_start = self.df.iloc[np.where(self.df['start_stat_index'] == stat_index)]
+        df_stat_end = self.df.iloc[np.where(self.df['end_stat_index'] == stat_index)]
+        
+        trips_arrivals = np.zeros(24)
+        trips_departures = np.zeros(24)
+        
+        for hour in range(24):
+                df_hour_start = df_stat_start.iloc[np.where(df_stat_start['start_t'] > f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:00:00')]
+                df_hour_start = df_hour_start.iloc[np.where(df_hour_start['start_t'] < f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:59:59')]
+                
+                trips_departures[hour] = len(df_hour_start)
+                
+                df_hour_end = df_stat_end.iloc[np.where(df_stat_end['end_t'] > f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:00:00')]
+                df_hour_end = df_hour_end.iloc[np.where(df_hour_end['end_t'] < f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:59:59')]
+                
+                trips_arrivals[hour] = len(df_hour_end)
+        
+        if plot:
+            plt.plot(np.arange(24), trips_arrivals)
+            plt.plot(np.arange(24), trips_departures)
+            plt.xticks(np.arange(24))
+            plt.legend(['Arrivals','Departures'])
+            plt.xlabel('Hour')
+            plt.ylabel('# trips')
+            plt.title(f'Hourly traffic for {self.stat.names[stat_index]} \n on {self.year:d}-{self.month:02d}-{day:02d}')
+        
+        return trips_departures, trips_arrivals
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('madrid', 2019, 3)
+    data = Data('nyc', 2019, 9)
     print(time.time() - pre)
+    
+    data.daily_traffic(247, 5)
     
