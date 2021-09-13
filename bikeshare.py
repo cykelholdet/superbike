@@ -2301,11 +2301,79 @@ class Data:
             plt.title(f'Hourly traffic for {self.stat.names[stat_index]} \n on {self.year:d}-{self.month:02d}-{day:02d}')
         
         return trips_departures, trips_arrivals
-
+    
+    def daily_traffic_average(self, stat_index, period = 'b', plot = False):
+        
+        weekdays = [calendar.weekday(self.year,self.month,i) for i in range(1,calendar.monthrange(self.year,self.month)[1]+1)]
+        
+        if period == 'b': 
+            days = [date+1 for date, day in enumerate(weekdays) if day <= 4]
+        elif period == 'w':
+            days = [date+1 for date, day in enumerate(weekdays) if day > 4]
+        else:
+            raise ValueError("Please provide the period as either 'b' = business days or 'w' = weekends")
+        
+        trips_arrivals = np.zeros(shape=(len(days), 24))
+        trips_departures = np.zeros(shape=(len(days), 24))
+        
+        for i, day in enumerate(days):
+            trips_departures[i,:] = self.daily_traffic(stat_index, day)[0]
+            trips_arrivals[i,:] = self.daily_traffic(stat_index, day)[1]
+        
+        trips_departures_average = np.mean(trips_departures, axis=0)
+        trips_arrivals_average = np.mean(trips_arrivals, axis=0)
+        
+        if plot:
+            
+            trips_departures_std = np.std(trips_departures, axis=0)
+            trips_arrivals_std = np.std(trips_arrivals, axis=0)
+            
+            plt.plot(np.arange(24), trips_arrivals_average)
+            plt.plot(np.arange(24), trips_departures_average)
+            plt.xticks(np.arange(24))
+            plt.fill_between(np.arange(24), trips_arrivals_average-trips_arrivals_std, 
+                             trips_arrivals_average+trips_arrivals_std, 
+                             facecolor='b',alpha=0.2)
+            plt.fill_between(np.arange(24), trips_departures_average-trips_departures_std, 
+                             trips_departures_average+trips_departures_std, 
+                             facecolor='orange',alpha=0.2)
+            
+            
+            plt.legend(['Arrivals','Departures','$\pm$std - arrivals','$\pm$std - departures'])
+            plt.xlabel('Hour')
+            plt.ylabel('# trips')
+            
+            month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
+                  7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+            
+            if period == 'b':
+                plt.title(f'Average hourly traffic for {self.stat.names[stat_index]} \n in {month_dict[self.month]} {self.year} on business days')
+            
+            elif period == 'w':
+                plt.title(f'Average hourly traffic for {self.stat.names[stat_index]} \n in {month_dict[self.month]} {self.year} on weekends')
+        
+            plt.show()
+            
+        return trips_departures_average, trips_arrivals_average
+        
 if __name__ == "__main__":
     pre = time.time()
     data = Data('nyc', 2019, 9)
     print(time.time() - pre)
+
+    dep, arr = data.daily_traffic_average(407, 'b', plot=True)
     
-    data.daily_traffic(247, 5)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
