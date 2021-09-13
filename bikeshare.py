@@ -2313,12 +2313,33 @@ class Data:
         else:
             raise ValueError("Please provide the period as either 'b' = business days or 'w' = weekends")
         
+        df_stat_start = self.df.iloc[np.where(self.df['start_stat_index'] == stat_index)]
+        df_stat_end = self.df.iloc[np.where(self.df['end_stat_index'] == stat_index)]
+        
         trips_arrivals = np.zeros(shape=(len(days), 24))
         trips_departures = np.zeros(shape=(len(days), 24))
         
         for i, day in enumerate(days):
-            trips_departures[i,:] = self.daily_traffic(stat_index, day)[0]
-            trips_arrivals[i,:] = self.daily_traffic(stat_index, day)[1]
+            
+            df_stat_start_day = df_stat_start.iloc[np.where(df_stat_start.start_dt.dt.day == day)]
+            df_stat_end_day = df_stat_end.iloc[np.where(df_stat_end.start_dt.dt.day == day)]
+            
+            trips_arrivals_daily = np.zeros(24)
+            trips_departures_daily = np.zeros(24)
+            
+            for hour in range(24):
+                df_hour_start = df_stat_start_day.iloc[np.where(df_stat_start_day['start_t'] > f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:00:00')]
+                df_hour_start = df_hour_start.iloc[np.where(df_hour_start['start_t'] < f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:59:59')]
+                
+                trips_departures_daily[hour] = len(df_hour_start)
+                
+                df_hour_end = df_stat_end_day.iloc[np.where(df_stat_end_day['end_t'] > f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:00:00')]
+                df_hour_end = df_hour_end.iloc[np.where(df_hour_end['end_t'] < f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:59:59')]
+                
+                trips_arrivals_daily[hour] = len(df_hour_end)
+        
+            trips_departures[i,:] = trips_departures_daily
+            trips_arrivals[i,:] = trips_arrivals_daily
         
         trips_departures_average = np.mean(trips_departures, axis=0)
         trips_arrivals_average = np.mean(trips_arrivals, axis=0)
@@ -2360,9 +2381,10 @@ if __name__ == "__main__":
     pre = time.time()
     data = Data('nyc', 2019, 9)
     print(time.time() - pre)
-
-    dep, arr = data.daily_traffic_average(407, 'b', plot=True)
     
+    pre = time.time()
+    dep, arr = data.daily_traffic_average(407, 'b', plot=True)
+    print(time.time() - pre)
     
     
     
