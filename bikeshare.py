@@ -17,6 +17,7 @@ from pyproj import Transformer
 import networkx as nx
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import simpledtw as dtw
 from requests import get
 import dataframe_key
 
@@ -1738,7 +1739,6 @@ class Stations:
 
         print("Stations loaded")
 
-
 class Data:
     """
     Class containing relevant data of a month for a city.
@@ -2449,6 +2449,7 @@ class Data:
         """
         
         print('Pickling average daily traffic for all stations... \nSit back and relax, this might take a while...')
+        pre = time.time()
         traffic_matrix_b = np.zeros(shape=(self.stat.n_tot, 48))
         traffic_matrix_w = np.zeros(shape=(self.stat.n_tot, 48))
        
@@ -2462,23 +2463,85 @@ class Data:
         with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}_w.pickle', 'wb') as file:
             pickle.dump(traffic_matrix_w, file)
         
-        print('Pickling done')
+        print(f'Pickling done. Time taken: {time.time()-pre}')
+    
+class Classifier:
+    def __init__(self):
+        self.centroids = None
+    
+    def k_means(self, data_matrix, k, max_iter = 15):
+
+        n_stations = len(data_matrix)
+
+        stat_indices = np.arange(n_stations)
+        np.random.shuffle(stat_indices)
+        centroid_indices = stat_indices[:k]
+        
+        centroids = data_matrix[centroid_indices,:]
+        
+        labels_old = np.ones(n_stations)
+        labels_new = np.zeros(n_stations)
+        
+        print('Starting clustering...')
+        
+        pre = time.time()
+        
+        i=0
+        while sum(labels_old-labels_new != 0) > np.floor(n_stations/20) and i < max_iter:
+            labels_old = labels_new.copy()
+            
+            for stat_index in range(n_stations):
+                distances = np.empty(k)
+                for center_index in range(k):
+                    distances[center_index] = dtw.dtw(data_matrix[stat_index,:], centroids[center_index,:])[1]
+                    
+                labels_new[stat_index] = np.argmin(distances)
+            
+            for label in range(k):
+                label_mat = data_matrix[np.where(labels_new == label),:]
+                centroids[label,:] = np.mean(label_mat, axis=1)
+        
+            i+=1
+            
+            print(f'Iteration: {i} - # Different labels: {sum(labels_old-labels_new != 0)} - Runtime: {time.time()-pre}s')
+            
+        print('Clustering done')
+        self.centroids = centroids
+        
+    def predict(self, vec):
+        if self.centroids is None:
+            raise ValueError('No centroids have been computed. Please run a clustering algorithm first.')
+        
+        if len(vec) != len(self.centroids[0]):
+            raise ValueError('Vector must be the same dimension as the centroids.')
+        
+        distances = np.empty(len(self.centroids))
+        for center_index in range(len(self.centroids)):
+            distances[center_index] = dtw.dtw(vec, self.centroids[center_index])[1]
+        
+        return np.argmin(distances)
+        
+    def mass_predict(self, data_mat):
+        
+        labels = np.empty(len(data_mat))
+        for stat_index in range(len(data_mat)):
+            labels[stat_index] = self.predict(data_mat[stat_index])
+        
+        return labels
+        
+
     
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('nyc', 2019, 9)
-    print(time.time() - pre)
+    # data = Data('nyc', 2019, 9)
+    # print(time.time() - pre)
     
-    pre = time.time()
-    data.pickle_daily_traffic()
-    print(time.time() - pre)
+    with open(f'./python_variables/daily_traffic_nyc201909_b.pickle', 'rb') as file:
+            mat_b=pickle.load(file)
     
+    clf = Classifier()
     
-    
-    
-    
-    
-    
+    clf.k_means(mat_b, 4)
     
     
     
