@@ -2273,7 +2273,32 @@ class Data:
         return deg_compare
     
     def daily_traffic(self, stat_index, day, plot = False):
-    
+        """
+        Computes the number of arrivals and departures to and from the station
+        in every hour of the specified day.
+
+        Parameters
+        ----------
+        stat_index : int
+            Station index.
+        day : int
+            Day in the month to compute traffic from.
+        plot : bool, optional
+            Plots the daily traffic if set to True. The default is False.
+
+        Returns
+        -------
+        trips_departures : ndarray
+            24-dimensional array with number of departures for every hour, eg.
+            index 0 yields the number of departures from 00:00:00 to 01:00:00.
+        trips_arrivals : ndarray
+            24-dimensional array with number of arrivals for every hour, eg.
+            index 0 yields the number of arrivals from 00:00:00 to 01:00:00.
+
+        """
+        
+        
+        
         df_stat_start = self.df.iloc[np.where(self.df['start_stat_index'] == stat_index)]
         df_stat_end = self.df.iloc[np.where(self.df['end_stat_index'] == stat_index)]
         
@@ -2303,7 +2328,36 @@ class Data:
         return trips_departures, trips_arrivals
     
     def daily_traffic_average(self, stat_index, period = 'b', plot = False):
-        
+        """
+        Computes the average daily traffic of a station over either business
+        days or weekends. Both average number of departures and arrivals are 
+        computed for each hour.
+
+        Parameters
+        ----------
+        stat_index : int
+            Station index.
+        period : str, optional
+            Period to average over. Either 'b' = business days or 'w' = weekends. 
+            The default is 'b'.
+        plot : bool, optional
+            Plots the average daily traffic if set to True. The default is False.
+
+        Raises
+        ------
+        ValueError
+            Raised if period is not given as 'b' or 'w'.
+
+        Returns
+        -------
+        trips_departures_average : ndarray
+            24-dimensional array containing average number of departures for 
+            each hour.
+        trips_arrivals_average : ndarray
+            24-dimensional array containing average number of arrivals for 
+            each hour.
+
+        """
         weekdays = [calendar.weekday(self.year,self.month,i) for i in range(1,calendar.monthrange(self.year,self.month)[1]+1)]
         
         if period == 'b': 
@@ -2359,7 +2413,6 @@ class Data:
                              trips_departures_average+trips_departures_std, 
                              facecolor='orange',alpha=0.2)
             
-            
             plt.legend(['Arrivals','Departures','$\pm$std - arrivals','$\pm$std - departures'])
             plt.xlabel('Hour')
             plt.ylabel('# trips')
@@ -2377,13 +2430,47 @@ class Data:
             
         return trips_departures_average, trips_arrivals_average
         
+    def pickle_daily_traffic(self):
+        """
+        Pickles matrices containing the average number of departures and 
+        arrivals to and from each station for every hour. One matrix
+        contains the average traffic on business days while the other contains 
+        the average traffic for weekends.
+        
+        The matrices are of shape (n,48) where n is the number of stations.
+        The first 24 entries in each row contains the average traffic for
+        business days and the last 24 entries contain the same for weekends.
+        
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        print('Pickling average daily traffic for all stations... \nSit back and relax, this might take a while...')
+        traffic_matrix_b = np.zeros(shape=(self.stat.n_tot, 48))
+        traffic_matrix_w = np.zeros(shape=(self.stat.n_tot, 48))
+       
+        for stat_index in range(self.stat.n_tot):
+            traffic_matrix_b[stat_index,:24], traffic_matrix_b[stat_index,24:] = self.daily_traffic_average(stat_index,'b')
+            traffic_matrix_w[stat_index,:24], traffic_matrix_w[stat_index,24:] = self.daily_traffic_average(stat_index,'w')
+        
+        with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}_b.pickle', 'wb') as file:
+            pickle.dump(traffic_matrix_b, file)
+        
+        with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}_w.pickle', 'wb') as file:
+            pickle.dump(traffic_matrix_w, file)
+        
+        print('Pickling done')
+    
 if __name__ == "__main__":
     pre = time.time()
     data = Data('nyc', 2019, 9)
     print(time.time() - pre)
     
     pre = time.time()
-    dep, arr = data.daily_traffic_average(407, 'b', plot=True)
+    data.pickle_daily_traffic()
     print(time.time() - pre)
     
     
