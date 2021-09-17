@@ -2272,7 +2272,7 @@ class Data:
 
         return deg_compare
     
-    def daily_traffic(self, stat_index, day, plot = False):
+    def daily_traffic(self, stat_index, day, normalise = True, plot = False):
         """
         Computes the number of arrivals and departures to and from the station
         in every hour of the specified day.
@@ -2316,18 +2316,31 @@ class Data:
                 
                 trips_arrivals[hour] = len(df_hour_end)
         
+        if normalise:
+            trips_total = sum(trips_departures) + sum(trips_arrivals)
+            trips_departures = trips_departures/trips_total
+            trips_arrivals = trips_arrivals/trips_total
+        
         if plot:
-            plt.plot(np.arange(24), trips_arrivals)
-            plt.plot(np.arange(24), trips_departures)
+            
+            if normalise:     
+                plt.plot(np.arange(24), trips_arrivals*100)
+                plt.plot(np.arange(24), trips_departures*100)
+                plt.ylabel('% of total trips')
+            else:
+                plt.plot(np.arange(24), trips_arrivals)
+                plt.plot(np.arange(24), trips_departures)
+                plt.ylabel('# trips')
+
             plt.xticks(np.arange(24))
             plt.legend(['Arrivals','Departures'])
             plt.xlabel('Hour')
-            plt.ylabel('# trips')
+
             plt.title(f'Hourly traffic for {self.stat.names[stat_index]} \n on {self.year:d}-{self.month:02d}-{day:02d}')
         
         return trips_departures, trips_arrivals
     
-    def daily_traffic_average(self, stat_index, period = 'b', plot = False):
+    def daily_traffic_average(self, stat_index, period = 'b', normalise = True, plot = False, return_all = False):
         """
         Computes the average daily traffic of a station over either business
         days or weekends. Both average number of departures and arrivals are 
@@ -2378,8 +2391,8 @@ class Data:
             df_stat_start_day = df_stat_start.iloc[np.where(df_stat_start.start_dt.dt.day == day)]
             df_stat_end_day = df_stat_end.iloc[np.where(df_stat_end.start_dt.dt.day == day)]
             
-            trips_arrivals_daily = np.zeros(24)
-            trips_departures_daily = np.zeros(24)
+            trips_arrivals_daily = np.empty(24)
+            trips_departures_daily = np.empty(24)
             
             for hour in range(24):
                 df_hour_start = df_stat_start_day.iloc[np.where(df_stat_start_day['start_t'] > f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:00:00')]
@@ -2391,31 +2404,62 @@ class Data:
                 df_hour_end = df_hour_end.iloc[np.where(df_hour_end['end_t'] < f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:59:59')]
                 
                 trips_arrivals_daily[hour] = len(df_hour_end)
-        
+            
             trips_departures[i,:] = trips_departures_daily
             trips_arrivals[i,:] = trips_arrivals_daily
+
+        # print(stat_index)
         
-        trips_departures_average = np.mean(trips_departures, axis=0)
-        trips_arrivals_average = np.mean(trips_arrivals, axis=0)
+        active_indices = set(np.where(np.sum(trips_departures, axis=1) != 0)[0]) | set(np.where(np.sum(trips_arrivals, axis=1) != 0)[0])
         
+        trips_departures = trips_departures[list(active_indices)]
+        trips_arrivals = trips_arrivals[list(active_indices)]
+        
+        if normalise:
+            daily_totals = np.sum(trips_departures, axis=1) + np.sum(trips_arrivals, axis = 1)
+            for i in range(len(trips_departures)):
+                trips_departures[i,:] = trips_departures[i,:]/daily_totals[i]
+                trips_arrivals[i,:] = trips_arrivals[i,:]/daily_totals[i]
+        
+        if len(trips_departures) == 0:
+            trips_departures_average = np.zeros(24)
+            trips_arrivals_average = np.zeros(24)    
+        else:
+            trips_departures_average = np.mean(trips_departures, axis=0)
+            trips_arrivals_average = np.mean(trips_arrivals, axis=0)
+            
         if plot:
             
-            trips_departures_std = np.std(trips_departures, axis=0)
-            trips_arrivals_std = np.std(trips_arrivals, axis=0)
+            trips_departures_std = np.std(trips_departures*100, axis=0)
+            trips_arrivals_std = np.std(trips_arrivals*100, axis=0)
             
-            plt.plot(np.arange(24), trips_arrivals_average)
-            plt.plot(np.arange(24), trips_departures_average)
+            if normalise:
+                plt.plot(np.arange(24), trips_arrivals_average*100)
+                plt.plot(np.arange(24), trips_departures_average*100)
+            
+                plt.fill_between(np.arange(24), trips_arrivals_average*100-trips_arrivals_std, 
+                                 trips_arrivals_average*100+trips_arrivals_std, 
+                                 facecolor='b',alpha=0.2)
+                plt.fill_between(np.arange(24), trips_departures_average*100-trips_departures_std, 
+                                 trips_departures_average*100+trips_departures_std, 
+                                 facecolor='orange',alpha=0.2)
+                plt.ylabel('% of total trips')
+                
+            else:
+                plt.plot(np.arange(24), trips_arrivals_average)
+                plt.plot(np.arange(24), trips_departures_average)
+            
+                plt.fill_between(np.arange(24), trips_arrivals_average-trips_arrivals_std, 
+                                 trips_arrivals_average+trips_arrivals_std, 
+                                 facecolor='b',alpha=0.2)
+                plt.fill_between(np.arange(24), trips_departures_average-trips_departures_std, 
+                                 trips_departures_average+trips_departures_std, 
+                                 facecolor='orange',alpha=0.2)
+                plt.ylabel('# trips')
+            
             plt.xticks(np.arange(24))
-            plt.fill_between(np.arange(24), trips_arrivals_average-trips_arrivals_std, 
-                             trips_arrivals_average+trips_arrivals_std, 
-                             facecolor='b',alpha=0.2)
-            plt.fill_between(np.arange(24), trips_departures_average-trips_departures_std, 
-                             trips_departures_average+trips_departures_std, 
-                             facecolor='orange',alpha=0.2)
-            
             plt.legend(['Arrivals','Departures','$\pm$std - arrivals','$\pm$std - departures'])
             plt.xlabel('Hour')
-            plt.ylabel('# trips')
             
             month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
                   7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
@@ -2427,10 +2471,13 @@ class Data:
                 plt.title(f'Average hourly traffic for {self.stat.names[stat_index]} \n in {month_dict[self.month]} {self.year} on weekends')
         
             plt.show()
-            
-        return trips_departures_average, trips_arrivals_average
         
-    def pickle_daily_traffic(self):
+        if return_all:
+            return trips_departures_average, trips_arrivals_average, trips_departures, trips_arrivals
+        else:
+            return trips_departures_average, trips_arrivals_average
+        
+    def pickle_daily_traffic(self, normalise = True):
         """
         Pickles matrices containing the average number of departures and 
         arrivals to and from each station for every hour. One matrix
@@ -2454,8 +2501,8 @@ class Data:
         traffic_matrix_w = np.zeros(shape=(self.stat.n_tot, 48))
        
         for stat_index in range(self.stat.n_tot):
-            traffic_matrix_b[stat_index,:24], traffic_matrix_b[stat_index,24:] = self.daily_traffic_average(stat_index,'b')
-            traffic_matrix_w[stat_index,:24], traffic_matrix_w[stat_index,24:] = self.daily_traffic_average(stat_index,'w')
+            traffic_matrix_b[stat_index,:24], traffic_matrix_b[stat_index,24:] = self.daily_traffic_average(stat_index,'b', normalise = normalise)
+            traffic_matrix_w[stat_index,:24], traffic_matrix_w[stat_index,24:] = self.daily_traffic_average(stat_index,'w', normalise = normalise)
         
         with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}_b.pickle', 'wb') as file:
             pickle.dump(traffic_matrix_b, file)
@@ -2468,6 +2515,8 @@ class Data:
 class Classifier:
     def __init__(self):
         self.centroids = None
+        self.Davies_Bouldin_index = None
+        self.Dunn_index = None
     
     def k_means(self, data_matrix, k, max_iter = 15):
 
@@ -2487,7 +2536,7 @@ class Classifier:
         pre = time.time()
         
         i=0
-        while sum(labels_old-labels_new != 0) > np.floor(n_stations/20) and i < max_iter:
+        while sum(labels_old-labels_new != 0) > np.floor(n_stations/100) and i < max_iter:
             labels_old = labels_new.copy()
             
             for stat_index in range(n_stations):
@@ -2503,7 +2552,7 @@ class Classifier:
         
             i+=1
             
-            print(f'Iteration: {i} - # Different labels: {sum(labels_old-labels_new != 0)} - Runtime: {time.time()-pre}s')
+            print(f'Iteration: {i} - # Changed labels: {sum(labels_old-labels_new != 0)} - Runtime: {time.time()-pre}s')
             
         print('Clustering done')
         self.centroids = centroids
@@ -2528,20 +2577,146 @@ class Classifier:
             labels[stat_index] = self.predict(data_mat[stat_index])
         
         return labels
-        
-
     
+    def get_Davies_Bouldin(self, data_mat, labels = None):
+        
+        if labels is None:
+            print('Getting labels...')
+            labels = self.mass_predict(data_mat)
+        
+        k = len(self.centroids)
+        
+        print('Calculating Davies-Bouldin index...')
+        
+        S_scores = np.empty(k)
+        
+        for i in range(k):
+            data_mat_cluster = data_mat[np.where(labels == i)]
+            distances = [dtw.dtw(row, self.centroids[i])[1] for row in data_mat_cluster]
+            S_scores[i] = np.mean(distances)
+        
+        R = np.empty(shape=(k,k))
+        for i in range(k):
+            for j in range(k):
+                if i == j:
+                    R[i,j] = 0
+                else:
+                    R[i,j] = (S_scores[i] + S_scores[j])/dtw.dtw(self.centroid[i], self.centroid[j])
+            
+        D = [max(row) for row in R]
+        
+        DB_index = np.mean(D)
+        
+        print('Done')
+        
+        self.Davies_Bouldin_index = DB_index
+        
+        return DB_index
+    
+    def get_Dunn_index(self, data_mat, labels = None):
+        
+        if labels is None:
+            print('Getting labels...')
+            labels = self.mass_predict(data_mat)
+        
+        k = len(self.centroids)
+        
+        print('Calculating Dunn Index...')
+        
+        pre=time.time()
+        
+        intra_cluster_distances = np.empty(k)
+        inter_cluster_distances = np.full(shape=(k,k), fill_value = np.inf)
+        
+        for i in range(k):
+            data_mat_cluster = data_mat[np.where(labels == i)]
+            cluster_size = len(data_mat_cluster)
+            distances = np.empty(shape=(cluster_size, cluster_size))
+            
+            for h in range(cluster_size):
+                for j in range(cluster_size):
+                    distances[h,j] = dtw.dtw(data_mat[h], data_mat[j])[1]
+            
+            intra_cluster_distances[i] = np.max(distances)
+
+            for j in range(k):
+                if j != i:
+                    data_mat_cluster_j = data_mat[np.where(labels == j)]
+                    cluster_size_j = len(data_mat_cluster_j)
+                    between_cluster_distances = np.empty(shape=(cluster_size, cluster_size_j))
+                    for m in range(cluster_size):
+                        for n in range(cluster_size_j):
+                            between_cluster_distances[m,n] = dtw.dtw(data_mat_cluster[m], data_mat_cluster_j[n])[1]
+                    inter_cluster_distances[i,j] = np.min(between_cluster_distances)
+        
+        D_index = np.min(inter_cluster_distances)/np.max(intra_cluster_distances)
+        
+        print(f'Done, Time taken: {time.time()-pre}s')
+        
+        self.Dunn_index = D_index
+        
+        return D_index
+    
+    def get_silhouette_index(self, data_mat, labels = None):
+        
+        if labels is None:
+            print('Getting labels...')
+            labels = self.mass_predict(data_mat)
+        
+        k = len(self.centroids)
+        
+        s_coefs = np.empty(len(data_mat))
+        
+        for i, vec1 in enumerate(data_mat):
+            in_cluster = data_mat.delete(i, axis=0)[np.where(labels == labels[i])]
+            
+            in_cluster_size = len(in_cluster)
+            
+            in_cluster_distances = np.empty(in_cluster_size)
+            for j, vec2 in enumerate(in_cluster):
+                in_cluster_distances[j] = dtw.dtw(vec1, vec2)[1]
+            
+            mean_out_cluster_distances = np.full(k, fill_value = np.inf)
+            
+            for j in range(k):
+                if j != labels[i]:
+                    out_cluster = data_mat[np.where(labels == j)]
+                    out_cluster_distances = np.empty(len(out_cluster))
+                    
+                    for l, vec2 in enumerate(out_cluster):
+                        out_cluster_distances[l] = dtw.dtw(vec1, vec2)[1]
+                    
+                    mean_out_cluster_distances[j] = np.mean(out_cluster_distances)
+        
+            ai = np.mean(in_cluster_distances)
+            bi = np.min(mean_out_cluster_distances)
+            
+            s_coefs[i] = (bi-ai)/max(ai,bi)
+            
+        S_index = np.mean(s_coefs)
+        
+        self.Silhouette_index = S_index
+        
+        return S_index
+        
+    
+
 if __name__ == "__main__":
     pre = time.time()
-    # data = Data('nyc', 2019, 9)
-    # print(time.time() - pre)
+    data = Data('nyc', 2019, 9)
+    print(time.time() - pre)    
     
-    with open(f'./python_variables/daily_traffic_nyc201909_b.pickle', 'rb') as file:
-            mat_b=pickle.load(file)
     
-    clf = Classifier()
     
-    clf.k_means(mat_b, 4)
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     
     
