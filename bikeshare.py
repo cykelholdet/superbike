@@ -2518,14 +2518,17 @@ class Classifier:
         self.Davies_Bouldin_index = None
         self.Dunn_index = None
     
-    def k_means(self, data_matrix, k, max_iter = 15):
+    def k_means(self, data_matrix, k, max_iter = 15, seed = None):
 
         n_stations = len(data_matrix)
 
         stat_indices = np.arange(n_stations)
+        
+        if seed:
+            np.random.seed(seed)
+        
         np.random.shuffle(stat_indices)
         centroid_indices = stat_indices[:k]
-        
         centroids = data_matrix[centroid_indices,:]
         
         labels_old = np.ones(n_stations)
@@ -2554,9 +2557,31 @@ class Classifier:
             
             print(f'Iteration: {i} - # Changed labels: {sum(labels_old-labels_new != 0)} - Runtime: {time.time()-pre}s')
             
-        print('Clustering done')
         self.centroids = centroids
+        print('Clustering done')
+    
+    # def init_clusters_SA(self, data_mat, k, T_start, T_end = 1. alpha = 0.05):
         
+    #     n = len(data_mat)
+        
+    #     indices = np.arange(n)
+    #     shuffled_indices = np.random.shuffle(indices)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     def predict(self, vec):
         if self.centroids is None:
             raise ValueError('No centroids have been computed. Please run a clustering algorithm first.')
@@ -2578,15 +2603,35 @@ class Classifier:
         
         return labels
     
-    def get_Davies_Bouldin(self, data_mat, labels = None):
-        
+    def get_Davies_Bouldin_index(self, data_mat, labels = None, mute = False):
+        """
+        Calculates the Davies-Bouldin index of clustered data.
+
+        Parameters
+        ----------
+        data_mat : ndarray
+            Array containing the feature vectors.
+        labels : itr, optional
+            Iterable containg the labels of the feature vectors. If no labels
+            are given, they are calculated using the mass_predict method.
+
+        Returns
+        -------
+        DB_index : float
+            Davies-Bouldin index.
+
+        """
         if labels is None:
-            print('Getting labels...')
+            if not mute:
+                print('Getting labels...')
             labels = self.mass_predict(data_mat)
         
         k = len(self.centroids)
         
-        print('Calculating Davies-Bouldin index...')
+        if not mute:
+            print('Calculating Davies-Bouldin index...')
+        
+        pre=time.time()
         
         S_scores = np.empty(k)
         
@@ -2601,20 +2646,37 @@ class Classifier:
                 if i == j:
                     R[i,j] = 0
                 else:
-                    R[i,j] = (S_scores[i] + S_scores[j])/dtw.dtw(self.centroid[i], self.centroid[j])
+                    R[i,j] = (S_scores[i] + S_scores[j])/dtw.dtw(self.centroids[i], self.centroids[j])[1]
             
         D = [max(row) for row in R]
         
         DB_index = np.mean(D)
         
-        print('Done')
+        if not mute:
+            print(f'Done. Time taken: {time.time()-pre}s')
         
         self.Davies_Bouldin_index = DB_index
         
         return DB_index
     
     def get_Dunn_index(self, data_mat, labels = None):
-        
+        """
+        Calculates the Dunn index of clustered data. WARNING: VERY SLOW.
+
+        Parameters
+        ----------
+        data_mat : ndarray
+            Array containing the feature vectors.
+        labels : itr, optional
+            Iterable containg the labels of the feature vectors. If no labels
+            are given, they are calculated using the mass_predict method.
+
+        Returns
+        -------
+        D_index : float
+            Dunn index.
+
+        """
         if labels is None:
             print('Getting labels...')
             labels = self.mass_predict(data_mat)
@@ -2651,24 +2713,45 @@ class Classifier:
         
         D_index = np.min(inter_cluster_distances)/np.max(intra_cluster_distances)
         
-        print(f'Done, Time taken: {time.time()-pre}s')
+        print(f'Done. Time taken: {time.time()-pre}s')
         
         self.Dunn_index = D_index
         
         return D_index
     
     def get_silhouette_index(self, data_mat, labels = None):
-        
+        """
+        Calculates the silhouette index of clustered data.
+
+        Parameters
+        ----------
+        data_mat : ndarray
+            Array containing the feature vectors.
+        labels : itr, optional
+            Iterable containg the labels of the feature vectors. If no labels
+            are given, they are calculated using the mass_predict method.
+
+        Returns
+        -------
+        S_index : float
+            Silhouette index.
+
+        """
         if labels is None:
             print('Getting labels...')
             labels = self.mass_predict(data_mat)
         
         k = len(self.centroids)
         
+        print('Calculating Silhouette index...')
+        
+        pre=time.time()
+        
         s_coefs = np.empty(len(data_mat))
         
         for i, vec1 in enumerate(data_mat):
-            in_cluster = data_mat.delete(i, axis=0)[np.where(labels == labels[i])]
+            in_cluster = np.delete(data_mat, i, axis=0)
+            in_cluster = in_cluster[np.where(np.delete(labels, i) == labels[i])]
             
             in_cluster_size = len(in_cluster)
             
@@ -2693,34 +2776,21 @@ class Classifier:
             
             s_coefs[i] = (bi-ai)/max(ai,bi)
             
+            print(i)
+            
         S_index = np.mean(s_coefs)
+        
+        print(f'Done. Time taken: {time.time()-pre}s')
         
         self.Silhouette_index = S_index
         
         return S_index
-        
-    
 
 if __name__ == "__main__":
     pre = time.time()
     data = Data('nyc', 2019, 9)
-    print(time.time() - pre)    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+    print(time.time() - pre)
+
     
     
     

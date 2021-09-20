@@ -14,7 +14,9 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import contextily as ctx
 import bikeshare as bs
+import simpledtw as dtw
 import plotting
+import time
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
 #%% Load data
@@ -35,11 +37,12 @@ with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}{data.month
     
 #%% Clustering
 
-k = 5
+k = 2
 
 clf = bs.Classifier()
 
-clf.k_means(traffic_matrix, k)
+
+clf.k_means(traffic_matrix, k, seed = 42)
 
 labels = clf.mass_predict(traffic_matrix)
 
@@ -137,7 +140,125 @@ for i in range(k):
     plt.title(f'Hourly traffic for centroid of cluster {i} (n = {len(traffic_cluster)})')
     fig.show()
 
+#%%
 
+# =============================================================================
+#     init_clusters_SA
+# =============================================================================
+
+    data_mat = traffic_matrix
+    k = 4
+    T_start = 50
+    T_end = 1
+    alpha = 0.5
+    iter_time = 5
+    
+    n = len(data_mat)
+    
+    T = T_start
+    
+    labels = np.random.randint(low = 0, high = k, size = n)
+    
+    centroids = np.empty(shape=(k, data_mat.shape[1]))    
+    
+    furthest_neighbors = np.empty(shape=(k,k))
+    
+    inner_cluster_sum = 0
+    for i in range(k):
+        cluster = data_mat[np.where(labels == i)]
+        centroids[i,:] = np.mean(cluster, axis = 0)
+        inner_distances = np.empty(len(cluster))
+        
+        for j, vec in enumerate(cluster):
+            inner_distances[j] = dtw.dtw(vec, centroids[i])[1]
+        
+        furthest_neighbors[i,:] = np.argpartition(inner_distances, -k)[-k:]
+        
+        inner_cluster_sum += np.sum(inner_distances)
+    
+    inter_cluster_sum = 0
+    for i in range(k-1):
+        cluster_i = data_mat[np.where(labels == i)]
+        
+        for j in range(i+1,k):
+            distances = np.empty(len(cluster_i))
+            for l, vec in enumerate(cluster_i):
+                distances[l] = dtw.dtw(vec, centroids[j])[1]
+            
+            inter_cluster_sum += np.mean(distances)
+    
+    E_obj = inter_cluster_sum/inner_cluster_sum
+    
+    E_best = E_obj
+    
+    counter = 0
+    while T > T_end:
+        pre = time.time()
+        num = 0
+        while num < iter_time:
+            
+            labels_new = labels.copy()
+            
+            for i in range(k):
+                for neighbor in furthest_neighbors[i]:
+                    new_labels = [j for j in range(k) if j != i]
+                    labels_new[int(neighbor)] = np.random.choice(new_labels)
+            
+            centroids_new = np.empty(shape=(k, data_mat.shape[1]))    
+            furthest_neighbors_new = np.empty(shape=(k,k))
+            
+            inner_cluster_sum = 0
+            for i in range(k):
+                cluster = data_mat[np.where(labels_new == i)]
+                centroids_new[i,:] = np.mean(cluster, axis = 0)
+                inner_distances = np.empty(len(cluster))
+                
+                for j, vec in enumerate(cluster):
+                    inner_distances[j] = dtw.dtw(vec, centroids_new[i])[1]
+                
+                furthest_neighbors_new[i,:] = np.argpartition(inner_distances, -k)[-k:]
+                
+                inner_cluster_sum += np.sum(inner_distances)
+            
+            inter_cluster_sum = 0
+            for i in range(k-1):
+                cluster_i = data_mat[np.where(labels_new == i)]
+                
+                for j in range(i+1,k):
+                    distances = np.empty(len(cluster_i))
+                    for l, vec in enumerate(cluster_i):
+                        distances[l] = dtw.dtw(vec, centroids_new[j])[1]
+                    
+                    inter_cluster_sum += np.mean(distances)
+            
+            E_new = inter_cluster_sum/inner_cluster_sum
+            
+            dE = E_obj - E_new
+            
+            if dE > 0:
+                labels = labels_new
+                centroids = centroids_new
+                furthest_neighbors = furthest_neighbors_new
+                E_obj = E_new
+                
+                if E_best > E_new:
+                    E_best = E_new
+                    print(E_best)
+                    num = 0
+                else:
+                    num += 1
+                    print(num)
+            
+            else:
+                if np.random.random_sample() <= min(1,np.exp(-dE/T)):
+                    labels = labels_new
+                    centroids = centroids_new
+                    furthest_neighbors = furthest_neighbors_new
+        
+        print(f'Iteration {counter} done. Runtime: {time.time()-pre}, num = {num}, Error = {E_obj}, T = {T}, new T = {alpha*T}')
+        
+        T = alpha*T
+        
 
 
 
