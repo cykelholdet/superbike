@@ -2560,27 +2560,69 @@ class Classifier:
         self.centroids = centroids
         print('Clustering done')
     
-    # def init_clusters_SA(self, data_mat, k, T_start, T_end = 1. alpha = 0.05):
+    
+    def h_clustering(self, data_mat, k, init_distance_filename):
         
-    #     n = len(data_mat)
+        n = len(data_mat)
         
-    #     indices = np.arange(n)
-    #     shuffled_indices = np.random.shuffle(indices)
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+        cluster_list = np.array([set([i]) for i in range(n)])
+        
+        try:
+            with open(init_distance_filename, 'rb') as file:
+                distance_matrix = pickle.load(file)
+                print('Pickle loaded.')
+        
+        except FileNotFoundError:
+            print('No pickled distance matrix found. Calculating new distance matrix... \n This may take a couple of hours...')
+        
+            distance_matrix = np.full(shape = (n,n), fill_value = np.inf)
+            for i in range(n-1):
+                for j in range(i+1,n):
+                    distance_matrix[i,j] = dtw.dtw(data_mat[i], data_mat[j])[1]
+            
+            print('Pickling distance_matrix...')
+            with open(init_distance_filename, 'rb') as file:
+                pickle.dump(distance_matrix, file)
+                print('Pickling done.')
+        
+        print('Starting clustering...')
+        
+        temp_mat = data_mat.copy()
+        
+        while len(cluster_list) > k:
+            min_indices = np.where(distance_matrix == np.min(distance_matrix))
+            stat_1 = np.min(min_indices)
+            stat_2 = np.max(min_indices)
+            
+            cluster_list[stat_1] = cluster_list[stat_1] | cluster_list[stat_2]
+            cluster_list = np.delete(cluster_list, stat_2)
+            distance_matrix = np.delete(distance_matrix, stat_2, axis = 0)
+            distance_matrix = np.delete(distance_matrix, stat_2, axis = 1)
+            
+            temp_mat = np.delete(temp_mat, stat_2, axis = 0)
+            
+            cluster_mat = data_mat[list(cluster_list[stat_1])]
+            centroid = np.mean(cluster_mat, axis = 0)
+            
+            temp_mat[stat_1] = centroid
+            
+            for i, stat in enumerate(temp_mat):
+                if i < stat_1:
+                    distance_matrix[i, stat_1] = dtw.dtw(stat, centroid)[1]
+                elif i > stat_1:
+                    distance_matrix[stat_1, i] = dtw.dtw(stat, centroid)[1]
+        
+        centroids = np.empty(k)
+        
+        for i in range(k):
+            cluster_mat = data_mat[list(cluster_list[i])]
+            centroids[i] = np.mean(cluster_mat)
+        
+        print('Clustering done.')
+        
+        self.centroids = centroids
+        
+        return centroids
     
     def predict(self, vec):
         if self.centroids is None:
@@ -2789,8 +2831,4 @@ class Classifier:
 if __name__ == "__main__":
     pre = time.time()
     data = Data('nyc', 2019, 9)
-    print(time.time() - pre)
-
-    
-    
-    
+    print(time.time() - pre)    
