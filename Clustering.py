@@ -42,7 +42,10 @@ k = 3
 clf = bs.Classifier()
 
 init_distance_filename = f'./python_variables/distance_matrix_{data.city}{data.year}{data.month:02d}_{period}.pickle'
+
+pre = time.time()
 clf.h_clustering(traffic_matrix, k, init_distance_filename)
+print(f'Time taken: {time.time()-pre}s')
 
 labels = clf.mass_predict(traffic_matrix)
 

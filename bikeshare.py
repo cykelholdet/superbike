@@ -2612,11 +2612,11 @@ class Classifier:
                 elif i > stat_1:
                     distance_matrix[stat_1, i] = dtw.dtw(stat, centroid)[1]
         
-        centroids = np.empty(k)
+        centroids = np.empty(shape=(k,data_mat.shape[1]))
         
         for i in range(k):
             cluster_mat = data_mat[list(cluster_list[i])]
-            centroids[i] = np.mean(cluster_mat)
+            centroids[i,:] = np.mean(cluster_mat)
         
         print('Clustering done.')
         
