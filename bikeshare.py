@@ -2560,42 +2560,37 @@ class Classifier:
         self.centroids = centroids
         print('Clustering done')
     
-    
-    def h_clustering(self, data_mat, k, init_distance_filename):
+    def h_clustering_find_clusters(self, data_mat):
         
         n = len(data_mat)
         
+        print('Calculating initial distance matrix...')
+        
+        distance_matrix = np.full(shape = (n,n), fill_value = np.inf)
+        for i in range(n-1):
+            for j in range(i+1,n):
+                distance_matrix[i,j] = dtw.dtw(data_mat[i], data_mat[j])[1]
+        
         cluster_list = np.array([set([i]) for i in range(n)])
-        
-        try:
-            with open(init_distance_filename, 'rb') as file:
-                distance_matrix = pickle.load(file)
-                print('Pickle loaded.')
-        
-        except FileNotFoundError:
-            print('No pickled distance matrix found. Calculating new distance matrix... \n This may take a couple of hours...')
-        
-            distance_matrix = np.full(shape = (n,n), fill_value = np.inf)
-            for i in range(n-1):
-                for j in range(i+1,n):
-                    distance_matrix[i,j] = dtw.dtw(data_mat[i], data_mat[j])[1]
-            
-            print('Pickling distance_matrix...')
-            with open(init_distance_filename, 'rb') as file:
-                pickle.dump(distance_matrix, file)
-                print('Pickling done.')
         
         print('Starting clustering...')
         
-        temp_mat = data_mat.copy()
+        clustering_history = [0 for _ in range(n)]
+        clustering_history[0] = cluster_list
         
-        while len(cluster_list) > k:
+        temp_mat = data_mat.copy()
+        pre = time.time()
+        count = 0
+        while len(cluster_list) > 1:
             min_indices = np.where(distance_matrix == np.min(distance_matrix))
             stat_1 = np.min(min_indices)
             stat_2 = np.max(min_indices)
             
             cluster_list[stat_1] = cluster_list[stat_1] | cluster_list[stat_2]
             cluster_list = np.delete(cluster_list, stat_2)
+            
+            clustering_history[count+1] = cluster_list
+            
             distance_matrix = np.delete(distance_matrix, stat_2, axis = 0)
             distance_matrix = np.delete(distance_matrix, stat_2, axis = 1)
             
@@ -2611,18 +2606,40 @@ class Classifier:
                     distance_matrix[i, stat_1] = dtw.dtw(stat, centroid)[1]
                 elif i > stat_1:
                     distance_matrix[stat_1, i] = dtw.dtw(stat, centroid)[1]
+            
+            count += 1
+            if count%100 == 0:
+                print(f'{count} iterations done. Current runtime: {time.time()-pre}s')
         
+        print(f'Clustering done. Time taken: {time.time()-pre}s')
+        
+        return clustering_history
+        
+    def h_clustering(self, data_mat, k, results_filename):
+        
+        try:
+            with open(results_filename, 'rb') as file:
+                clustering_history = pickle.load(file)
+                print('Pickle loaded.')
+        
+        except FileNotFoundError:
+            print('No previous clustering has been found. Performing clustering...')
+            clustering_history = self.h_clustering_find_clusters(data_mat)
+            print('Pickling clustering history...')
+            with open(results_filename, 'wb') as file:
+                pickle.dump(clustering_history, file)
+            print('Pickling done.')
+        
+        cluster_list = clustering_history[-k]
         centroids = np.empty(shape=(k,data_mat.shape[1]))
         
         for i in range(k):
             cluster_mat = data_mat[list(cluster_list[i])]
-            centroids[i,:] = np.mean(cluster_mat)
-        
-        print('Clustering done.')
+            centroids[i,:] = np.mean(cluster_mat, axis = 0)
         
         self.centroids = centroids
         
-        return centroids
+        return centroids, cluster_list
     
     def predict(self, vec):
         if self.centroids is None:

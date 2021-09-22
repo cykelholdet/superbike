@@ -37,15 +37,14 @@ with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}{data.month
 
 #%% Clustering
 
-k = 3
+k = 4
 
 clf = bs.Classifier()
 
-init_distance_filename = f'./python_variables/distance_matrix_{data.city}{data.year}{data.month:02d}_{period}.pickle'
+results_filename = f'./python_variables/h_clustering_{data.city}{data.year}{data.month:02d}_{period}.pickle'
 
-pre = time.time()
-clf.h_clustering(traffic_matrix, k, init_distance_filename)
-print(f'Time taken: {time.time()-pre}s')
+#clf.h_clustering(traffic_matrix, k, results_filename)
+clf.k_means(traffic_matrix, k, seed=69)
 
 labels = clf.mass_predict(traffic_matrix)
 
