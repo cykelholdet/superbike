@@ -2560,17 +2560,23 @@ class Classifier:
         self.centroids = centroids
         print('Clustering done')
     
-    def h_clustering_find_clusters(self, data_mat):
+    def h_clustering_find_clusters(self, data_mat, init_distance_filename):
         
         n = len(data_mat)
         
-        print('Calculating initial distance matrix...')
+        try:
+            with open(init_distance_filename, 'rb') as file:
+                distance_matrix = pickle.load(file)
+            print('pickle loaded.')
         
-        distance_matrix = np.full(shape = (n,n), fill_value = np.inf)
-        for i in range(n-1):
-            for j in range(i+1,n):
-                distance_matrix[i,j] = dtw.dtw(data_mat[i], data_mat[j])[1]
-        
+        except FileNotFoundError:
+            print('No pickle found. Calculating initial distance matrix...')
+            
+            distance_matrix = np.full(shape = (n,n), fill_value = np.inf)
+            for i in range(n-1):
+                for j in range(i+1,n):
+                    distance_matrix[i,j] = dtw.dtw(data_mat[i], data_mat[j])[1]
+
         cluster_list = np.array([set([i]) for i in range(n)])
         
         print('Starting clustering...')
@@ -2615,7 +2621,7 @@ class Classifier:
         
         return clustering_history
         
-    def h_clustering(self, data_mat, k, results_filename):
+    def h_clustering(self, data_mat, k, results_filename, init_distance_filename):
         
         try:
             with open(results_filename, 'rb') as file:
@@ -2624,7 +2630,7 @@ class Classifier:
         
         except FileNotFoundError:
             print('No previous clustering has been found. Performing clustering...')
-            clustering_history = self.h_clustering_find_clusters(data_mat)
+            clustering_history = self.h_clustering_find_clusters(data_mat, init_distance_filename)
             print('Pickling clustering history...')
             with open(results_filename, 'wb') as file:
                 pickle.dump(clustering_history, file)

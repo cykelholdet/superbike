@@ -42,6 +42,8 @@ k = 4
 clf = bs.Classifier()
 
 results_filename = f'./python_variables/h_clustering_{data.city}{data.year}{data.month:02d}_{period}.pickle'
+init_distance_filename = f'./python_variables/distance_matrix_{data.city}{data.year}{data.month:02d}_{period}.pickle'
+
 
 #clf.h_clustering(traffic_matrix, k, results_filename)
 clf.k_means(traffic_matrix, k, seed=69)
