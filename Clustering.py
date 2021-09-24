@@ -35,17 +35,21 @@ data=bs.Data(city,year,month)
 with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}{data.month:02d}_{period}.pickle', 'rb') as file:
         traffic_matrix=pickle.load(file)
 
+#%% k-test
+
+clf = bs.Classifier(dist_func = 'norm')
+
+clf.k_means_test(traffic_matrix, k_max = 10, seed = 69)
+
 #%% Clustering
 
-k = 4
+k = 5
 
-clf = bs.Classifier()
+clf = bs.Classifier(dist_func = 'norm')
 
 results_filename = f'./python_variables/h_clustering_{data.city}{data.year}{data.month:02d}_{period}.pickle'
 init_distance_filename = f'./python_variables/distance_matrix_{data.city}{data.year}{data.month:02d}_{period}.pickle'
-
-
-#clf.h_clustering(traffic_matrix, k, results_filename)
+# clf.h_clustering(traffic_matrix, k, results_filename, init_distance_filename)
 clf.k_means(traffic_matrix, k, seed=69)
 
 labels = clf.mass_predict(traffic_matrix)
@@ -122,19 +126,19 @@ for i in range(k):
     
     traffic_cluster = traffic_matrix[np.where(labels == i)]
     
-    arrivals_std = np.std(traffic_cluster[:,:24]*100, axis=0)
-    departures_std = np.std(traffic_cluster[:,24:]*100, axis=0)
+    arrivals_std = np.std(traffic_cluster[:,24:]*100, axis=0)
+    departures_std = np.std(traffic_cluster[:,:24]*100, axis=0)
     
     fig, ax = plt.subplots()
-    ax.plot(np.arange(24), clf.centroids[i][:24]*100)
     ax.plot(np.arange(24), clf.centroids[i][24:]*100)
+    ax.plot(np.arange(24), clf.centroids[i][:24]*100)
     plt.xticks(np.arange(24))
     
-    plt.fill_between(np.arange(24), clf.centroids[i][:24]*100-arrivals_std, 
-                             clf.centroids[i][:24]*100+arrivals_std, 
+    plt.fill_between(np.arange(24), clf.centroids[i][24:]*100-arrivals_std, 
+                             clf.centroids[i][24:]*100+arrivals_std, 
                              facecolor='b',alpha=0.2)
-    plt.fill_between(np.arange(24), clf.centroids[i][24:]*100-departures_std, 
-                     clf.centroids[i][24:]*100+departures_std, 
+    plt.fill_between(np.arange(24), clf.centroids[i][:24]*100-departures_std, 
+                     clf.centroids[i][:24]*100+departures_std, 
                      facecolor='orange',alpha=0.2)
     
     
@@ -144,6 +148,19 @@ for i in range(k):
     plt.title(f'Hourly traffic for centroid of cluster {i} (n = {len(traffic_cluster)})')
     fig.show()
 
+#%% Plot all of one cluster
+
+label = 3
+
+label_indices = np.where(labels == label)
+
+count = 0
+for stat_index in label_indices[0]:
+    data.daily_traffic_average(stat_index, plot=True)
+    count += 1
+    print(count)
+    
+    
 #%%
 
 # =============================================================================

@@ -2458,7 +2458,7 @@ class Data:
                 plt.ylabel('# trips')
             
             plt.xticks(np.arange(24))
-            plt.legend(['Arrivals','Departures','$\pm$std - arrivals','$\pm$std - departures'])
+            # plt.legend(['Arrivals','Departures','$\pm$std - arrivals','$\pm$std - departures'])
             plt.xlabel('Hour')
             
             month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
@@ -2513,28 +2513,46 @@ class Data:
         print(f'Pickling done. Time taken: {time.time()-pre}')
     
 class Classifier:
-    def __init__(self):
+    def __init__(self, dist_func):
+        
+        if dist_func == 'norm':
+            self.dist = self.dist_norm
+        elif dist_func == 'dtw':
+            self.dist = self.dist_dtw
+            
         self.centroids = None
         self.Davies_Bouldin_index = None
         self.Dunn_index = None
     
-    def k_means(self, data_matrix, k, max_iter = 15, seed = None):
+    
+    def dist_norm(self, vec1, vec2):
+        return np.linalg.norm(vec1-vec2)
+    
+    def dist_dtw(self, vec1, vec2):
+        return dtw.dtw(vec1, vec2)[1]
+    
+    def k_means(self, data_matrix, k, iter_centroids = None, max_iter = 15, seed = None, mute = False):
 
         n_stations = len(data_matrix)
 
         stat_indices = np.arange(n_stations)
         
-        if seed:
-            np.random.seed(seed)
+        if type(iter_centroids) != type(None):
+            centroids = iter_centroids
         
-        np.random.shuffle(stat_indices)
-        centroid_indices = stat_indices[:k]
-        centroids = data_matrix[centroid_indices,:]
-        
+        else:
+            if seed:
+                np.random.seed(seed)
+            
+            np.random.shuffle(stat_indices)
+            centroid_indices = stat_indices[:k]
+            centroids = data_matrix[centroid_indices,:]
+            
         labels_old = np.ones(n_stations)
         labels_new = np.zeros(n_stations)
         
-        print('Starting clustering...')
+        if not mute:
+            print('Starting clustering...')
         
         pre = time.time()
         
@@ -2545,7 +2563,7 @@ class Classifier:
             for stat_index in range(n_stations):
                 distances = np.empty(k)
                 for center_index in range(k):
-                    distances[center_index] = dtw.dtw(data_matrix[stat_index,:], centroids[center_index,:])[1]
+                    distances[center_index] = self.dist(data_matrix[stat_index,:], centroids[center_index,:])
                     
                 labels_new[stat_index] = np.argmin(distances)
             
@@ -2555,10 +2573,12 @@ class Classifier:
         
             i+=1
             
-            print(f'Iteration: {i} - # Changed labels: {sum(labels_old-labels_new != 0)} - Runtime: {time.time()-pre}s')
+            if not mute:
+                print(f'Iteration: {i} - # Changed labels: {sum(labels_old-labels_new != 0)} - Runtime: {time.time()-pre}s')
             
         self.centroids = centroids
-        print('Clustering done')
+        if not mute:
+            print('Clustering done')
     
     def h_clustering_find_clusters(self, data_mat, init_distance_filename):
         
@@ -2575,7 +2595,7 @@ class Classifier:
             distance_matrix = np.full(shape = (n,n), fill_value = np.inf)
             for i in range(n-1):
                 for j in range(i+1,n):
-                    distance_matrix[i,j] = dtw.dtw(data_mat[i], data_mat[j])[1]
+                    distance_matrix[i,j] = 1/np.sqrt(2)*self.dist(data_mat[i], data_mat[j])
 
         cluster_list = np.array([set([i]) for i in range(n)])
         
@@ -2608,10 +2628,14 @@ class Classifier:
             temp_mat[stat_1] = centroid
             
             for i, stat in enumerate(temp_mat):
+                stat_cluster_size = len(cluster_list[i])
+                centroid_cluster_size = len(cluster_list[stat_1])
+                w = np.sqrt(stat_cluster_size * centroid_cluster_size/(stat_cluster_size + centroid_cluster_size))
+                
                 if i < stat_1:
-                    distance_matrix[i, stat_1] = dtw.dtw(stat, centroid)[1]
+                    distance_matrix[i, stat_1] = w*self.dist(stat, centroid)
                 elif i > stat_1:
-                    distance_matrix[stat_1, i] = dtw.dtw(stat, centroid)[1]
+                    distance_matrix[stat_1, i] = w*self.dist(stat, centroid)
             
             count += 1
             if count%100 == 0:
@@ -2632,9 +2656,9 @@ class Classifier:
             print('No previous clustering has been found. Performing clustering...')
             clustering_history = self.h_clustering_find_clusters(data_mat, init_distance_filename)
             print('Pickling clustering history...')
-            with open(results_filename, 'wb') as file:
-                pickle.dump(clustering_history, file)
-            print('Pickling done.')
+            # with open(results_filename, 'wb') as file:
+                # pickle.dump(clustering_history, file)
+            # print('Pickling done.')
         
         cluster_list = clustering_history[-k]
         centroids = np.empty(shape=(k,data_mat.shape[1]))
@@ -2656,7 +2680,7 @@ class Classifier:
         
         distances = np.empty(len(self.centroids))
         for center_index in range(len(self.centroids)):
-            distances[center_index] = dtw.dtw(vec, self.centroids[center_index])[1]
+            distances[center_index] = self.dist(vec, self.centroids[center_index])
         
         return np.argmin(distances)
         
@@ -2702,7 +2726,7 @@ class Classifier:
         
         for i in range(k):
             data_mat_cluster = data_mat[np.where(labels == i)]
-            distances = [dtw.dtw(row, self.centroids[i])[1] for row in data_mat_cluster]
+            distances = [self.dist(row, self.centroids[i]) for row in data_mat_cluster]
             S_scores[i] = np.mean(distances)
         
         R = np.empty(shape=(k,k))
@@ -2711,7 +2735,7 @@ class Classifier:
                 if i == j:
                     R[i,j] = 0
                 else:
-                    R[i,j] = (S_scores[i] + S_scores[j])/dtw.dtw(self.centroids[i], self.centroids[j])[1]
+                    R[i,j] = (S_scores[i] + S_scores[j])/self.dist(self.centroids[i], self.centroids[j])
             
         D = [max(row) for row in R]
         
@@ -2724,7 +2748,7 @@ class Classifier:
         
         return DB_index
     
-    def get_Dunn_index(self, data_mat, labels = None):
+    def get_Dunn_index(self, data_mat, labels = None, mute = False):
         """
         Calculates the Dunn index of clustered data. WARNING: VERY SLOW.
 
@@ -2743,12 +2767,14 @@ class Classifier:
 
         """
         if labels is None:
-            print('Getting labels...')
+            if not mute:
+                print('Getting labels...')
             labels = self.mass_predict(data_mat)
         
         k = len(self.centroids)
         
-        print('Calculating Dunn Index...')
+        if not mute:
+            print('Calculating Dunn Index...')
         
         pre=time.time()
         
@@ -2762,7 +2788,7 @@ class Classifier:
             
             for h in range(cluster_size):
                 for j in range(cluster_size):
-                    distances[h,j] = dtw.dtw(data_mat[h], data_mat[j])[1]
+                    distances[h,j] = self.dist(data_mat[h], data_mat[j])
             
             intra_cluster_distances[i] = np.max(distances)
 
@@ -2773,18 +2799,19 @@ class Classifier:
                     between_cluster_distances = np.empty(shape=(cluster_size, cluster_size_j))
                     for m in range(cluster_size):
                         for n in range(cluster_size_j):
-                            between_cluster_distances[m,n] = dtw.dtw(data_mat_cluster[m], data_mat_cluster_j[n])[1]
+                            between_cluster_distances[m,n] = self.dist(data_mat_cluster[m], data_mat_cluster_j[n])
                     inter_cluster_distances[i,j] = np.min(between_cluster_distances)
         
         D_index = np.min(inter_cluster_distances)/np.max(intra_cluster_distances)
         
-        print(f'Done. Time taken: {time.time()-pre}s')
+        if not mute:
+            print(f'Done. Time taken: {time.time()-pre}s')
         
         self.Dunn_index = D_index
         
         return D_index
     
-    def get_silhouette_index(self, data_mat, labels = None):
+    def get_silhouette_index(self, data_mat, labels = None, mute = False):
         """
         Calculates the silhouette index of clustered data.
 
@@ -2803,12 +2830,14 @@ class Classifier:
 
         """
         if labels is None:
-            print('Getting labels...')
+            if not mute:
+                print('Getting labels...')
             labels = self.mass_predict(data_mat)
         
         k = len(self.centroids)
         
-        print('Calculating Silhouette index...')
+        if not mute:
+            print('Calculating Silhouette index...')
         
         pre=time.time()
         
@@ -2822,7 +2851,7 @@ class Classifier:
             
             in_cluster_distances = np.empty(in_cluster_size)
             for j, vec2 in enumerate(in_cluster):
-                in_cluster_distances[j] = dtw.dtw(vec1, vec2)[1]
+                in_cluster_distances[j] = self.dist(vec1, vec2)
             
             mean_out_cluster_distances = np.full(k, fill_value = np.inf)
             
@@ -2832,7 +2861,7 @@ class Classifier:
                     out_cluster_distances = np.empty(len(out_cluster))
                     
                     for l, vec2 in enumerate(out_cluster):
-                        out_cluster_distances[l] = dtw.dtw(vec1, vec2)[1]
+                        out_cluster_distances[l] = self.dist(vec1, vec2)
                     
                     mean_out_cluster_distances[j] = np.mean(out_cluster_distances)
         
@@ -2841,15 +2870,36 @@ class Classifier:
             
             s_coefs[i] = (bi-ai)/max(ai,bi)
             
-            print(i)
-            
         S_index = np.mean(s_coefs)
         
-        print(f'Done. Time taken: {time.time()-pre}s')
+        if not mute:
+            print(f'Done. Time taken: {time.time()-pre}s')
         
         self.Silhouette_index = S_index
         
         return S_index
+
+    def k_means_test(self, data_mat, k_min = 2, k_max = 10, seed = None):
+        
+        k_range = range(k_min, k_max+1)
+        
+        results = [0 for _ in k_range]
+        
+        for i, k in enumerate(k_range):
+            self.k_means(data_mat, k, seed = seed, mute = True)
+            labels = self.mass_predict(data_mat)
+            DB_index = self.get_Davies_Bouldin_index(data_mat, labels, mute = True)
+            D_index = self.get_Dunn_index(data_mat, labels, mute = True)
+            S_index = self.get_silhouette_index(data_mat, labels, mute = True)
+            
+            results[i] = (k, DB_index, D_index, S_index)
+        
+        print(f'{"Test result for k-means":^50}')
+        print('='*50)
+        print(f'{"k":5}{"DB_index":15}{"D_index":15}{"S_index":15}')
+        for result in results:
+            print(f'{result[0]:<5,d}{result[1]:<15.8f}{result[2]:<15.8f}{result[3]:<15,.8f}')
+
 
 if __name__ == "__main__":
     pre = time.time()
