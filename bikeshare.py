@@ -262,6 +262,7 @@ def get_data_month(city, year, month, blacklist=None):
 
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
 
 
         elif city == "washDC":
@@ -314,6 +315,7 @@ def get_data_month(city, year, month, blacklist=None):
 
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
 
 
         elif city == "chic":
@@ -378,6 +380,7 @@ def get_data_month(city, year, month, blacklist=None):
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
             df['duration'] = df['duration'].str.replace(',', '').astype(float)
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
 
 
         elif city == "sfran":
@@ -404,6 +407,7 @@ def get_data_month(city, year, month, blacklist=None):
 
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
 
 
         elif city == "sjose":
@@ -424,6 +428,7 @@ def get_data_month(city, year, month, blacklist=None):
 
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
 
 
         elif city == "london":
@@ -485,6 +490,7 @@ def get_data_month(city, year, month, blacklist=None):
 
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
 
             df = df[df.start_dt.dt.month == month]
 
@@ -504,6 +510,7 @@ def get_data_month(city, year, month, blacklist=None):
 
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
 
 
         elif city == "edinburgh":
@@ -519,6 +526,7 @@ def get_data_month(city, year, month, blacklist=None):
 
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
 
 
         elif city == "bergen":
@@ -534,6 +542,7 @@ def get_data_month(city, year, month, blacklist=None):
 
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
 
 
         elif city == "buenos_aires":
@@ -552,6 +561,7 @@ def get_data_month(city, year, month, blacklist=None):
 
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
 
 
         elif city == "madrid":
@@ -597,8 +607,7 @@ def get_data_month(city, year, month, blacklist=None):
             
             
             
-            
-            df['start_t'] = df['start_dt'].astype(str)
+            df.drop(columns=['start_t'], inplace=True)
 
             df['end_dt'] = df['start_dt'] + pd.to_timedelta(df['duration'], unit='s')
             #df['end_t'] = pd.to_datetime(df['end_dt']).astype(str)
@@ -646,8 +655,6 @@ def get_data_month(city, year, month, blacklist=None):
                                           format='%d/%m/%Y%H:%M:%S')
             df.drop(['start_date','start_time','end_date','end_time'], axis=1, inplace=True)
             df['duration'] = (df['end_dt'] - df['start_dt']).dt.total_seconds()
-
-            df['start_t'] = df['start_dt'].astype(str)
 
             stations = pd.DataFrame(pd.read_json("./data/stations_mexico.json",
                                                  lines=True)['stations'][0])
@@ -741,6 +748,7 @@ def get_data_month(city, year, month, blacklist=None):
             df['end_stat_desc'] = df['end_stat_id'].map(addr_dict)
 
             #df_nan = df[df.isna().any(axis=1)]
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
 
             df.dropna(inplace=True)
             df.sort_values(by=['start_dt'], inplace=True)
@@ -2305,17 +2313,19 @@ class Data:
         trips_arrivals = np.zeros(24)
         trips_departures = np.zeros(24)
         
+        
         for hour in range(24):
-                df_hour_start = df_stat_start.iloc[np.where(df_stat_start['start_t'] > f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:00:00')]
-                df_hour_start = df_hour_start.iloc[np.where(df_hour_start['start_t'] < f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:59:59')]
+                
+                mask = (df_stat_start['start_dt'].dt.day == day) & (df_stat_start['start_dt'].dt.hour == hour)
+                df_hour_start = df_stat_start.loc[mask]
                 
                 trips_departures[hour] = len(df_hour_start)
                 
-                df_hour_end = df_stat_end.iloc[np.where(df_stat_end['end_t'] > f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:00:00')]
-                df_hour_end = df_hour_end.iloc[np.where(df_hour_end['end_t'] < f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:59:59')]
+                mask = (df_stat_end['end_dt'].dt.day == day) & (df_stat_end['end_dt'].dt.hour == hour)
+                df_hour_end = df_stat_end.loc[mask]
                 
                 trips_arrivals[hour] = len(df_hour_end)
-        
+
         if normalise:
             trips_total = sum(trips_departures) + sum(trips_arrivals)
             trips_departures = trips_departures/trips_total
@@ -2395,13 +2405,17 @@ class Data:
             trips_departures_daily = np.empty(24)
             
             for hour in range(24):
-                df_hour_start = df_stat_start_day.iloc[np.where(df_stat_start_day['start_t'] > f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:00:00')]
-                df_hour_start = df_hour_start.iloc[np.where(df_hour_start['start_t'] < f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:59:59')]
+                #df_hour_start = df_stat_start_day.iloc[np.where(df_stat_start_day['start_t'] > f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:00:00')]
+                #df_hour_start = df_hour_start.iloc[np.where(df_hour_start['start_t'] < f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:59:59')]
+                mask = (df_stat_start_day['start_dt'].dt.day == day) & (df_stat_start_day['start_dt'].dt.hour == hour)
+                df_hour_start = df_stat_start_day.loc[mask]
                 
                 trips_departures_daily[hour] = len(df_hour_start)
                 
-                df_hour_end = df_stat_end_day.iloc[np.where(df_stat_end_day['end_t'] > f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:00:00')]
-                df_hour_end = df_hour_end.iloc[np.where(df_hour_end['end_t'] < f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:59:59')]
+                #df_hour_end = df_stat_end_day.iloc[np.where(df_stat_end_day['end_t'] > f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:00:00')]
+                #df_hour_end = df_hour_end.iloc[np.where(df_hour_end['end_t'] < f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:59:59')]
+                mask = (df_stat_end_day['end_dt'].dt.day == day) & (df_stat_end_day['end_dt'].dt.hour == hour)
+                df_hour_end = df_stat_end_day.loc[mask]
                 
                 trips_arrivals_daily[hour] = len(df_hour_end)
             
@@ -2914,3 +2928,4 @@ if __name__ == "__main__":
     pre = time.time()
     data = Data('nyc', 2019, 9)
     print(time.time() - pre)    
+    data.daily_traffic(247, 23, plot=True)
