@@ -23,7 +23,7 @@ from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
 city = 'nyc'
 year = 2019
-month = 9
+month = 4
 period = 'b' # 'b' = business days or 'w' = weekends
 
 # if city == 'nyc':
@@ -32,8 +32,14 @@ period = 'b' # 'b' = business days or 'w' = weekends
 
 data=bs.Data(city,year,month)
 
-with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}{data.month:02d}_{period}.pickle', 'rb') as file:
-        traffic_matrix=pickle.load(file)
+if period == 'b':
+    traffic_matrix = data.pickle_daily_traffic()[0]
+
+elif period == 'w':
+    traffic_matrix = data.pickle_daily_traffc()[1]
+
+# with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}{data.month:02d}_{period}.pickle', 'rb') as file:
+#         traffic_matrix=pickle.load(file)
 
 #%% k-test
 
@@ -43,7 +49,7 @@ clf.k_means_test(traffic_matrix, k_max = 10, seed = 69)
 
 #%% Clustering
 
-k = 5
+k = 3
 
 clf = bs.Classifier(dist_func = 'norm')
 

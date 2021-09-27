@@ -2500,9 +2500,14 @@ class Data:
         traffic_matrix_b = np.zeros(shape=(self.stat.n_tot, 48))
         traffic_matrix_w = np.zeros(shape=(self.stat.n_tot, 48))
        
+        count = 0
         for stat_index in range(self.stat.n_tot):
             traffic_matrix_b[stat_index,:24], traffic_matrix_b[stat_index,24:] = self.daily_traffic_average(stat_index,'b', normalise = normalise)
             traffic_matrix_w[stat_index,:24], traffic_matrix_w[stat_index,24:] = self.daily_traffic_average(stat_index,'w', normalise = normalise)
+            count += 1
+            if count%100 == 0:
+                print(f'{count} stations pickled. Current runtime: {time.time()-pre:.3f}s')
+        
         
         with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}_b.pickle', 'wb') as file:
             pickle.dump(traffic_matrix_b, file)
@@ -2511,6 +2516,10 @@ class Data:
             pickle.dump(traffic_matrix_w, file)
         
         print(f'Pickling done. Time taken: {time.time()-pre}')
+        
+        return traffic_matrix_b, traffic_matrix_w
+        
+        
     
 class Classifier:
     def __init__(self, dist_func):
