@@ -1062,19 +1062,16 @@ def station_locations(df, id_index):
         value : tuple (longitude, latitude)
 
     """
-
-    # Create Dictionary Station : Position
-    locations = dict()
-
-    for e in id_index.keys():
-
-        if df[df['start_stat_id'] == e]['start_stat_lat'].shape[0]:
-            locations[id_index[e]] = (df[df['start_stat_id'] == e]['start_stat_long'].iloc[0],
-                                      df[df['start_stat_id'] == e]['start_stat_lat'].iloc[0])
-        else:
-            locations[id_index[e]] = (df[df['end_stat_id'] == e]['end_stat_long'].iloc[0],
-                                      df[df['end_stat_id'] == e]['end_stat_lat'].iloc[0])
-
+    start_loc = df[['start_stat_id', 'start_stat_lat', 'start_stat_long']].drop_duplicates()
+    end_loc = df[['end_stat_id', 'end_stat_lat', 'end_stat_long']].drop_duplicates()
+    
+    c = pd.concat([start_loc, end_loc.rename(
+        columns={'end_stat_id': 'start_stat_id', 'end_stat_lat': 'start_stat_lat', 'end_stat_long': 'start_stat_long'}
+        )], axis=0, ignore_index=True)
+    c.drop_duplicates(inplace=True)
+    c['start_stat_id'] = c['start_stat_id'].map(id_index)
+    locations = c.set_index('start_stat_id').sort_index()[['start_stat_long', 'start_stat_lat']].apply(tuple, axis=1).to_dict()
+    
     return locations
 
 
@@ -1096,20 +1093,18 @@ def station_names(df, id_index):
         value : string containing station name
 
     """
-
-    # Create Dictionary Station : Names
-    names = dict()
-
-    for e in id_index.keys():
-
-        if df[df['start_stat_id'] == e]['start_stat_name'].shape[0]:
-            names[id_index[e]] = df[df['start_stat_id'] == e]['start_stat_name'].iloc[0]
-
-        else:
-            names[id_index[e]] = df[df['end_stat_id'] == e]['end_stat_name'].iloc[0]
-
+    
+    start_name = df[['start_stat_id', 'start_stat_name']].drop_duplicates()
+    end_name = df[['end_stat_id', 'end_stat_name']].drop_duplicates()
+    
+    c = pd.concat([start_name, end_name.rename(
+        columns={'end_stat_id': 'start_stat_id', 'end_stat_name': 'start_stat_name'}
+        )], axis=0, ignore_index=True)
+    c.drop_duplicates(inplace=True)
+    c['start_stat_id'] = c['start_stat_id'].map(id_index)
+    names = c.set_index('start_stat_id').sort_index().to_dict()['start_stat_name']
     return names
-
+    
 
 def diradjacency(df, city, year, month, day_index, days, stations,
                  threshold=1, remove_self_loops=True):
