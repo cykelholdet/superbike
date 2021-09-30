@@ -2385,72 +2385,48 @@ class Data:
         else:
             raise ValueError("Please provide the period as either 'b' = business days or 'w' = weekends")
         
-        df_stat_start = self.df.iloc[np.where(self.df['start_stat_index'] == stat_index)]
-        df_stat_end = self.df.iloc[np.where(self.df['end_stat_index'] == stat_index)]
+        df_start = self.df[self.df['start_stat_id'] == self.stat.inverse[stat_index]]['start_dt']
+        df_end = self.df[self.df['end_stat_id'] == self.stat.inverse[stat_index]]['end_dt']
         
         trips_arrivals = np.zeros(shape=(len(days), 24))
         trips_departures = np.zeros(shape=(len(days), 24))
         
+        start_day = df_start.dt.day
+        start_hour = df_start.dt.hour
+        
+        end_day = df_end.dt.day
+        end_hour = df_end.dt.hour
+        
+        
         for i, day in enumerate(days):
-            
-            df_stat_start_day = df_stat_start.iloc[np.where(df_stat_start.start_dt.dt.day == day)]
-            df_stat_end_day = df_stat_end.iloc[np.where(df_stat_end.start_dt.dt.day == day)]
-            
-            trips_arrivals_daily = np.empty(24)
-            trips_departures_daily = np.empty(24)
-            
             for hour in range(24):
-                #df_hour_start = df_stat_start_day.iloc[np.where(df_stat_start_day['start_t'] > f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:00:00')]
-                #df_hour_start = df_hour_start.iloc[np.where(df_hour_start['start_t'] < f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:59:59')]
-                mask = (df_stat_start_day['start_dt'].dt.day == day) & (df_stat_start_day['start_dt'].dt.hour == hour)
-                df_hour_start = df_stat_start_day.loc[mask]
+                trips_departures[i, hour] = np.sum((start_day == day) & (start_hour == hour))
+                trips_arrivals[i, hour] = np.sum((end_day == day) & (end_hour == hour))
                 
-                trips_departures_daily[hour] = len(df_hour_start)
-                
-                #df_hour_end = df_stat_end_day.iloc[np.where(df_stat_end_day['end_t'] > f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:00:00')]
-                #df_hour_end = df_hour_end.iloc[np.where(df_hour_end['end_t'] < f'{self.year:d}-{self.month:02d}-{day:02d} {hour:02d}:59:59')]
-                mask = (df_stat_end_day['end_dt'].dt.day == day) & (df_stat_end_day['end_dt'].dt.hour == hour)
-                df_hour_end = df_stat_end_day.loc[mask]
-                
-                trips_arrivals_daily[hour] = len(df_hour_end)
-            
-            trips_departures[i,:] = trips_departures_daily
-            trips_arrivals[i,:] = trips_arrivals_daily
-
-        # print(stat_index)
-        
-        active_indices = set(np.where(np.sum(trips_departures, axis=1) != 0)[0]) | set(np.where(np.sum(trips_arrivals, axis=1) != 0)[0])
-        
-        trips_departures = trips_departures[list(active_indices)]
-        trips_arrivals = trips_arrivals[list(active_indices)]
         
         if normalise:
-            daily_totals = np.sum(trips_departures, axis=1) + np.sum(trips_arrivals, axis = 1)
-            for i in range(len(trips_departures)):
-                trips_departures[i,:] = trips_departures[i,:]/daily_totals[i]
-                trips_arrivals[i,:] = trips_arrivals[i,:]/daily_totals[i]
+            daily_totals = trips_arrivals.sum(axis=1) + trips_departures.sum(axis=1)
+            
+            trips_arrivals = np.divide(trips_arrivals.T, daily_totals).T
+            trips_departures = np.divide(trips_departures.T, daily_totals).T
         
-        if len(trips_departures) == 0:
-            trips_departures_average = np.zeros(24)
-            trips_arrivals_average = np.zeros(24)    
-        else:
-            trips_departures_average = np.mean(trips_departures, axis=0)
-            trips_arrivals_average = np.mean(trips_arrivals, axis=0)
+        trips_departures_average = np.mean(trips_departures, axis=0)
+        trips_arrivals_average = np.mean(trips_arrivals, axis=0)
             
         if plot:
             
-            trips_departures_std = np.std(trips_departures*100, axis=0)
-            trips_arrivals_std = np.std(trips_arrivals*100, axis=0)
+            trips_departures_std = np.std(trips_departures, axis=0)
+            trips_arrivals_std = np.std(trips_arrivals, axis=0)
             
             if normalise:
                 plt.plot(np.arange(24), trips_arrivals_average*100)
                 plt.plot(np.arange(24), trips_departures_average*100)
             
-                plt.fill_between(np.arange(24), trips_arrivals_average*100-trips_arrivals_std, 
-                                 trips_arrivals_average*100+trips_arrivals_std, 
+                plt.fill_between(np.arange(24), trips_arrivals_average*100-trips_arrivals_std*100, 
+                                 trips_arrivals_average*100+trips_arrivals_std*100, 
                                  facecolor='b',alpha=0.2)
-                plt.fill_between(np.arange(24), trips_departures_average*100-trips_departures_std, 
-                                 trips_departures_average*100+trips_departures_std, 
+                plt.fill_between(np.arange(24), trips_departures_average*100-trips_departures_std*100, 
+                                 trips_departures_average*100+trips_departures_std*100, 
                                  facecolor='orange',alpha=0.2)
                 plt.ylabel('% of total trips')
                 
@@ -2485,8 +2461,345 @@ class Data:
             return trips_departures_average, trips_arrivals_average, trips_departures, trips_arrivals
         else:
             return trips_departures_average, trips_arrivals_average
+    
+    def daily_traffic_average_all(self, period = 'b', normalise = True, plot = False, return_all = False):
+        """
+        Computes the average daily traffic of a station over either business
+        days or weekends. Both average number of departures and arrivals are 
+        computed for each hour.
+
+        Parameters
+        ----------
+        stat_index : int
+            Station index.
+        period : str, optional
+            Period to average over. Either 'b' = business days or 'w' = weekends. 
+            The default is 'b'.
+        plot : bool, optional
+            Plots the average daily traffic if set to True. The default is False.
+
+        Raises
+        ------
+        ValueError
+            Raised if period is not given as 'b' or 'w'.
+
+        Returns
+        -------
+        trips_departures_average : ndarray
+            24-dimensional array containing average number of departures for 
+            each hour.
+        trips_arrivals_average : ndarray
+            24-dimensional array containing average number of arrivals for 
+            each hour.
+
+        """
+        weekdays = [calendar.weekday(self.year,self.month,i) for i in range(1,calendar.monthrange(self.year,self.month)[1]+1)]
         
-    def pickle_daily_traffic(self, normalise = True):
+        if period == 'b': 
+            days = [date+1 for date, day in enumerate(weekdays) if day <= 4]
+        elif period == 'w':
+            days = [date+1 for date, day in enumerate(weekdays) if day > 4]
+        else:
+            raise ValueError("Please provide the period as either 'b' = business days or 'w' = weekends")
+        
+        df = self.df[np.isin(self.df['start_dt'].dt.day, days)] #Take the rows where the start day is in days
+        df_hours_start = [df[df['start_dt'].dt.hour == hour] for hour in range(24)]
+        count_start = dict()
+        start_hour_mat = dict()
+        for day in days:
+            for hour in range(24):
+                df_day_hour_start = df[(df['start_dt'].dt.day == day) & (df['start_dt'].dt.hour == hour)]
+                count_start[day, hour] = df_day_hour_start['start_stat_id'].value_counts().rename(hour)
+            start_hour_mat[day] = pd.concat([count_start[day, hour] for hour in range(24)], axis=1)
+        
+        df_count_start = pd.concat([start_hour_mat[day] for day in days], axis=1, keys=days, names=['day', 'hour']).fillna(0)
+        
+        df = self.df[np.isin(self.df['end_dt'].dt.day, days)] #Take the rows where the start day is in days
+        df_hours_start = [df[df['end_dt'].dt.hour == hour] for hour in range(24)]
+        c_end = dict()
+        end_hour_mat = dict()
+        for day in days:
+            for hour in range(24):
+                df_day_hour_end = df[(df['end_dt'].dt.day == day) & (df['end_dt'].dt.hour == hour)]
+                c_end[day, hour] = df_day_hour_end['end_stat_id'].value_counts().rename(hour)
+            end_hour_mat[day] = pd.concat([c_end[day, hour] for hour in range(24)], axis=1)
+        
+        df_count_end = pd.concat([end_hour_mat[day] for day in days], axis=1, keys=days, names=['day', 'hour']).fillna(0)
+        
+        
+        if normalise:
+            
+            for day in days:
+                day_sum = df_count_start[day].sum(axis=1).add(df_count_end[day].sum(axis=1), fill_value=0) # Series are added by their index, in this case station ID. fill_value interprets missing data as 0.
+                df_count_start[day] = df_count_start[day].divide(day_sum, axis=0).fillna(0) # NaN only shows up if row is all 0s, as sum is also 0.
+                df_count_end[day] = df_count_end[day].divide(day_sum, axis=0).fillna(0)
+        
+        trips_departures_average = pd.DataFrame()
+        trips_arrivals_average = pd.DataFrame()
+        for hour in range(24):
+            trips_departures_average[hour] = df_count_start.xs(hour, level=1, axis=1).mean(axis=1)
+            trips_arrivals_average[hour] = df_count_end.xs(hour, level=1, axis=1).mean(axis=1)
+        
+        trips_departures_std = pd.DataFrame()
+        trips_arrivals_std = pd.DataFrame()
+        for hour in range(24):
+            trips_departures_std[hour] = df_count_start.xs(hour, level=1, axis=1).std(axis=1)
+            trips_arrivals_std[hour] = df_count_end.xs(hour, level=1, axis=1).std(axis=1)
+            
+        if plot:
+            for station in self.stat.id_index.keys():     
+                print(station)
+                try:
+                    tda = trips_departures_average.loc[station]
+                    tds = trips_departures_std.loc[station]
+                except KeyError:
+                    tda = pd.Series(np.zeros(24))
+                    tds = pd.Series(np.zeros(24))
+                try:
+                    taa = trips_arrivals_average.loc[station]
+                    tas = trips_arrivals_std.loc[station]
+                except KeyError:
+                    taa = pd.Series(np.zeros(24))
+                    tas = pd.Series(np.zeros(24))
+                if normalise:
+                    
+                    
+                    plt.plot(np.arange(24), taa*100)
+                    plt.plot(np.arange(24), tda*100)
+                
+                    plt.fill_between(np.arange(24), taa*100-tas*100, 
+                                     taa*100+tas*100, 
+                                     facecolor='b',alpha=0.2)
+                    plt.fill_between(np.arange(24), tda*100-tds*100, 
+                                     tda*100+tds*100, 
+                                     facecolor='orange',alpha=0.2)
+                    plt.ylabel('% of total trips')
+                    
+                else:
+                    plt.plot(np.arange(24), taa)
+                    plt.plot(np.arange(24), tda)
+                
+                    plt.fill_between(np.arange(24), taa-tas, 
+                                     taa+tas, 
+                                     facecolor='b',alpha=0.2)
+                    plt.fill_between(np.arange(24), tda-tds, 
+                                     tda+tds, 
+                                     facecolor='orange',alpha=0.2)
+                    plt.ylabel('# trips')
+                
+                plt.xticks(np.arange(24))
+                # plt.legend(['Arrivals','Departures','$\pm$std - arrivals','$\pm$std - departures'])
+                plt.xlabel('Hour')
+                
+                month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
+                      7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+                
+                if period == 'b':
+                    plt.title(f'Average hourly traffic for {self.stat.names[self.stat.id_index[station]]} \n in {month_dict[self.month]} {self.year} on business days')
+                
+                elif period == 'w':
+                    plt.title(f'Average hourly traffic for {self.stat.names[self.stat.id_index[station]]} \n in {month_dict[self.month]} {self.year} on weekends')
+            
+                plt.show()
+        
+        if return_all:
+            return trips_departures_average, trips_arrivals_average, df_count_start, df_count_end
+        else:
+            return trips_departures_average, trips_arrivals_average
+        
+    def daily_traffic_average_all_mean_before_normalising(self, period = 'b', normalise = True, plot = False, return_all = False):
+        """
+        Computes the average daily traffic of a station over either business
+        days or weekends. Both average number of departures and arrivals are 
+        computed for each hour.
+
+        Parameters
+        ----------
+        stat_index : int
+            Station index.
+        period : str, optional
+            Period to average over. Either 'b' = business days or 'w' = weekends. 
+            The default is 'b'.
+        plot : bool, optional
+            Plots the average daily traffic if set to True. The default is False.
+
+        Raises
+        ------
+        ValueError
+            Raised if period is not given as 'b' or 'w'.
+
+        Returns
+        -------
+        trips_departures_average : ndarray
+            24-dimensional array containing average number of departures for 
+            each hour.
+        trips_arrivals_average : ndarray
+            24-dimensional array containing average number of arrivals for 
+            each hour.
+
+        """
+        weekdays = [calendar.weekday(self.year,self.month,i) for i in range(1,calendar.monthrange(self.year,self.month)[1]+1)]
+        
+        if period == 'b': 
+            days = [date+1 for date, day in enumerate(weekdays) if day <= 4]
+        elif period == 'w':
+            days = [date+1 for date, day in enumerate(weekdays) if day > 4]
+        else:
+            raise ValueError("Please provide the period as either 'b' = business days or 'w' = weekends")
+        
+        df = self.df[np.isin(self.df['start_dt'].dt.day, days)] #Take the rows where the start day is in days
+        df_hours_start = [df[df['start_dt'].dt.hour == hour] for hour in range(24)]
+        count_start = dict()
+        start_hour_mat = dict()
+        for day in days:
+            for hour in range(24):
+                df_day_hour_start = df[(df['start_dt'].dt.day == day) & (df['start_dt'].dt.hour == hour)]
+                count_start[day, hour] = df_day_hour_start['start_stat_id'].value_counts().rename(hour)
+            start_hour_mat[day] = pd.concat([count_start[day, hour] for hour in range(24)], axis=1)
+        
+        df_count_start = pd.concat([start_hour_mat[day] for day in days], axis=1, keys=days, names=['day', 'hour']).fillna(0)
+        
+        df = self.df[np.isin(self.df['end_dt'].dt.day, days)] #Take the rows where the start day is in days
+        df_hours_start = [df[df['end_dt'].dt.hour == hour] for hour in range(24)]
+        c_end = dict()
+        end_hour_mat = dict()
+        for day in days:
+            for hour in range(24):
+                df_day_hour_end = df[(df['end_dt'].dt.day == day) & (df['end_dt'].dt.hour == hour)]
+                c_end[day, hour] = df_day_hour_end['end_stat_id'].value_counts().rename(hour)
+            end_hour_mat[day] = pd.concat([c_end[day, hour] for hour in range(24)], axis=1)
+        
+        df_count_end = pd.concat([end_hour_mat[day] for day in days], axis=1, keys=days, names=['day', 'hour']).fillna(0)
+        
+
+        trips_departures_average = pd.DataFrame()
+        trips_arrivals_average = pd.DataFrame()
+        for hour in range(24):
+            trips_departures_average[hour] = df_count_start.xs(hour, level=1, axis=1).mean(axis=1)
+            trips_arrivals_average[hour] = df_count_end.xs(hour, level=1, axis=1).mean(axis=1)
+        
+        trips_departures_std = pd.DataFrame()
+        trips_arrivals_std = pd.DataFrame()
+        
+        for hour in range(24):
+            trips_departures_std[hour] = df_count_start.xs(hour, level=1, axis=1).std(axis=1)
+            trips_arrivals_std[hour] = df_count_end.xs(hour, level=1, axis=1).std(axis=1)
+        
+        if normalise:
+            day_sum = trips_departures_average.sum(axis=1).add(trips_arrivals_average.sum(axis=1), fill_value=0) # Series are added by their index, in this case station ID. fill_value interprets missing data as 0.
+            trips_departures_average = trips_departures_average.divide(day_sum, axis=0).fillna(0) # NaN only shows up if row is all 0s, as sum is also 0.
+            trips_arrivals_average = trips_arrivals_average.divide(day_sum, axis=0).fillna(0)
+            
+            trips_departures_std = trips_departures_std.divide(day_sum, axis=0).fillna(0) # NaN only shows up if row is all 0s, as sum is also 0.
+            trips_arrivals_std = trips_arrivals_std.divide(day_sum, axis=0).fillna(0)
+            
+        if plot:
+            for station in self.stat.id_index.keys():     
+                print(station)
+                try:
+                    tda = trips_departures_average.loc[station]
+                    tds = trips_departures_std.loc[station]
+                except KeyError:
+                    tda = pd.Series(np.zeros(24))
+                    tds = pd.Series(np.zeros(24))
+                try:
+                    taa = trips_arrivals_average.loc[station]
+                    tas = trips_arrivals_std.loc[station]
+                except KeyError:
+                    taa = pd.Series(np.zeros(24))
+                    tas = pd.Series(np.zeros(24))
+                if normalise:
+                    
+                    
+                    plt.plot(np.arange(24), taa*100)
+                    plt.plot(np.arange(24), tda*100)
+                
+                    plt.fill_between(np.arange(24), taa*100-tas*100, 
+                                     taa*100+tas*100, 
+                                     facecolor='b',alpha=0.2)
+                    plt.fill_between(np.arange(24), tda*100-tds*100, 
+                                     tda*100+tds*100, 
+                                     facecolor='orange',alpha=0.2)
+                    plt.ylabel('% of total trips')
+                    
+                else:
+                    plt.plot(np.arange(24), taa)
+                    plt.plot(np.arange(24), tda)
+                
+                    plt.fill_between(np.arange(24), taa-tas, 
+                                     taa+tas, 
+                                     facecolor='b',alpha=0.2)
+                    plt.fill_between(np.arange(24), tda-tds, 
+                                     tda+tds, 
+                                     facecolor='orange',alpha=0.2)
+                    plt.ylabel('# trips')
+                
+                plt.xticks(np.arange(24))
+                # plt.legend(['Arrivals','Departures','$\pm$std - arrivals','$\pm$std - departures'])
+                plt.xlabel('Hour')
+                
+                month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
+                      7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+                
+                if period == 'b':
+                    plt.title(f'Average hourly traffic for {self.stat.names[self.stat.id_index[station]]} \n in {month_dict[self.month]} {self.year} on business days')
+                
+                elif period == 'w':
+                    plt.title(f'Average hourly traffic for {self.stat.names[self.stat.id_index[station]]} \n in {month_dict[self.month]} {self.year} on weekends')
+            
+                plt.show()
+        
+        if return_all:
+            return trips_departures_average, trips_arrivals_average, df_count_start, df_count_end
+        else:
+            return trips_departures_average, trips_arrivals_average
+    
+    
+    
+        
+    # def pickle_daily_traffic(self, normalise = True):
+    #     """
+    #     Pickles matrices containing the average number of departures and 
+    #     arrivals to and from each station for every hour. One matrix
+    #     contains the average traffic on business days while the other contains 
+    #     the average traffic for weekends.
+        
+    #     The matrices are of shape (n,48) where n is the number of stations.
+    #     The first 24 entries in each row contains the average traffic for
+    #     business days and the last 24 entries contain the same for weekends.
+        
+
+    #     Returns
+    #     -------
+    #     None.
+
+    #     """
+        
+    #     print('Pickling average daily traffic for all stations... \nSit back and relax, this might take a while...')
+    #     pre = time.time()
+    #     traffic_matrix_b = np.zeros(shape=(self.stat.n_tot, 48))
+    #     traffic_matrix_w = np.zeros(shape=(self.stat.n_tot, 48))
+       
+    #     count = 0
+    #     for stat_index in range(self.stat.n_tot):
+    #         traffic_matrix_b[stat_index,:24], traffic_matrix_b[stat_index,24:] = self.daily_traffic_average(stat_index,'b', normalise = normalise)
+    #         traffic_matrix_w[stat_index,:24], traffic_matrix_w[stat_index,24:] = self.daily_traffic_average(stat_index,'w', normalise = normalise)
+    #         count += 1
+    #         if count%100 == 0:
+    #             print(f'{count} stations pickled. Current runtime: {time.time()-pre:.3f}s')
+        
+        
+    #     with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}_b.pickle', 'wb') as file:
+    #         pickle.dump(traffic_matrix_b, file)
+        
+    #     with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}_w.pickle', 'wb') as file:
+    #         pickle.dump(traffic_matrix_w, file)
+        
+    #     print(f'Pickling done. Time taken: {time.time()-pre}')
+        
+    #     return traffic_matrix_b, traffic_matrix_w
+    
+    def pickle_daily_traffic(self, normalise=True, plot=False):
         """
         Pickles matrices containing the average number of departures and 
         arrivals to and from each station for every hour. One matrix
@@ -2506,27 +2819,39 @@ class Data:
         
         print('Pickling average daily traffic for all stations... \nSit back and relax, this might take a while...')
         pre = time.time()
-        traffic_matrix_b = np.zeros(shape=(self.stat.n_tot, 48))
-        traffic_matrix_w = np.zeros(shape=(self.stat.n_tot, 48))
-       
-        count = 0
-        for stat_index in range(self.stat.n_tot):
-            traffic_matrix_b[stat_index,:24], traffic_matrix_b[stat_index,24:] = self.daily_traffic_average(stat_index,'b', normalise = normalise)
-            traffic_matrix_w[stat_index,:24], traffic_matrix_w[stat_index,24:] = self.daily_traffic_average(stat_index,'w', normalise = normalise)
-            count += 1
-            if count%100 == 0:
-                print(f'{count} stations pickled. Current runtime: {time.time()-pre:.3f}s')
+        departures_b, arrivals_b = self.daily_traffic_average_all('b', normalise=normalise, plot=plot)
+        print("Hang in there, we're halfway...")
+        departures_w, arrivals_w = self.daily_traffic_average_all('w', normalise=normalise, plot=plot)
         
+        id_index = self.stat.id_index
+        matrix_b = np.zeros((len(id_index.keys()), 48))
+        matrix_w = np.zeros((len(id_index.keys()), 48))
+        for id_, index in zip(id_index.keys(), id_index.values()):
+            try:
+                matrix_b[index, :24] = departures_b.loc[id_]
+            except KeyError:
+                print(f"Key {id_} not found in departures weekdays.")
+            try:
+                matrix_b[index, 24:] = arrivals_b.loc[id_]
+            except KeyError:
+                print(f"Key {id_} not found in arrivals weekdays.")
+            try:
+                matrix_w[index, :24] = departures_w.loc[id_]
+            except KeyError:
+                print(f"Key {id_} not found in departures weekend.")
+            try:
+                matrix_w[index, 24:] = arrivals_w.loc[id_]
+            except KeyError:
+                print(f"Key {id_} not found in arrivals weekdays.")
+            
+            
         
-        with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}_b.pickle', 'wb') as file:
-            pickle.dump(traffic_matrix_b, file)
-        
-        with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}_w.pickle', 'wb') as file:
-            pickle.dump(traffic_matrix_w, file)
+        with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}.pickle', 'wb') as file:
+            pickle.dump((matrix_b, matrix_w), file)
         
         print(f'Pickling done. Time taken: {time.time()-pre}')
         
-        return traffic_matrix_b, traffic_matrix_w
+        return matrix_b, matrix_w
         
         
     
@@ -2922,5 +3247,4 @@ class Classifier:
 if __name__ == "__main__":
     pre = time.time()
     data = Data('nyc', 2019, 9)
-    print(time.time() - pre)    
-    data.daily_traffic(247, 23, plot=True)
+    print(time.time() - pre)

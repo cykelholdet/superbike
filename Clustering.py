@@ -30,7 +30,7 @@ period = 'b' # 'b' = business days or 'w' = weekends
 #     gov_stations = [3254, 3182, 3479]
 #     data = bs.Data(city, year, month, blacklist=gov_stations)
 
-data=bs.Data(city,year,month)
+data = bs.Data(city,year,month)
 
 if period == 'b':
     traffic_matrix = data.pickle_daily_traffic()[0]
