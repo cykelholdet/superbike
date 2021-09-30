@@ -2503,7 +2503,7 @@ class Data:
             raise ValueError("Please provide the period as either 'b' = business days or 'w' = weekends")
         
         df = self.df[np.isin(self.df['start_dt'].dt.day, days)] #Take the rows where the start day is in days
-        df_hours_start = [df[df['start_dt'].dt.hour == hour] for hour in range(24)]
+        #df_hours_start = [df[df['start_dt'].dt.hour == hour] for hour in range(24)]
         count_start = dict()
         start_hour_mat = dict()
         for day in days:
@@ -2515,7 +2515,7 @@ class Data:
         df_count_start = pd.concat([start_hour_mat[day] for day in days], axis=1, keys=days, names=['day', 'hour']).fillna(0)
         
         df = self.df[np.isin(self.df['end_dt'].dt.day, days)] #Take the rows where the start day is in days
-        df_hours_start = [df[df['end_dt'].dt.hour == hour] for hour in range(24)]
+        #df_hours_start = [df[df['end_dt'].dt.hour == hour] for hour in range(24)]
         c_end = dict()
         end_hour_mat = dict()
         for day in days:
@@ -2648,7 +2648,7 @@ class Data:
             raise ValueError("Please provide the period as either 'b' = business days or 'w' = weekends")
         
         df = self.df[np.isin(self.df['start_dt'].dt.day, days)] #Take the rows where the start day is in days
-        df_hours_start = [df[df['start_dt'].dt.hour == hour] for hour in range(24)]
+        #df_hours_start = [df[df['start_dt'].dt.hour == hour] for hour in range(24)]
         count_start = dict()
         start_hour_mat = dict()
         for day in days:
@@ -2660,7 +2660,7 @@ class Data:
         df_count_start = pd.concat([start_hour_mat[day] for day in days], axis=1, keys=days, names=['day', 'hour']).fillna(0)
         
         df = self.df[np.isin(self.df['end_dt'].dt.day, days)] #Take the rows where the start day is in days
-        df_hours_start = [df[df['end_dt'].dt.hour == hour] for hour in range(24)]
+        #df_hours_start = [df[df['end_dt'].dt.hour == hour] for hour in range(24)]
         c_end = dict()
         end_hour_mat = dict()
         for day in days:
@@ -2874,14 +2874,14 @@ class Classifier:
     def dist_dtw(self, vec1, vec2):
         return dtw.dtw(vec1, vec2)[1]
     
-    def k_means(self, data_matrix, k, iter_centroids = None, max_iter = 15, seed = None, mute = False):
+    def k_means(self, data_matrix, k, init_centroids = None, max_iter = 15, seed = None, mute = False):
 
         n_stations = len(data_matrix)
 
         stat_indices = np.arange(n_stations)
         
-        if type(iter_centroids) != type(None):
-            centroids = iter_centroids
+        if type(init_centroids) != type(None):
+            centroids = init_centroids
         
         else:
             if seed:
@@ -2922,6 +2922,115 @@ class Classifier:
         self.centroids = centroids
         if not mute:
             print('Clustering done')
+    
+    def k_medioids(self, data_mat, k, mute = False):
+        
+        if not mute:
+            print('Starting clustering...')
+        
+        n = len(data_mat)
+
+        # BUILD
+        
+        if not mute:
+            print('Finding distance matrix...')
+        
+        d_mat = np.zeros(shape=(n,n))
+        
+        for i in range(n-1):
+            for j in range(i+1,n):
+                d_mat[i,j] = np.linalg.norm(data_mat[i]-data_mat[j])
+        d_mat = np.where(d_mat, d_mat, d_mat.T)
+        
+        d_sums = np.sum(d_mat, axis = 1)
+        
+        if not mute:
+            print('Building medioids...')
+        
+        m_indices = [int(np.argmin(d_sums))]
+        medioids = np.zeros(shape=(k,data_mat.shape[1]))
+        medioids[0] = data_mat[m_indices[0],:]
+        
+        C_mat = np.zeros(shape=(n,n))
+        
+        for label in range(1,k):
+        
+            for i in range(n):
+                for j in range(n):
+                    if i and j not in m_indices:
+                        
+                        m_distances = [
+                            d_mat[m_index,j] for m_index in m_indices]
+                        
+                        closest_m = m_indices[np.argmin(m_distances)]                    
+                        C_mat[j,i] = max(d_mat[closest_m,j] - d_mat[i,j], 0)
+            
+            total_gains = np.sum(C_mat, axis = 0)
+            
+            m_indices.append(np.argmax(total_gains))
+            
+            medioids[label,:] = data_mat[m_indices[label],:]
+        
+        
+        if not mute:
+            print('Assigning initial labels...')
+        
+        labels = np.empty(n)
+        for stat_index in range(n):
+            distances = np.zeros(k)    
+            for label in range(k):
+                distances[label] = d_mat[stat_index, m_indices[label]]
+            labels[stat_index] = np.argmin(distances)
+        
+        # SWAP
+        
+        if not mute:
+            print('Swapping medioids...')
+        
+        current_cost = 0
+        for label, m in enumerate(m_indices):
+            current_cost += np.sum(d_mat[m,np.where(labels == label)])
+        
+        old_cost = current_cost
+        
+        while True:
+            
+            best_cost = old_cost
+            
+            for label, m in enumerate(m_indices):
+                for h in [index for index in range(n) if index not in m_indices]:
+                    m_indices_prop = m_indices.copy()
+                    m_indices_prop[label] = h
+                    
+                    labels_prop = np.empty(n)
+                    for stat_index in range(n):
+                        distances = np.zeros(k)    
+                        for l in range(k):
+                            distances[l] = d_mat[stat_index, m_indices_prop[l]]
+                        labels_prop[stat_index] = np.argmin(distances)
+                    
+                    cost = 0
+                    for l, m_prop in enumerate(m_indices_prop):
+                        cost += np.sum(d_mat[m_prop, np.where(labels_prop == l)])
+                    
+                    if cost < best_cost:
+                        best_cost = cost
+                        swap_label = label
+                        swap_to = h
+            
+            m_indices[swap_label] = swap_to
+            
+            medioids[swap_label] = data_mat[swap_to]
+            
+            if best_cost >= old_cost:
+                break
+        
+            old_cost = best_cost    
+        
+        self.centroids = medioids
+        
+        if not mute:
+            print('clustering done')
     
     def h_clustering_find_clusters(self, data_mat, init_distance_filename):
         
