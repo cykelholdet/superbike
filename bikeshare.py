@@ -1681,6 +1681,88 @@ def purge_pickles(city, year, month):
     print('Purging done')
 
 
+def df_subset(df, weekdays=None, days='all', hours='all', minutes='all', activity_type='departures'):
+    """
+    Get subset of dataframe df.
+
+    Parameters
+    ----------
+    df : pandas dataframe
+        bikeshare dataframe with columns 'start_dt' and 'end_dt'.
+    weekdays : list, optional
+        list of the weekdays per day in the given month. . 0=monday, 1=tuesday etc. The default is None.
+    days : 'all' or 'weekdays' or 'weekend' or list or np array, optional
+        the days to choose. The default is 'all'.
+    hours : 'all' or list or numpy array, optional
+        the hours to choose. The default is 'all'.
+    minutes : 'all' or list or numpy array, optional
+        the minutes to choose. The default is 'all'.
+    activity_type : 'departures' or 'arrivals' or 'all', optional
+        The type of traffic which should be in the given timeframe. The default is 'all'.
+
+    Returns
+    -------
+    subset : pandas dataframe
+        The chosen subset.
+
+    """
+    activity_time_dict = {'departures': 'start_dt', 'arrivals': 'end_dt', 'd': 'start_dt', 'a': 'end_dt', 'start_dt': 'start_dt', 'end_dt': 'end_dt'}
+    
+    if activity_type == 'all':
+        if (days == 'business_days') or (days == 'b'):
+            subset = df[df['start_dt'].dt.day.isin(np.where(np.array(weekdays) < 5)[0] + 1) | df['end_dt'].dt.day.isin(np.where(np.array(weekdays) < 5)[0] + 1)]
+        elif (days == 'weekend') or (days == 'w'):
+            subset = df[df['start_dt'].dt.day.isin(np.where(np.array(weekdays) >= 5)[0] + 1) | df['end_dt'].dt.day.isin(np.where(np.array(weekdays) >= 5)[0] + 1)]
+        elif type(days) == int:
+            subset = df[(df['start_dt'].dt.day == days) | (df['end_dt'].dt.day == days)]
+        elif (type(days) == list) or (type(days) == np.ndarray):
+            subset = df[df['start_dt'].dt.day.isin(np.array(days)) | df['end_dt'].dt.day.isin(np.array(days))]
+        elif days == 'all':
+            subset = df
+        else:
+            raise TypeError('days should be "business_days", "weekend", "all", an int, a list, or a numpy array')
+        
+        if hours != 'all':
+            if type(hours) == int:
+                subset = subset[(subset['start_dt'].dt.hour == hours) | (subset['end_dt'].dt.hour == hours)]
+            elif (type(hours) == list) or (type(hours) == np.ndarray):
+                subset = subset[subset['start_dt'].dt.hour.isin(np.array(hours)) | subset['end_dt'].dt.hour.isin(np.array(hours))]
+        if minutes != 'all':
+            if type(minutes) == int:
+                subset = subset[(subset['start_dt'].dt.minute == minutes) | (subset['end_dt'].dt.minute == minutes)]
+            elif (type(minutes) == list) or (type(minutes) == np.ndarray):
+                subset = subset[subset['start_dt'].dt.minute.isin(np.array(minutes)) | subset['end_dt'].dt.minute.isin(np.array(minutes))]
+    
+    elif activity_type in activity_time_dict.keys():
+        act_time = activity_time_dict[activity_type]
+        if (days == 'business_days') or (days == 'b'):
+            subset = df[df[act_time].dt.day.isin(np.where(np.array(weekdays) < 5)[0] + 1)]
+        elif (days == 'weekend') or (days == 'b'):
+            subset = df[df[act_time].dt.day.isin(np.where(np.array(weekdays) >= 5)[0] + 1)]
+        elif type(days) == int:
+            subset = df[df[act_time].dt.day == days]
+        elif (type(days) == list) or (type(days) == np.ndarray):
+            subset = df[df[act_time].dt.day.isin(np.array(days))]
+        elif days == 'all':
+            subset = df
+        else:
+            raise TypeError('days should be "business_days", "weekend", "all", an int, a list, or a numpy array')
+        
+        if hours != 'all':
+            if type(hours) == int:
+                subset = subset[subset[act_time].dt.hour == hours]
+            elif (type(hours) == list) or (type(hours) == np.ndarray):
+                subset = subset[subset[act_time].dt.hour.isin(np.array(hours))]
+        if minutes != 'all':
+            if type(minutes) == int:
+                subset = subset[subset[act_time].dt.minute == minutes]
+            elif (type(minutes) == list) or (type(minutes) == np.ndarray):
+                subset = subset[subset[act_time].dt.minute.isin(np.array(minutes))]
+    else:
+        raise ValueError('activity_type should be "arrivals", "departures", or "all"')
+    return subset
+
+
 class Stations:
     """
     Represents the stations in the bike-share data.
@@ -2407,8 +2489,8 @@ class Data:
         if normalise:
             daily_totals = trips_arrivals.sum(axis=1) + trips_departures.sum(axis=1)
             
-            trips_arrivals = np.divide(trips_arrivals.T, daily_totals).T
-            trips_departures = np.divide(trips_departures.T, daily_totals).T
+            trips_arrivals = np.divide(trips_arrivals.T, daily_totals, out=np.zeros_like(trips_arrivals.T), where=daily_totals!=0).T
+            trips_departures = np.divide(trips_departures.T, daily_totals, out=np.zeros_like(trips_arrivals.T), where=daily_totals!=0).T
         
         trips_departures_average = np.mean(trips_departures, axis=0)
         trips_arrivals_average = np.mean(trips_arrivals, axis=0)
@@ -2852,6 +2934,30 @@ class Data:
         print(f'Pickling done. Time taken: {time.time()-pre}')
         
         return matrix_b, matrix_w
+    
+    
+    def subset(self, days='all', hours='all', minutes='all', activity_type='all'):
+        """
+        Get subset of the dataframe df.
+    
+        Parameters
+        ----------
+        days : 'all' or 'weekdays' or 'weekend' or list or np array, optional
+            the days to choose. The default is 'all'.
+        hours : 'all' or list or numpy array, optional
+            the hours to choose. The default is 'all'.
+        minutes : 'all' or list or numpy array, optional
+            the minutes to choose. The default is 'all'.
+        activity_type : 'departures' or 'arrivals' or 'all', optional
+            The type of traffic which should be in the given timeframe. The default is 'all'.
+    
+        Returns
+        -------
+        subset : pandas dataframe
+            The chosen subset.
+    
+        """
+        return df_subset(self.df, self.weekdays, days, hours, minutes, activity_type)
         
         
     
@@ -3353,7 +3459,9 @@ class Classifier:
             print(f'{result[0]:<5,d}{result[1]:<15.8f}{result[2]:<15.8f}{result[3]:<15,.8f}')
 
 
+
 if __name__ == "__main__":
     pre = time.time()
     data = Data('nyc', 2019, 9)
     print(time.time() - pre)
+    data.daily_traffic_average(804, plot=True)

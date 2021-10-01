@@ -14,6 +14,7 @@ import holoviews as hv
 import hvplot.pandas
 hv.extension('bokeh', logo=False)
 import panel as pn
+import param
 
 import bikeshare as bs
 import time
@@ -97,6 +98,67 @@ panel = pn.interact(plot_stations, **kw)
 text = '#Bikesharing'
 panel2 = pn.Row(panel[1][0], pn.Column(text, panel[0][0], panel[0][1], panel[0][2], panel[0][3], panel[0][4]))
 bokeh_server = panel2.show(port=12345)
+
+#%%
+
+class BikeParameters(param.Parameterized):
+    trip_type = param.Selector(objects=['n_departures', 'n_arrivals'])
+    day_type = param.Selector(objects=['weekend', 'business_days', 'day'])
+    cnorm = param.Selector(objects=['linear', 'log'])
+    min_trips = param.Integer(default=0, bounds=(0, 600))
+    day = param.Integer(default=1, bounds=(1, data.num_days))
+    
+    def view(self):
+        return plot_stations(self.trip_type, self.day_type, self.cnorm, self.min_trips, self.day)
+
+bike_params = BikeParameters()
+
+panel_param = pn.Row(bike_params.param, bike_params.view)
+text = '#Bikesharing'
+bokeh_server = panel_param.show(port=12345)
+
+
+#%%
+activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'end', 'start': 'start', 'end': 'end'}
+
+def plot_stations2(station_df, df, activity_type='departures', cnorm='linear', min_trips=0):
+    colname = f'n_{activity_type}'
+    station_df[colname] = df[f'{activity_dict[activity_type]}_stat_id'].value_counts()
+    station_df[colname].fillna(0, inplace=True)
+    
+    subset = station_df[station_df[colname] >= min_trips]
+    title = 'NYC'
+    subset_plot = subset.hvplot.points(x='easting', y='northing', c=colname, cnorm=cnorm, clim=(1, np.nan), s=75, hover_cols=['name'], title=title, tiles='StamenTerrainRetina', line_color='black', width=800, height=800)
+    return subset_plot
+
+
+class BikeParameters2(param.Parameterized):
+    trip_type = param.Selector(objects=['departures', 'arrivals', 'all'])
+    day_type = param.Selector(objects=['weekend', 'business_days', 'day'])
+    cnorm = param.Selector(objects=['linear', 'log'])
+    min_trips = param.Integer(default=0, bounds=(0, 600))
+    day = param.Integer(default=1, bounds=(1, data.num_days))
+    @param.depends('day_type', watch=True)
+    def _update_day(self):
+        if self.day_type != 'day':
+            self.param['day'].constant = True
+        else:
+            self.param['day'].constant = False
+    
+    @param.depends('trip_type', 'day_type', 'cnorm', 'min_trips', 'day')
+    def view(self):
+        if self.day_type == 'day':
+            days = self.day
+        else:
+            days = self.day_type
+        df_subset = data.subset(days=days, activity_type=self.trip_type)
+        return plot_stations2(station_df, df_subset, self.trip_type, self.cnorm, self.min_trips)
+    
+bike_params = BikeParameters2()
+
+panel_param = pn.Row(bike_params.param, bike_params.view)
+text = '#Bikesharing'
+bokeh_server = panel_param.show(port=12345)
 
 #%%
 # stop the bokeh server (when needed)
