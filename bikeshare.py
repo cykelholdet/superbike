@@ -3035,7 +3035,7 @@ class Classifier:
         if not mute:
             print('Clustering done')
     
-    def k_medioids(self, data_mat, k, mute = False):
+    def k_medoids(self, data_mat, k, mute = False):
         
         if not mute:
             print('Starting clustering...')
@@ -3057,11 +3057,11 @@ class Classifier:
         d_sums = np.sum(d_mat, axis = 1)
         
         if not mute:
-            print('Building medioids...')
+            print('Building medoids...')
         
         m_indices = [int(np.argmin(d_sums))]
-        medioids = np.zeros(shape=(k,data_mat.shape[1]))
-        medioids[0] = data_mat[m_indices[0],:]
+        medoids = np.zeros(shape=(k,data_mat.shape[1]))
+        medoids[0] = data_mat[m_indices[0],:]
         
         C_mat = np.zeros(shape=(n,n))
         
@@ -3081,7 +3081,7 @@ class Classifier:
             
             m_indices.append(np.argmax(total_gains))
             
-            medioids[label,:] = data_mat[m_indices[label],:]
+            medoids[label,:] = data_mat[m_indices[label],:]
         
         
         if not mute:
@@ -3097,7 +3097,7 @@ class Classifier:
         # SWAP
         
         if not mute:
-            print('Swapping medioids...')
+            print('Swapping medoids...')
         
         current_cost = 0
         for label, m in enumerate(m_indices):
@@ -3109,8 +3109,15 @@ class Classifier:
             
             best_cost = old_cost
             
+            swap_label = 0
+            swap_to = m_indices[0]
+            
             for label, m in enumerate(m_indices):
-                for h in [index for index in range(n) if index not in m_indices]:
+                
+                h_indices = np.where(labels == label)[0]
+                h_indices = h_indices[np.where(h_indices != m)]
+                
+                for h in h_indices:
                     m_indices_prop = m_indices.copy()
                     m_indices_prop[label] = h
                     
@@ -3129,17 +3136,24 @@ class Classifier:
                         best_cost = cost
                         swap_label = label
                         swap_to = h
-            
+                    
             m_indices[swap_label] = swap_to
             
-            medioids[swap_label] = data_mat[swap_to]
+            medoids[swap_label] = data_mat[swap_to]
+            
+            labels = np.empty(n)
+            for stat_index in range(n):
+                distances = np.zeros(k)    
+                for label in range(k):
+                    distances[label] = d_mat[stat_index, m_indices[label]]
+                labels[stat_index] = np.argmin(distances)
             
             if best_cost >= old_cost:
                 break
         
             old_cost = best_cost    
         
-        self.centroids = medioids
+        self.centroids = medoids
         
         if not mute:
             print('clustering done')
