@@ -2881,7 +2881,7 @@ class Data:
         
     #     return traffic_matrix_b, traffic_matrix_w
     
-    def pickle_daily_traffic(self, normalise=True, plot=False):
+    def pickle_daily_traffic(self, normalise=True, plot=False, overwrite=False):
         """
         Pickles matrices containing the average number of departures and 
         arrivals to and from each station for every hour. One matrix
@@ -2898,7 +2898,13 @@ class Data:
         None.
 
         """
-        
+        if not overwrite:
+            try:
+                with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}.pickle', 'rb') as file:
+                    matrix_b, matrix_w = pickle.load(file)
+                return matrix_b, matrix_w
+            except FileNotFoundError:
+                print("File not found")
         print('Pickling average daily traffic for all stations... \nSit back and relax, this might take a while...')
         pre = time.time()
         departures_b, arrivals_b = self.daily_traffic_average_all('b', normalise=normalise, plot=plot)

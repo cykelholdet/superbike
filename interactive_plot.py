@@ -37,6 +37,9 @@ df['easting'], df['northing'] = hv.util.transform.lon_lat_to_easting_northing(df
 station_df = locations.copy()
 station_df['name'] = data.stat.names.values()
 
+month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
+              7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+
 # day = 2
 
 
@@ -65,57 +68,57 @@ station_df['name'] = data.stat.names.values()
 
 # bokeh_server = pn.Row(hv_plot, min_slider, min_slider.value).show(port=12345, threaded=True)
 
-#%%
-def plot_stations(trip_type='n_arrivals', day_type='day', cnorm='linear', min_trips=0, day=1):
-    if day_type == 'weekend':
-        days = np.where(np.array(data.weekdays) >= 5)[0] + 1
-        station_df['n_departures'] = data.df[data.df['start_dt'].dt.day.isin(days)]['start_stat_id'].value_counts()
-        station_df['n_arrivals'] = data.df[data.df['end_dt'].dt.day.isin(days)]['end_stat_id'].value_counts()
-    elif day_type == 'business_days':
-        days = np.where(np.array(data.weekdays) < 5)[0] + 1
-        station_df['n_departures'] = data.df[data.df['start_dt'].dt.day.isin(days)]['start_stat_id'].value_counts()
-        station_df['n_arrivals'] = data.df[data.df['end_dt'].dt.day.isin(days)]['end_stat_id'].value_counts()
-    elif day_type == 'day':
-        station_df['n_departures'] = data.df[data.df['start_dt'].dt.day == day]['start_stat_id'].value_counts()
-        station_df['n_arrivals'] = data.df[data.df['end_dt'].dt.day == day]['end_stat_id'].value_counts()
+# #%%
+# def plot_stations(trip_type='n_arrivals', day_type='day', cnorm='linear', min_trips=0, day=1):
+#     if day_type == 'weekend':
+#         days = np.where(np.array(data.weekdays) >= 5)[0] + 1
+#         station_df['n_departures'] = data.df[data.df['start_dt'].dt.day.isin(days)]['start_stat_id'].value_counts()
+#         station_df['n_arrivals'] = data.df[data.df['end_dt'].dt.day.isin(days)]['end_stat_id'].value_counts()
+#     elif day_type == 'business_days':
+#         days = np.where(np.array(data.weekdays) < 5)[0] + 1
+#         station_df['n_departures'] = data.df[data.df['start_dt'].dt.day.isin(days)]['start_stat_id'].value_counts()
+#         station_df['n_arrivals'] = data.df[data.df['end_dt'].dt.day.isin(days)]['end_stat_id'].value_counts()
+#     elif day_type == 'day':
+#         station_df['n_departures'] = data.df[data.df['start_dt'].dt.day == day]['start_stat_id'].value_counts()
+#         station_df['n_arrivals'] = data.df[data.df['end_dt'].dt.day == day]['end_stat_id'].value_counts()
     
-    station_df['n_departures'].fillna(0, inplace=True)
-    station_df['n_arrivals'].fillna(0, inplace=True)
-    subset = station_df[station_df[trip_type] >= min_trips]
-    if day_type == 'day':
-        title = f'NYC {year:d}-{month:02d}-{day:02d}'
-    else:
-        title = f'NYC {year:d}-{month:02d} {day_type}'
-    subset_plot = subset.hvplot.points(x='easting', y='northing', c=trip_type, cnorm=cnorm, clim=(1, np.nan), s=75, hover_cols=['name'], title=title, tiles='StamenTerrainRetina', line_color='black', width=800, height=800)
-    return subset_plot
+#     station_df['n_departures'].fillna(0, inplace=True)
+#     station_df['n_arrivals'].fillna(0, inplace=True)
+#     subset = station_df[station_df[trip_type] >= min_trips]
+#     if day_type == 'day':
+#         title = f'NYC {year:d}-{month:02d}-{day:02d}'
+#     else:
+#         title = f'NYC {year:d}-{month:02d} {day_type}'
+#     subset_plot = subset.hvplot.points(x='easting', y='northing', c=trip_type, cnorm=cnorm, clim=(1, np.nan), s=75, hover_cols=['name'], title=title, tiles='StamenTerrainRetina', line_color='black', width=800, height=800)
+#     return subset_plot
 
-pn.extension()
+# pn.extension()
 
-kw = dict(min_trips=(0,300), day=(1,30), trip_type=['n_departures', 'n_arrivals'], day_type=['weekend', 'business_days', 'day'], cnorm=['linear', 'log'])
+# kw = dict(min_trips=(0,300), day=(1,30), trip_type=['n_departures', 'n_arrivals'], day_type=['weekend', 'business_days', 'day'], cnorm=['linear', 'log'])
 
 
-panel = pn.interact(plot_stations, **kw)
-text = '#Bikesharing'
-panel2 = pn.Row(panel[1][0], pn.Column(text, panel[0][0], panel[0][1], panel[0][2], panel[0][3], panel[0][4]))
-bokeh_server = panel2.show(port=12345)
+# panel = pn.interact(plot_stations, **kw)
+# text = '#Bikesharing'
+# panel2 = pn.Row(panel[1][0], pn.Column(text, panel[0][0], panel[0][1], panel[0][2], panel[0][3], panel[0][4]))
+# bokeh_server = panel2.show(port=12345)
 
-#%%
+# #%%
 
-class BikeParameters(param.Parameterized):
-    trip_type = param.Selector(objects=['n_departures', 'n_arrivals'])
-    day_type = param.Selector(objects=['weekend', 'business_days', 'day'])
-    cnorm = param.Selector(objects=['linear', 'log'])
-    min_trips = param.Integer(default=0, bounds=(0, 600))
-    day = param.Integer(default=1, bounds=(1, data.num_days))
+# class BikeParameters(param.Parameterized):
+#     trip_type = param.Selector(objects=['n_departures', 'n_arrivals'])
+#     day_type = param.Selector(objects=['weekend', 'business_days', 'day'])
+#     cnorm = param.Selector(objects=['linear', 'log'])
+#     min_trips = param.Integer(default=0, bounds=(0, 600))
+#     day = param.Integer(default=1, bounds=(1, data.num_days))
     
-    def view(self):
-        return plot_stations(self.trip_type, self.day_type, self.cnorm, self.min_trips, self.day)
+#     def view(self):
+#         return plot_stations(self.trip_type, self.day_type, self.cnorm, self.min_trips, self.day)
 
-bike_params = BikeParameters()
+# bike_params = BikeParameters()
 
-panel_param = pn.Row(bike_params.param, bike_params.view)
-text = '#Bikesharing'
-bokeh_server = panel_param.show(port=12345)
+# panel_param = pn.Row(bike_params.param, bike_params.view)
+# text = '#Bikesharing'
+# bokeh_server = panel_param.show(port=12345)
 
 
 #%%
@@ -132,12 +135,43 @@ def plot_stations2(station_df, df, activity_type='departures', cnorm='linear', m
     return subset_plot
 
 
+def plot_clusters(station_df, day_type, min_trips, clustering, k, dist_func):
+    if day_type == 'business_days':
+        traffic_matrix = data.pickle_daily_traffic()[0]
+    elif day_type == "weekend":
+        traffic_matrix = data.pickle_daily_traffic()[1]
+
+    clf = bs.Classifier(dist_func = dist_func)
+    
+    if clustering == 'k_means':
+        clf.k_means(traffic_matrix, k, seed=69)
+    if clustering == 'k_medoids':
+        #clf.k_medoids(traffic_matrix, k)
+        km = KMedoids(k).fit(traffic_matrix)
+    if clustering == 'h_clustering':
+        results_filename = f'./python_variables/h_clustering_{data.city}{data.year}{data.month:02d}_{period}.pickle'
+        init_distance_filename = f'./python_variables/distance_matrix_{data.city}{data.year}{data.month:02d}_{period}.pickle'
+        clf.h_clustering(traffic_matrix, k, results_filename, init_distance_filename)
+    #labels = clf.mass_predict(traffic_matrix)
+    labels = km.predict(traffic_matrix)
+    print(len(labels))
+    color_dict = {0 : 'tab:blue', 1 : 'tab:orange', 2 : 'tab:green', 3 : 'tab:red',
+              4 : 'tab:purple', 5 : 'tab:brown', 6: 'tab:pink',
+              7 : 'tab:gray', 8 : 'tab:olive', 9 : 'tab:cyan'}
+
+    station_df['color'] = [color_dict[label] for label in labels]
+    plot = station_df.hvplot.points(x='easting', y='northing', c='color', s=75, hover_cols=['name'], title='Clusters', tiles='StamenTerrainRetina', line_color='black', width=800, height=800)
+    return plot
+
 class BikeParameters2(param.Parameterized):
     trip_type = param.Selector(objects=['departures', 'arrivals', 'all'])
     day_type = param.Selector(objects=['weekend', 'business_days', 'day'])
     cnorm = param.Selector(objects=['linear', 'log'])
     min_trips = param.Integer(default=0, bounds=(0, 600))
     day = param.Integer(default=1, bounds=(1, data.num_days))
+    clustering = param.Selector(objects=['none', 'k_means', 'k_medoids', 'h_clustering'], doc="Which clustering to perform")
+    k = param.Integer(default=3, bounds=(1, 10))
+    dist_func = param.Selector(objects=['norm'])
     @param.depends('day_type', watch=True)
     def _update_day(self):
         if self.day_type != 'day':
@@ -145,14 +179,19 @@ class BikeParameters2(param.Parameterized):
         else:
             self.param['day'].constant = False
     
-    @param.depends('trip_type', 'day_type', 'cnorm', 'min_trips', 'day')
+    @param.depends('trip_type', 'day_type', 'cnorm', 'min_trips', 'day', 'clustering', 'k', 'dist_func')
     def view(self):
         if self.day_type == 'day':
             days = self.day
         else:
             days = self.day_type
         df_subset = data.subset(days=days, activity_type=self.trip_type)
-        return plot_stations2(station_df, df_subset, self.trip_type, self.cnorm, self.min_trips)
+        
+        if self.clustering == 'none':
+            plot = plot_stations2(station_df, df_subset, self.trip_type, self.cnorm, self.min_trips)
+        else:
+            plot = plot_clusters(station_df, self.day_type, self.min_trips, self.clustering, self.k, self.dist_func)
+        return plot
     
 bike_params = BikeParameters2()
 
