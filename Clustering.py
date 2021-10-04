@@ -23,8 +23,8 @@ from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
 city = 'nyc'
 year = 2019
-month = 9
-period = 'b' # 'b' = business days or 'w' = weekends
+month = 4
+period = 'w' # 'b' = business days or 'w' = weekends
 
 # if city == 'nyc':
 #     gov_stations = [3254, 3182, 3479]
@@ -75,8 +75,6 @@ plt.scatter(samples_1[:,0],samples_1[:,1], c='r')
 
 #%% k-means toy test
 
-data_type = 'elon'
-
 means = np.array([[5,5],
                   [3,10]])
 
@@ -92,8 +90,8 @@ samples = np.append(samples_0, samples_1, axis = 0)
 
 clf = bs.Classifier(dist_func = 'norm')
 
-# clf.k_medioids(samples, 2)
-clf.k_means(samples, 2)
+clf.k_medoids(samples, 2)
+# clf.k_means(samples, 2)
 labels = clf.mass_predict(samples)
 
 
@@ -112,7 +110,7 @@ plt.scatter(samples[:,0], samples[:,1], c = color_map)
 plt.scatter(clf.centroids[:,0],clf.centroids[:,1], c = 'k')
 plt.yticks([])
 plt.xticks([])
-plt.title('$k$-means clustering')
+plt.title('$k$-medoids clustering')
 
 samples_0 = np.random.multivariate_normal(means[0], np.array([[4,1],[9,2]]), size = cluster_sizes[0])
 samples_1 = np.random.multivariate_normal(means[1], np.array([[4,1],[9,2]]), size = cluster_sizes[1])
@@ -121,8 +119,8 @@ samples = np.append(samples_0, samples_1, axis = 0)
 
 clf = bs.Classifier(dist_func = 'norm')
 
-# clf.k_medioids(samples, 2)
-clf.k_means(samples, 2)
+clf.k_medoids(samples, 2)
+# clf.k_means(samples, 2)
 labels = clf.mass_predict(samples)
 
 
@@ -142,6 +140,28 @@ plt.yticks([])
 
 plt.savefig('./figures/k_means_toy_test.pdf')
 
+#%% Outlier test
+
+np.random.seed(42)
+samples = np.random.multivariate_normal([5,5], np.identity(2)/100, size = 5)
+outlier = np.array([[10,7]])
+
+samples = np.append(samples, outlier, axis = 0)
+
+mean = np.mean(samples, axis = 0)
+
+
+
+
+plt.subplot(211)
+plt.scatter(samples[:,0], samples[:,1])
+plt.scatter(mean[0],mean[1], c = 'k')
+plt.xticks([])
+
+plt.subplot(212)
+plt.scatter(samples[:,0], samples[:,1])
+
+
 
 #%% k-test
 
@@ -156,7 +176,7 @@ S_indexes = []
 
 pre = time.time()
 for k in range(2,k_max+1):
-    clf.k_medioids(traffic_matrix, k, mute = True)
+    clf.k_medoids(traffic_matrix, k, mute = True)
     labels = clf.mass_predict(traffic_matrix)
     
     S_indexes.append(clf.get_silhouette_index(traffic_matrix, labels, mute = True))
@@ -176,7 +196,7 @@ plt.legend(['DB index', 'D index', 'S index'])
 
 #%% Clustering
 
-k = 4
+k = 3
 
 clf = bs.Classifier(dist_func = 'norm')
 
@@ -185,7 +205,7 @@ init_distance_filename = f'./python_variables/distance_matrix_{data.city}{data.y
 # clf.h_clustering(traffic_matrix, k, results_filename, init_distance_filename)
 # clf.k_means(traffic_matrix, k, seed=69)
 pre = time.time()
-clf.k_medioids(traffic_matrix, k)
+clf.k_medoids(traffic_matrix, k)
 
 print(time.time()-pre)
 
