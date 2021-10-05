@@ -19,6 +19,9 @@ import param
 import bikeshare as bs
 import time
 
+from sklearn.cluster import AgglomerativeClustering, KMeans
+from sklearn_extra.cluster import KMedoids
+
 from holoviews.element.tiles import OSM
 
 year = 2019
@@ -144,17 +147,18 @@ def plot_clusters(station_df, day_type, min_trips, clustering, k, dist_func):
     clf = bs.Classifier(dist_func = dist_func)
     
     if clustering == 'k_means':
-        clf.k_means(traffic_matrix, k, seed=69)
+        #clf.k_means(traffic_matrix, k, seed=69)
+        clusters = KMeans(k).fit(traffic_matrix)
+        labels = clusters.predict(traffic_matrix)
+
     if clustering == 'k_medoids':
-        #clf.k_medoids(traffic_matrix, k)
-        km = KMedoids(k).fit(traffic_matrix)
+        clusters = KMedoids(k).fit(traffic_matrix)
+        labels = clusters.predict(traffic_matrix)
+        
     if clustering == 'h_clustering':
-        results_filename = f'./python_variables/h_clustering_{data.city}{data.year}{data.month:02d}_{period}.pickle'
-        init_distance_filename = f'./python_variables/distance_matrix_{data.city}{data.year}{data.month:02d}_{period}.pickle'
-        clf.h_clustering(traffic_matrix, k, results_filename, init_distance_filename)
-    #labels = clf.mass_predict(traffic_matrix)
-    labels = km.predict(traffic_matrix)
-    print(len(labels))
+        labels = AgglomerativeClustering(k).fit_predict(traffic_matrix)
+
+
     color_dict = {0 : 'tab:blue', 1 : 'tab:orange', 2 : 'tab:green', 3 : 'tab:red',
               4 : 'tab:purple', 5 : 'tab:brown', 6: 'tab:pink',
               7 : 'tab:gray', 8 : 'tab:olive', 9 : 'tab:cyan'}
@@ -172,12 +176,12 @@ class BikeParameters2(param.Parameterized):
     clustering = param.Selector(objects=['none', 'k_means', 'k_medoids', 'h_clustering'], doc="Which clustering to perform")
     k = param.Integer(default=3, bounds=(1, 10))
     dist_func = param.Selector(objects=['norm'])
-    @param.depends('day_type', watch=True)
-    def _update_day(self):
-        if self.day_type != 'day':
-            self.param['day'].constant = True
-        else:
-            self.param['day'].constant = False
+    #@param.depends('day_type', watch=True)
+    # def _update_day(self):
+    #     if self.day_type != 'day':
+    #         self.param['day'].precedence = -1
+    #     else:
+    #         self.param['day'].precedence = 1
     
     @param.depends('trip_type', 'day_type', 'cnorm', 'min_trips', 'day', 'clustering', 'k', 'dist_func')
     def view(self):
@@ -192,10 +196,23 @@ class BikeParameters2(param.Parameterized):
         else:
             plot = plot_clusters(station_df, self.day_type, self.min_trips, self.clustering, self.k, self.dist_func)
         return plot
-    
+
+
+
+
+
+
 bike_params = BikeParameters2()
 
-panel_param = pn.Row(bike_params.param, bike_params.view)
+params = pn.Param(bike_params.param, widgets={
+    'trip_type': pn.widgets.RadioButtonGroup,
+    'day_type': pn.widgets.RadioButtonGroup,
+    'day': pn.widgets.IntSlider,
+    })
+
+params = pn.Column(pn.panel(bike_params))
+
+panel_param = pn.Row(params, bike_params.view)
 text = '#Bikesharing'
 bokeh_server = panel_param.show(port=12345)
 
