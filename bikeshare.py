@@ -2427,7 +2427,7 @@ class Data:
         
         return trips_departures, trips_arrivals
     
-    def daily_traffic_average(self, stat_index, period = 'b', normalise = True, plot = False, return_all = False):
+    def daily_traffic_average(self, stat_index, period = 'b', normalise = True, plot = False, return_all = False, return_fig=False, return_std=False):
         """
         Computes the average daily traffic of a station over either business
         days or weekends. Both average number of departures and arrivals are 
@@ -2494,52 +2494,60 @@ class Data:
         
         trips_departures_average = np.mean(trips_departures, axis=0)
         trips_arrivals_average = np.mean(trips_arrivals, axis=0)
-            
+        
+        trips_departures_std = np.std(trips_departures, axis=0)
+        trips_arrivals_std = np.std(trips_arrivals, axis=0)
+        
         if plot:
             
-            trips_departures_std = np.std(trips_departures, axis=0)
-            trips_arrivals_std = np.std(trips_arrivals, axis=0)
+            
+            
+            fig, ax = plt.subplots()
             
             if normalise:
-                plt.plot(np.arange(24), trips_arrivals_average*100)
-                plt.plot(np.arange(24), trips_departures_average*100)
+                ax.plot(np.arange(24), trips_arrivals_average*100)
+                ax.plot(np.arange(24), trips_departures_average*100)
             
-                plt.fill_between(np.arange(24), trips_arrivals_average*100-trips_arrivals_std*100, 
+                ax.fill_between(np.arange(24), trips_arrivals_average*100-trips_arrivals_std*100, 
                                  trips_arrivals_average*100+trips_arrivals_std*100, 
                                  facecolor='b',alpha=0.2)
-                plt.fill_between(np.arange(24), trips_departures_average*100-trips_departures_std*100, 
+                ax.fill_between(np.arange(24), trips_departures_average*100-trips_departures_std*100, 
                                  trips_departures_average*100+trips_departures_std*100, 
                                  facecolor='orange',alpha=0.2)
-                plt.ylabel('% of total trips')
+                ax.set_ylabel('% of total trips')
                 
             else:
-                plt.plot(np.arange(24), trips_arrivals_average)
-                plt.plot(np.arange(24), trips_departures_average)
+                ax.plot(np.arange(24), trips_arrivals_average)
+                ax.plot(np.arange(24), trips_departures_average)
             
-                plt.fill_between(np.arange(24), trips_arrivals_average-trips_arrivals_std, 
+                ax.fill_between(np.arange(24), trips_arrivals_average-trips_arrivals_std, 
                                  trips_arrivals_average+trips_arrivals_std, 
                                  facecolor='b',alpha=0.2)
-                plt.fill_between(np.arange(24), trips_departures_average-trips_departures_std, 
+                ax.fill_between(np.arange(24), trips_departures_average-trips_departures_std, 
                                  trips_departures_average+trips_departures_std, 
                                  facecolor='orange',alpha=0.2)
-                plt.ylabel('# trips')
+                ax.set_ylabel('# trips')
             
-            plt.xticks(np.arange(24))
+            ax.set_xticks(np.arange(24))
             # plt.legend(['Arrivals','Departures','$\pm$std - arrivals','$\pm$std - departures'])
-            plt.xlabel('Hour')
+            ax.set_xlabel('Hour')
             
             month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
                   7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
             
             if period == 'b':
-                plt.title(f'Average hourly traffic for {self.stat.names[stat_index]} \n in {month_dict[self.month]} {self.year} on business days')
+                ax.set_title(f'Average hourly traffic for {self.stat.names[stat_index]} \n in {month_dict[self.month]} {self.year} on business days')
             
             elif period == 'w':
-                plt.title(f'Average hourly traffic for {self.stat.names[stat_index]} \n in {month_dict[self.month]} {self.year} on weekends')
+                ax.set_title(f'Average hourly traffic for {self.stat.names[stat_index]} \n in {month_dict[self.month]} {self.year} on weekends')
+            if not return_fig:
+                plt.show()
         
-            plt.show()
-        
-        if return_all:
+        if return_fig:
+            return fig
+        elif return_std:
+            return trips_departures_average, trips_arrivals_average, trips_departures_std, trips_arrivals_std
+        elif return_all:
             return trips_departures_average, trips_arrivals_average, trips_departures, trips_arrivals
         else:
             return trips_departures_average, trips_arrivals_average
