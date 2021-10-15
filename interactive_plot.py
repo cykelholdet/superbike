@@ -97,6 +97,7 @@ class BikeParameters2(param.Parameterized):
     day = param.Integer(default=1, bounds=(1, data.num_days))
     dist_func = param.Selector(objects=['norm'])
     plot_all_clusters = param.Selector(objects=['False', 'True'])
+    random_state = param.Integer(default=42, bounds=(0, 2000))
     
     def __init__(self, index, **kwargs):
         super().__init__(**kwargs)
@@ -104,21 +105,20 @@ class BikeParameters2(param.Parameterized):
         self.labels = None
         self.index = index
     
-    @param.depends('day_type', 'min_trips', 'clustering', 'k', watch=False)
-    def plot_clusters_full(self, random_state=None):
-        print('hello')
+    @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', watch=False)
+    def plot_clusters_full(self):
         if self.day_type == 'business_days':
             traffic_matrix = data.pickle_daily_traffic()[0]
         elif self.day_type == "weekend":
             traffic_matrix = data.pickle_daily_traffic()[1]
     
         if self.clustering == 'k_means':
-            self.clusters = KMeans(self.k, random_state=random_state).fit(traffic_matrix)
+            self.clusters = KMeans(self.k, random_state=self.random_state).fit(traffic_matrix)
             self.labels = self.clusters.predict(traffic_matrix)
             station_df['color'] = [color_dict[label] for label in self.labels]
     
         elif self.clustering == 'k_medoids':
-            self.clusters = KMedoids(self.k, random_state=random_state).fit(traffic_matrix)
+            self.clusters = KMedoids(self.k, random_state=self.random_state).fit(traffic_matrix)
             self.labels = self.clusters.predict(traffic_matrix)
             station_df['color'] = [color_dict[label] for label in self.labels]
             
@@ -128,7 +128,7 @@ class BikeParameters2(param.Parameterized):
             station_df['color'] = [color_dict[label] for label in self.labels]
         
         elif self.clustering == 'gaussian_mixture':
-            self.clusters = GaussianMixture(self.k, n_init=10, random_state=random_state).fit(traffic_matrix)
+            self.clusters = GaussianMixture(self.k, n_init=10, random_state=self.random_state).fit(traffic_matrix)
             self.labels = self.clusters.predict_proba(traffic_matrix)
             lab_mat = np.array(lab_color_list[:self.k]).T
             lab_cols = [np.sum(self.labels[i] * lab_mat, axis=1) for i in range(len(traffic_matrix))]
@@ -240,6 +240,7 @@ params = pn.Param(bike_params.param, widgets={
     'trip_type': {'widget_type': pn.widgets.RadioButtonGroup, 'button_type': 'success'},
     'day_type': pn.widgets.RadioButtonGroup,
     'day': pn.widgets.IntSlider,
+    'random_state': pn.widgets.IntInput,
     },
     name="Bikeshare Parameters"
     )
