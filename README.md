@@ -21,14 +21,14 @@ sklearn
 If working with Conda, you could for example make a conda environment as follows. (You can ignore spyder if you wish to use another development environment)
 
 ```
-conda create -n bike_env numpy matplotlib pandas scipy holoviews geopandas spyder
+conda create -n bike_env numpy matplotlib pandas scipy holoviews hvplot geopandas spyder
 
 conda activate bike_env
 ```
 
 Then install the remaining packages
 ```
-pip install scikit-learn-extra
+pip install scikit-learn-extra scikit-image
 ```
 
 ## Directory structure
@@ -88,12 +88,17 @@ Trip data can be accessed at the following locations
 | City             | Link                                                                                   |
 |------------------|----------------------------------------------------------------------------------------|
 | Bergen           | https://bergenbysykkel.no/en/open-data/historical                                      |
+| Boston           | https://www.bluebikes.com/system-data                                                  |
+| Buenos Aires     | https://data.buenosaires.gob.ar/dataset/bicicletas-publicas                            |
 | Chicago          | https://www.divvybikes.com/system-data                                                 |
 |                  | https://data.cityofchicago.org/Transportation/Divvy-Bicycle-Stations-All-Map/bk89-9dk7 |
+| Edinburgh        | https://edinburghcyclehire.com/open-data/historical                                    |
 | Helsinki         | https://hri.fi/data/en_GB/dataset/helsingin-ja-espoon-kaupunkipyorilla-ajatut-matkat   |
 | London           | https://cycling.data.tfl.gov.uk/                                                       |
+| Los Angeles      | https://bikeshare.metro.net/about/data/                                                |
 | Madrid           | https://opendata.emtmadrid.es/Datos-estaticos/Datos-generales-(1)                      |
 | Mexico City      | https://www.ecobici.cdmx.gob.mx/en/informacion-del-servicio/open-data                  |
+| Montreal         | https://bixi.com/en/open-data                                                          |
 | New York City    | https://www.citibikenyc.com/system-data                                                |
 | Oslo             | https://oslobysykkel.no/en/open-data/historical                                        |
 | San Francisco    | https://www.lyft.com/bikes/bay-wheels/system-data                                      |
