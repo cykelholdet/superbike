@@ -17,6 +17,8 @@ import bikeshare as bs
 import simpledtw as dtw
 import plotting
 import time
+from sklearn.mixture import GaussianMixture
+from sklearn.cluster import KMeans
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
 #%% Load data
@@ -41,57 +43,102 @@ with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}{data.month
 
 #%% Make toy data
 
+np.random.seed(10)
+
 data_type = 'sphere'
 
-# means = np.array([[5,5],
-#                   [3,8],
-#                   [8,12]])
+means = np.array([[12,5.5],
+                  [4,6],
+                  [8,12]])
 
-means = np.array([[5,5],
-                  [3,8]])
+# means = np.array([[12,7],
+#                   [5,9]])
 
-
-cluster_sizes = [150,200]
+cluster_sizes = [150,200,250]
 
 n = np.sum(cluster_sizes)
 
 if data_type == 'sphere':
-    samples_0 = np.random.multivariate_normal(means[0], np.identity(2), size = cluster_sizes[0])
-    samples_1 = np.random.multivariate_normal(means[1], np.identity(2), size = cluster_sizes[1])
-    # samples_2 = np.random.multivariate_normal(means[2], 2*np.identity(2), size = cluster_sizes[2])
+    samples_0 = np.random.multivariate_normal(means[0], np.array([[2,0],[0,5]]), size = cluster_sizes[0])
+    samples_1 = np.random.multivariate_normal(means[1], np.array([[2,0],[0,3]]), size = cluster_sizes[1])
+    samples_2 = np.random.multivariate_normal(means[2], 2*np.identity(2), size = cluster_sizes[2])
+
+    samples = np.append(samples_0, samples_1, axis = 0)
+    samples = np.append(samples, samples_2, axis = 0)
+
+
+elif data_type == 'multi_sphere':
+
+    means = np.array([[12,11],
+                      [4,14],
+                      [8,20],
+                      [21,45],
+                      [31,17],
+                      [28,46],
+                      [35,11]])
+    
+    cluster_sizes = [200,350,150,250,180,220,210]
+        
+    n = np.sum(cluster_sizes)
+    
+    samples_0 = np.random.multivariate_normal(means[0], 2*np.identity(2), size = cluster_sizes[0])
+    samples_1 = np.random.multivariate_normal(means[1], 2*np.identity(2), size = cluster_sizes[1])
+    samples_2 = np.random.multivariate_normal(means[2], 2*np.identity(2), size = cluster_sizes[2])
+    
+    samples_3 = np.random.multivariate_normal(means[3], 2*np.identity(2), size = cluster_sizes[3])
+    samples_4 = np.random.multivariate_normal(means[4], 2*np.identity(2), size = cluster_sizes[4])
+    
+    samples_5 = np.random.multivariate_normal(means[5], 2*np.identity(2), size = cluster_sizes[5])
+    samples_6 = np.random.multivariate_normal(means[6], 2*np.identity(2), size = cluster_sizes[6])
+
+    samples = np.append(samples_0, samples_1, axis = 0)
+    samples = np.append(samples, samples_2, axis = 0)
+    samples = np.append(samples, samples_3, axis = 0)
+    samples = np.append(samples, samples_4, axis = 0)
+    samples = np.append(samples, samples_5, axis = 0)
+    samples = np.append(samples, samples_6, axis = 0)
+    
 
 
 elif data_type == 'elon':
-    samples_0 = np.random.multivariate_normal(means[0], np.array([[4,1],[9,2]]), size = cluster_sizes[0])
-    samples_1 = np.random.multivariate_normal(means[1], np.array([[4,1],[9,2]]), size = cluster_sizes[1])
+    samples_0 = np.random.multivariate_normal(means[0], np.array([[2,1],[4,10]]), size = cluster_sizes[0])
+    # samples_1 = np.random.multivariate_normal(means[1], np.array([[4,1],[9,2]]), size = cluster_sizes[1])
     # samples_2 = np.random.multivariate_normal(means[2], np.array([[4,1],[9,2]]), size = cluster_sizes[2])
 
-samples = np.append(samples_0, samples_1, axis = 0)
-# samples = np.append(samples, samples_2, axis = 0)
+    samples = np.append(samples_0, samples_1, axis = 0)
+    samples = np.append(samples, samples_2, axis = 0)
 
-plt.scatter(samples_0[:,0],samples_0[:,1], c='b')
-plt.scatter(samples_1[:,0],samples_1[:,1], c='r')
+
+# gm = GaussianMixture(n_components=2, verbose = True).fit(samples)
+
+# rgb = [[i[0], 0, i[1]] for i in gm.predict_proba(samples)]
+
+
+# plt.xlim(0,16)
+# plt.ylim(0,16)
+plt.scatter(samples[:,0],samples[:,1], c='b')
+# plt.scatter(samples_1[:,0],samples_1[:,1], c='b')
 # plt.scatter(samples_2[:,0],samples_2[:,1], c='g')
 
-#%% k-means toy test
+#%% toy test
 
-means = np.array([[5,5],
-                  [3,10]])
+# means = np.array([[5,5],
+#                   [3,10]])
 
 
-cluster_sizes = [150,200]
+# cluster_sizes = [150,200]
 
-n = np.sum(cluster_sizes)
+# n = np.sum(cluster_sizes)
 
-samples_0 = np.random.multivariate_normal(means[0], np.identity(2), size = cluster_sizes[0])
-samples_1 = np.random.multivariate_normal(means[1], np.identity(2), size = cluster_sizes[1])
+# samples_0 = np.random.multivariate_normal(means[0], np.identity(2), size = cluster_sizes[0])
+# samples_1 = np.random.multivariate_normal(means[1], np.identity(2), size = cluster_sizes[1])
     
-samples = np.append(samples_0, samples_1, axis = 0)
+# samples = np.append(samples_0, samples_1, axis = 0)
 
 clf = bs.Classifier(dist_func = 'norm')
 
-clf.k_medoids(samples, 2)
-# clf.k_means(samples, 2)
+# clf.k_medoids(samples, 2)
+clf.k_means(samples, 1)
 labels = clf.mass_predict(samples)
 
 
@@ -150,9 +197,6 @@ samples = np.append(samples, outlier, axis = 0)
 
 mean = np.mean(samples, axis = 0)
 
-
-
-
 plt.subplot(211)
 plt.scatter(samples[:,0], samples[:,1])
 plt.scatter(mean[0],mean[1], c = 'k')
@@ -161,38 +205,66 @@ plt.xticks([])
 plt.subplot(212)
 plt.scatter(samples[:,0], samples[:,1])
 
-
-
 #%% k-test
-
-clf = bs.Classifier(dist_func = 'norm')
 
 k_max = 10
 
+traffic_matrix = samples
+
+SSEs = []
 DB_indexes = []
 D_indexes = []
 S_indexes = []
 
-
 pre = time.time()
 for k in range(2,k_max+1):
-    clf.k_medoids(traffic_matrix, k, mute = True)
-    labels = clf.mass_predict(traffic_matrix)
     
-    S_indexes.append(clf.get_silhouette_index(traffic_matrix, labels, mute = True))
-    DB_indexes.append(clf.get_Davies_Bouldin_index(traffic_matrix, labels, mute = True))
-    D_indexes.append(clf.get_Dunn_index(traffic_matrix, labels, mute = True))
+    clf = KMeans(n_clusters = k, random_state = 42)
+    clf.fit(samples)
     
-    print(f'k = {k} done. Current Runtime: {time.time()-pre}')
+    labels = clf.labels_
+    centroids = clf.cluster_centers_
     
+    
+    SSEs.append(clf.inertia_)
+    S_indexes.append(bs.silhouette_index(traffic_matrix, labels, centroids, mute = True))
+    DB_indexes.append(bs.Davies_Bouldin_index(traffic_matrix, labels, centroids, mute = True))
+    D_indexes.append(bs.Dunn_index(traffic_matrix, labels, centroids, mute = True))
+    
+    print(f'k = {k} done. Current Runtime: {time.time()-pre}s')
+    
+# plt.plot(range(1,k_max+1), SSEs)
 plt.plot(range(2,k_max+1), DB_indexes)
-plt.plot(range(2,k_max+1), D_indexes)
-plt.plot(range(2,k_max+1), S_indexes)
+# plt.plot(range(1,k_max+1), D_indexes)
+# plt.plot(range(1,k_max+1), S_indexes)
+
+plt.xticks(range(2,k_max+1))
 
 plt.xlabel('$k$')
-plt.ylabel('Index value')
-plt.title('Test for $k$')
-plt.legend(['DB index', 'D index', 'S index'])
+plt.ylabel('Davies-Bouldin index')
+# plt.title('Test for $k$')
+# plt.legend(['DB index', 'D index', 'S index'])
+
+#%% Plot clustering for toy test
+
+k = 7
+
+clf = KMeans(n_clusters = k, random_state = 42)
+clf.fit(samples)
+
+color_dict = {0 : 'tab:blue', 1 : 'tab:orange', 2 : 'tab:green', 3 : 'tab:red',
+              4 : 'tab:purple', 5 : 'tab:brown', 6: 'tab:pink',
+              7 : 'tab:gray', 8 : 'tab:olive', 9 : 'tab:cyan'}
+
+color_map = [color_dict[label] for label in clf.labels_]
+
+plt.scatter(samples[:,0],samples[:,1], c= color_map)
+plt.scatter(clf.cluster_centers_[:,0], clf.cluster_centers_[:,1],c='k')
+
+
+
+
+
 
 #%% Clustering
 

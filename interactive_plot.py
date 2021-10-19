@@ -8,6 +8,7 @@ Created on Thu Sep 30 11:36:11 2021
 
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 import matplotlib.pyplot as plt
 
 import holoviews as hv
@@ -30,8 +31,14 @@ from matplotlib import cm
 
 from holoviews.element.tiles import OSM
 
+from shapely.geometry import Point
+from shapely.ops import nearest_points
+from geopy.distance import great_circle
+
 
 cmap = cm.get_cmap('Blues')
+
+# Load bikeshare data
 
 year = 2019
 month = 9
@@ -55,6 +62,44 @@ station_df['n_departures'].fillna(0, inplace=True)
 
 station_df['n_trips'] = data.df['start_stat_id'].value_counts().add(data.df['end_stat_id'].value_counts(), fill_value=0)
 
+station_df['coords'] = list(zip(station_df['long'], station_df['lat']))
+station_df['coords'] = station_df['coords'].apply(Point)
+
+# Load other data
+
+zoning_df = gpd.read_file(f'./data/nyc_zoning_data.json')
+zoning_df = zoning_df[['ZONEDIST', 'geometry']]
+
+station_df = gpd.GeoDataFrame(station_df, geometry = 'coords', crs = zoning_df.crs)
+station_df = gpd.tools.sjoin(station_df, zoning_df, op='within', how='left')
+station_df.drop('index_right', axis = 1, inplace=True)
+
+CTracts_df = gpd.read_file('./data/nyc_CT_data.json')
+CTracts_df = CTracts_df[['BoroCT2020', 'geometry', 'Shape__Area']]
+CTracts_df.rename({'Shape__Area':'CT_area'}, axis=1, inplace=True)
+
+station_df = gpd.tools.sjoin(station_df, CTracts_df, op='within', how='left')
+station_df['BoroCT2020'] = station_df['BoroCT2020'].apply(int)
+station_df.drop('index_right', axis = 1, inplace=True)
+
+census_df = pd.read_excel('./data/nyc_census_data.xlsx', sheet_name=1)
+census_df = census_df[['Unnamed: 4', '2020 Data']]
+census_df.rename({'Unnamed: 4':'BoroCT2020','2020 Data':'pop'}, axis=1, inplace=True)
+
+# census_df['2020 Data'] = census_df['Index'].apply(lambda i: census_df['2020'])
+
+station_df = pd.merge(station_df, census_df, on = 'BoroCT2020')
+station_df['pop_density'] = station_df.apply(lambda stat: stat['pop']/stat['CT_area'], axis=1)
+
+subways_df = gpd.read_file('./data/nyc_subways_data.geojson')
+
+station_df['nearest_subway'] = station_df.apply(lambda stat: nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
+station_df['nearest_subway_dist'] = station_df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]), axis=1)
+
+
+
+#%%
+
 extremes = [station_df['easting'].max(), station_df['easting'].min(), station_df['northing'].max(), station_df['northing'].min()]
 
 
@@ -73,8 +118,6 @@ name_dict = {'chic': 'Chicago',
              'trondheim': 'Trondheim',
              'edinburgh': 'Edinburgh'}
 
-
-#%%
 activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'end', 'start': 'start', 'end': 'end'}
 day_type_dict = {'weekend': 'w', 'business_days': 'b'}
 
@@ -321,9 +364,11 @@ param_column = pn.Column(params.widgets)
 
 panel_param = pn.Row(params, tileview*paraview, linecol)
 text = '#Bikesharing'
-bokeh_server = panel_param.show(port=22345)
+panel_column = pn.Column(text, panel_param) 
+# bokeh_server = panel_param.show(port=22345)
+bokeh_server = panel_column.servable()
 
 #%%
 # stop the bokeh server (when needed)
-bokeh_server.stop()
+# bokeh_server.stop()
 
