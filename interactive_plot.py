@@ -88,13 +88,13 @@ census_df.rename({'Unnamed: 4':'BoroCT2020','2020 Data':'pop'}, axis=1, inplace=
 
 # census_df['2020 Data'] = census_df['Index'].apply(lambda i: census_df['2020'])
 
-station_df = pd.merge(station_df, census_df, on = 'BoroCT2020')
+station_df = pd.merge(station_df, census_df, on = 'BoroCT2020') # resetter index, måske ikke godt
 station_df['pop_density'] = station_df.apply(lambda stat: stat['pop']/stat['CT_area'], axis=1)
 
 subways_df = gpd.read_file('./data/nyc_subways_data.geojson')
 
 station_df['nearest_subway'] = station_df.apply(lambda stat: nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
-station_df['nearest_subway_dist'] = station_df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]), axis=1)
+station_df['nearest_subway_dist'] = station_df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]).meters, axis=1)
 
 
 
