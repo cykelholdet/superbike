@@ -87,6 +87,14 @@ lab_color_dict = {i: skcolor.rgb2lab(mpl_color_dict[i]) for i in range(10)}
 lab_color_list = [lab_color_dict[i] for i in range(10)]
 
 
+def plot_lines(labels, j, c_centers, title_pre="Mean"):
+    cc_df = pd.DataFrame([c_centers[:24], c_centers[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
+    cc_plot = cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
+    n = np.sum(labels == j)
+    cc_plot.opts(title=f"{title_pre} of cluster {j} ({color_dict[j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage')
+    return cc_plot
+
+
 class BikeParameters2(param.Parameterized):
     trip_type = param.Selector(objects=['departures', 'arrivals', 'all'])
     day_type = param.Selector(objects=['business_days', 'weekend', 'day'])
@@ -97,7 +105,7 @@ class BikeParameters2(param.Parameterized):
     day = param.Integer(default=1, bounds=(1, data.num_days))
     dist_func = param.Selector(objects=['norm'])
     plot_all_clusters = param.Selector(objects=['False', 'True'])
-    random_state = param.Integer(default=42, bounds=(0, 2000))
+    random_state = param.Integer(default=42, bounds=(0, 10000))
     
     def __init__(self, index, **kwargs):
         super().__init__(**kwargs)
@@ -165,10 +173,7 @@ class BikeParameters2(param.Parameterized):
                 cc_plot_list = list()
                 for j in range(self.k):
                     mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
-                    cc_df = pd.DataFrame([mean_vector[:24], mean_vector[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
-                    cc_plot = cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
-                    n = np.sum(self.labels == j)
-                    cc_plot.opts(title=f"Mean of cluster {j} ({color_dict[j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage')
+                    cc_plot = plot_lines(self.labels, j, mean_vector)
                     cc_plot_list.append(cc_plot)
                 return pn.Column(*cc_plot_list)
             if not index:
@@ -181,20 +186,14 @@ class BikeParameters2(param.Parameterized):
                     traffic_matrix = data.pickle_daily_traffic()[1]
                 j = self.labels[i]
                 mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
-                cc_df = pd.DataFrame([mean_vector[:24], mean_vector[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
-                cc_plot = cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
-                n = np.sum(self.labels == j)
-                cc_plot.opts(title=f"Mean of cluster {j} ({color_dict[j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage')
+                cc_plot = plot_lines(self.labels, j, mean_vector)
                 return pn.Column(cc_plot, f"Station index {i} is in cluster {j}")
         elif self.clustering == 'gaussian_mixture':
             if self.plot_all_clusters == 'True':
                 cc_plot_list = list()
                 for j in range(self.k):
                     ccs = self.clusters.means_[j]
-                    cc_df = pd.DataFrame([ccs[:24], ccs[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
-                    cc_plot = cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
-                    n = np.sum(self.labels.argmax(axis=1) == j)
-                    cc_plot.opts(title=f"Mean of cluster {j} ({color_dict[j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage')
+                    cc_plot = plot_lines(self.labels.argmax(axis=1), j, ccs)
                     cc_plot_list.append(cc_plot)
                 return pn.Column(*cc_plot_list)
             if not index:
@@ -204,20 +203,14 @@ class BikeParameters2(param.Parameterized):
                 j = self.labels[i].argmax()
                 textlist = [f"{j}: {self.labels[i][j]:.2f}\n\n" for j in range(self.k)]
                 ccs = self.clusters.means_[j]
-                cc_df = pd.DataFrame([ccs[:24], ccs[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
-                cc_plot = cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
-                n = np.sum(self.labels.argmax(axis=1) == j)
-                cc_plot.opts(title=f"Mean of cluster {j} ({color_dict[j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage')
+                cc_plot = plot_lines(self.labels, j, ccs)
                 return pn.Column(cc_plot, f"Station index {i} belongs to cluster \n\n {''.join(textlist)}")
         else:
             if self.plot_all_clusters == 'True':
                 cc_plot_list = list()
                 for j in range(self.k):
                     ccs = self.clusters.cluster_centers_[j]
-                    cc_df = pd.DataFrame([ccs[:24], ccs[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
-                    cc_plot = cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
-                    n = np.sum(self.labels == j)
-                    cc_plot.opts(title=f"Mean of cluster {j} ({color_dict[j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage')
+                    cc_plot = plot_lines(self.labels, j, ccs, title_pre="Centroid")
                     cc_plot_list.append(cc_plot)
                 return pn.Column(*cc_plot_list)
             if not index:
@@ -226,10 +219,7 @@ class BikeParameters2(param.Parameterized):
                 i = index[0]
                 j = self.labels[i]
                 ccs = self.clusters.cluster_centers_[j]
-                cc_df = pd.DataFrame([ccs[:24], ccs[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
-                cc_plot = cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
-                n = np.sum(self.labels == j)
-                cc_plot.opts(title=f"Centroid of cluster {j} ({color_dict[j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage')
+                cc_plot = plot_lines(self.labels, j, ccs, title_pre="Centroid")
                 return pn.Column(cc_plot, f"Station index {i} is in cluster {j}")
 
     
@@ -289,7 +279,7 @@ tooltips = [
 hover = HoverTool(tooltips=tooltips)
 
 paraview.opts(tools=['tap', hover])
-paraview.opts(apply_ranges=False, nonselection_alpha=0.4)
+paraview.opts(apply_ranges=False, nonselection_alpha=0.4, apply_extents=False)
 
 selection_stream = hv.streams.Selection1D(source=paraview)
 
@@ -315,15 +305,23 @@ def plotterino(index, plot_all_clusters, clustering, k):
     return bike_params.plot_centroid(index)
     
 
+@pn.depends(pn.state.param.busy)
+def indicator(busy):
+    return "I'm busy" if busy else "I'm idle"
+
+
 linecol = pn.Column(plot_daily_traffic, plotterino)
 
 param_column = pn.Column(params.widgets)
 
 panel_param = pn.Row(params, tileview*paraview, linecol)
-text = '#Bikesharing'
-bokeh_server = panel_param.show(port=22345)
+text = '#Bikesharing Clustering Analysis'
+panel_column = pn.Column(text, panel_param, indicator)
+bokeh_server = panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
+
+#bokeh_server = panel_column.show(port=12345)
 
 #%%
 # stop the bokeh server (when needed)
-bokeh_server.stop()
+#bokeh_server.stop()
 
