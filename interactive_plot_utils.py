@@ -16,6 +16,18 @@ from shapely.geometry import Point
 # from shapely.ops import nearest_points
 from geopy.distance import great_circle
 
+def df_key(city):
+    
+    if city == 'nyc':
+        
+        key = {'ZONEDIST' : 'zone_dist',
+               'BoroCT2020' : 'census_tract',
+               'Shape__Area' : 'CT_area',
+               '2020 Data' : 'population'}
+        
+    return key
+    
+    
 def zone_dist_transform(city, zone_dist):
     
     if city == 'nyc':
@@ -39,9 +51,9 @@ def zone_dist_transform(city, zone_dist):
 
 
 def make_station_df(data):
-    
+        
     df = pd.DataFrame(data.stat.locations).T.rename(columns={0: 'long', 1: 'lat'}, index=data.stat.inverse)
-    df.reset_index(inplace=True)
+ 
     
     df['easting'], df['northing'] = hv.util.transform.lon_lat_to_easting_northing(df['long'], df['lat'])
 
@@ -70,7 +82,7 @@ def make_station_df(data):
         
         CTracts_df = gpd.read_file('./data/other_data/nyc_CT_data.json')
         CTracts_df = CTracts_df[['BoroCT2020', 'geometry', 'Shape__Area']]
-        CTracts_df.rename({'Shape__Area':'CT_area'}, axis=1, inplace=True)
+        # CTracts_df.rename({'Shape__Area':'CT_area'}, axis=1, inplace=True)
         
         df = gpd.tools.sjoin(df, CTracts_df, op='within', how='left')
         df['BoroCT2020'] = df['BoroCT2020'].apply(int)
@@ -78,9 +90,9 @@ def make_station_df(data):
         
         census_df = pd.read_excel('./data/other_data/nyc_census_data.xlsx', sheet_name=1)
         census_df = census_df[['Unnamed: 4', '2020 Data']]
-        census_df.rename({'Unnamed: 4':'BoroCT2020','2020 Data':'population'}, axis=1, inplace=True)
+        census_df.rename({'Unnamed: 4':'BoroCT2020'}, axis=1, inplace=True)
         
-        df = pd.merge(df, census_df, on='BoroCT2020') # resetter index, måske ikke godt
+        df = pd.merge(df, census_df, on='BoroCT2020')
         df['pop_density'] = df['population'] / df['CT_area']
         
         subways_df = gpd.read_file('./data/other_data/nyc_subways_data.geojson')
@@ -95,7 +107,19 @@ def make_station_df(data):
         
         df = gpd.GeoDataFrame(df, geometry='coords', crs='EPSG:4326')
         df = gpd.tools.sjoin(df, land_use_df, op='within', how='left')
-    
+
+    df.rename(mapper=df_key(data.city), axis=1, inplace=True)    
+
     return df
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     
