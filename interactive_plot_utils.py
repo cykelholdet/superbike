@@ -18,15 +18,10 @@ from geopy.distance import great_circle
 
 def make_station_df(data):
     
-    df = data.df
+    station_df = pd.DataFrame(data.stat.locations).T.rename(columns={0: 'long', 1: 'lat'}, index=data.stat.inverse)
+
+    station_df['easting'], station_df['northing'] = hv.util.transform.lon_lat_to_easting_northing(station_df['long'], station_df['lat'])
     
-    locations = pd.DataFrame(data.stat.locations).T.rename(columns={0: 'long', 1: 'lat'}, index=data.stat.inverse)
-
-    locations['easting'], locations['northing'] = hv.util.transform.lon_lat_to_easting_northing(locations['long'], locations['lat'])
-
-    df['easting'], df['northing'] = hv.util.transform.lon_lat_to_easting_northing(df['start_stat_long'], df['start_stat_lat'])
-
-    station_df = locations.copy()
     station_df['name'] = data.stat.names.values()
     station_df['n_arrivals'] = data.df['start_stat_id'].value_counts()
     station_df['n_departures'] = data.df['end_stat_id'].value_counts()
@@ -43,24 +38,24 @@ def make_station_df(data):
         zoning_df = gpd.read_file('./data/nyc_zoning_data.json')
         zoning_df = zoning_df[['ZONEDIST', 'geometry']]
         
-        station_df = gpd.GeoDataFrame(station_df, geometry = 'coords', crs = zoning_df.crs)
-        station_df = gpd.tools.sjoin(station_df, zoning_df, predicate='within', how='left')
-        station_df.drop('index_right', axis = 1, inplace=True)
+        station_df = gpd.GeoDataFrame(station_df, geometry='coords', crs=zoning_df.crs)
+        station_df = gpd.tools.sjoin(station_df, zoning_df, op='within', how='left')
+        station_df.drop('index_right', axis=1, inplace=True)
         
         CTracts_df = gpd.read_file('./data/nyc_CT_data.json')
         CTracts_df = CTracts_df[['BoroCT2020', 'geometry', 'Shape__Area']]
         CTracts_df.rename({'Shape__Area':'CT_area'}, axis=1, inplace=True)
         
-        station_df = gpd.tools.sjoin(station_df, CTracts_df, predicate='within', how='left')
+        station_df = gpd.tools.sjoin(station_df, CTracts_df, op='within', how='left')
         station_df['BoroCT2020'] = station_df['BoroCT2020'].apply(int)
-        station_df.drop('index_right', axis = 1, inplace=True)
+        station_df.drop('index_right', axis=1, inplace=True)
         
         census_df = pd.read_excel('./data/nyc_census_data.xlsx', sheet_name=1)
         census_df = census_df[['Unnamed: 4', '2020 Data']]
         census_df.rename({'Unnamed: 4':'BoroCT2020','2020 Data':'population'}, axis=1, inplace=True)
         
         station_df = pd.merge(station_df, census_df, on = 'BoroCT2020') # resetter index, måske ikke godt
-        station_df['pop_density'] = station_df.apply(lambda stat: stat['population']/stat['CT_area'], axis=1)
+        station_df['pop_density'] = station_df['population'] / station_df['CT_area']
         
         subways_df = gpd.read_file('./data/nyc_subways_data.geojson')
         
