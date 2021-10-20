@@ -39,7 +39,7 @@ def zone_dist_transform(city, zone_dist):
 
 
 def make_station_df(data):
-        
+    
     df = pd.DataFrame(data.stat.locations).T.rename(columns={0: 'long', 1: 'lat'}, index=data.stat.inverse)
     df.reset_index(inplace=True)
     
@@ -58,7 +58,7 @@ def make_station_df(data):
     
     if data.city == 'nyc':
     
-        zoning_df = gpd.read_file('./data/nyc_zoning_data.json')
+        zoning_df = gpd.read_file('./data/other_data/nyc_zoning_data.json')
         zoning_df = zoning_df[['ZONEDIST', 'geometry']]
         
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
@@ -68,7 +68,7 @@ def make_station_df(data):
         df['zone_type'] = df['ZONEDIST'].apply(lambda x: zone_dist_transform(data.city, x))
         
         
-        CTracts_df = gpd.read_file('./data/nyc_CT_data.json')
+        CTracts_df = gpd.read_file('./data/other_data/nyc_CT_data.json')
         CTracts_df = CTracts_df[['BoroCT2020', 'geometry', 'Shape__Area']]
         CTracts_df.rename({'Shape__Area':'CT_area'}, axis=1, inplace=True)
         
@@ -76,28 +76,26 @@ def make_station_df(data):
         df['BoroCT2020'] = df['BoroCT2020'].apply(int)
         df.drop('index_right', axis=1, inplace=True)
         
-        census_df = pd.read_excel('./data/nyc_census_data.xlsx', sheet_name=1)
+        census_df = pd.read_excel('./data/other_data/nyc_census_data.xlsx', sheet_name=1)
         census_df = census_df[['Unnamed: 4', '2020 Data']]
         census_df.rename({'Unnamed: 4':'BoroCT2020','2020 Data':'population'}, axis=1, inplace=True)
         
         df = pd.merge(df, census_df, on='BoroCT2020') # resetter index, måske ikke godt
         df['pop_density'] = df['population'] / df['CT_area']
         
-        subways_df = gpd.read_file('./data/nyc_subways_data.geojson')
+        subways_df = gpd.read_file('./data/other_data/nyc_subways_data.geojson')
         
         df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
         df['nearest_subway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]).meters, axis=1)
     
+    elif data.city == 'madrid':
+        
+        land_use_df = gpd.read_file('data/other_data/madrid_UA2018_v013.gpkg')
+        land_use_df = land_use_df[['code_2018', 'class_2018', 'area', 'Pop2018', 'geometry']]
+        
+        df = gpd.GeoDataFrame(df, geometry='coords', crs='EPSG:4326')
+        df = gpd.tools.sjoin(df, land_use_df, op='within', how='left')
+    
     return df
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     
