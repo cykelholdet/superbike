@@ -115,7 +115,7 @@ def make_station_df(data):
         
         df = df.reset_index().merge(census_df, on='BoroCT2020').set_index('index').sort_index()
         
-        df['pop_density'] = df['2020 Data'] / df['Shape__Area']
+        df['pop_density'] = df['Pop_20'] / df['Shape__Area']
         
         subways_df = gpd.read_file('./data/other_data/nyc_subways_data.geojson')
         
