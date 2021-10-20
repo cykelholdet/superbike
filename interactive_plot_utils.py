@@ -45,7 +45,7 @@ def zone_dist_transform(city, zone_dist):
             zone_type = 'commercial'
             
         elif 'M' in zone_dist and '/' not in zone_dist:
-            zone_type = 'manufactoring'
+            zone_type = 'manufacturing'
             
         else:
             zone_type = 'mixed'

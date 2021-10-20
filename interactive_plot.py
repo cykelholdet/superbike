@@ -89,7 +89,7 @@ def plot_lines(labels, j, c_centers, title_pre="Mean"):
 class BikeParameters2(param.Parameterized):
     trip_type = param.Selector(objects=['departures', 'arrivals', 'all'])
     day_type = param.Selector(objects=['business_days', 'weekend', 'day'])
-    clustering = param.Selector(objects=['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture', 'none'], doc="Which clustering to perform")
+    clustering = param.Selector(objects=['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture', 'none', 'zoning'], doc="Which clustering to perform")
     k = param.Integer(default=3, bounds=(1, 10))
     cnorm = param.Selector(objects=['linear', 'log'])
     min_trips = param.Integer(default=0, bounds=(0, 600))
@@ -138,6 +138,11 @@ class BikeParameters2(param.Parameterized):
             self.clusters = None
             self.labels = None
             station_df['color'] = station_df['n_trips'].tolist()
+        
+        elif self.clustering == 'zoning':
+            self.clusters = None
+            self.labels = None
+            station_df['color'] = station_df['zone_type']
             
         else:
             self.clusters = None
@@ -146,7 +151,7 @@ class BikeParameters2(param.Parameterized):
             title = f'Number of trips per station in {month_dict[data.month]} {data.year} in {name_dict[data.city]}'
         else:
             title = f"{self.clustering} clustering in {month_dict[data.month]} {data.year} in {name_dict[data.city]}"
-        plot = station_df.hvplot(kind='points', x='easting', y='northing', c='color', s=100, hover_cols=['name', 'n_trips', 'n_departures', 'n_arrivals'], title=title,  line_color='black', colorbar=False)
+        plot = station_df.hvplot(kind='points', x='easting', y='northing', c='color', s=100, hover_cols=['name', 'n_trips', 'n_departures', 'n_arrivals', 'zone_type'], title=title,  line_color='black', colorbar=False)
         plot.opts(apply_ranges=False)
         return plot
     
@@ -266,6 +271,7 @@ tooltips = [
     ('n_departures', '@n_departures'),
     ('n_arrivals', '@n_arrivals'),
     ('n_trips', '@n_trips total'),
+    ('land use', '@zone_type')
 ]
 hover = HoverTool(tooltips=tooltips)
 
@@ -308,11 +314,11 @@ param_column = pn.Column(params.widgets)
 panel_param = pn.Row(params, tileview*paraview, linecol)
 text = '#Bikesharing Clustering Analysis'
 panel_column = pn.Column(text, panel_param, indicator)
-bokeh_server = panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
+# bokeh_server = panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-# bokeh_server = panel_column.show(port=12345)
+bokeh_server = panel_column.show(port=12345)
 
 #%%
 # stop the bokeh server (when needed)
-# bokeh_server.stop()
+bokeh_server.stop()
 
