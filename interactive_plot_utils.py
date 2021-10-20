@@ -19,7 +19,9 @@ from geopy.distance import great_circle
 def df_key(city):
     
     if city == 'nyc':
-        key = {'ZONEDIST' : 'zone_dist',
+        
+        key = {'Index' : 'stat_id',
+               'ZONEDIST' : 'zone_dist',
                'BoroCT2020' : 'census_tract',
                'Shape__Area' : 'CT_area',
                '2020 Data' : 'population'}
@@ -129,8 +131,35 @@ def make_station_df(data):
         
         df['zone_type'] = df['code_2018'].apply(lambda x: zone_dist_transform(data.city, x))
 
+    
+    
+    
+    
+    
+    
+    
+    
+    elif data.city == 'chic':
+        
+        zoning_df = gpd.read_file('./data/other_data/chic_zoning_data.geojson')
+        zoning_df = zoning_df[['zone_class', 'geometry']]
+    
+        df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
+        df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
+        df.drop('index_right', axis=1, inplace=True)
+    
+        # df['zone_type'] = df['zone_class'].apply(lambda x: zone_dist_transform(data.city, x))
+        
+        CBlocks_df = gpd.read_file('./data/other_data/chic_CB_data.geojson')
+        CBlocks_df = CBlocks_df[['BoroCT2020', 'geometry', 'Shape__Area']]
+    
+    
+    
+    
+    
     df.rename(mapper=df_key(data.city), axis=1, inplace=True)    
-
+    
+    
     return df
     
     
