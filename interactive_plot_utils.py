@@ -93,7 +93,7 @@ def make_station_df(data):
         census_df.rename({'Unnamed: 4':'BoroCT2020'}, axis=1, inplace=True)
         
         df = pd.merge(df, census_df, on='BoroCT2020')
-        df['pop_density'] = df['population'] / df['CT_area']
+        df['pop_density'] = df['2020 Data'] / df['Shape__Area']
         
         subways_df = gpd.read_file('./data/other_data/nyc_subways_data.geojson')
         
