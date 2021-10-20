@@ -1762,6 +1762,203 @@ def df_subset(df, weekdays=None, days='all', hours='all', minutes='all', activit
         raise ValueError('activity_type should be "arrivals", "departures", or "all"')
     return subset
 
+def dist_norm(vec1, vec2):
+    return np.linalg.norm(vec1-vec2)
+
+def dist_dtw(vec1, vec2):
+    return dtw.dtw(vec1, vec2)[1]
+
+def Davies_Bouldin_index(data_mat, labels, centroids, dist_func = 'norm', mute = False):
+    """
+    Calculates the Davies-Bouldin index of clustered data.
+
+    Parameters
+    ----------
+    data_mat : ndarray
+        Array containing the feature vectors.
+    labels : itr, optional
+        Iterable containg the labels of the feature vectors. If no labels
+        are given, they are calculated using the mass_predict method.
+
+    Returns
+    -------
+    DB_index : float
+        Davies-Bouldin index.
+
+    """
+    
+    k = len(centroids)
+    
+    if dist_func == 'norm':
+        dist = dist_norm
+    
+    elif dist_func == 'dtw':
+        dist = dist_dtw
+    
+    if not mute:
+        print('Calculating Davies-Bouldin index...')
+    
+    pre=time.time()
+    
+    S_scores = np.empty(k)
+    
+    for i in range(k):
+        data_mat_cluster = data_mat[np.where(labels == i)]
+        distances = [dist(row, centroids[i]) for row in data_mat_cluster]
+        S_scores[i] = np.mean(distances)
+    
+    R = np.empty(shape=(k,k))
+    for i in range(k):
+        for j in range(k):
+            if i == j:
+                R[i,j] = 0
+            else:
+                R[i,j] = (S_scores[i] + S_scores[j])/dist(centroids[i], centroids[j])
+        
+    D = [max(row) for row in R]
+    
+    DB_index = np.mean(D)
+        
+    if not mute:
+        print(f'Done. Time taken: {time.time()-pre}s')
+    
+    return DB_index
+
+def Dunn_index(data_mat, labels, centroids, dist_func = 'norm', mute = False):
+    """
+    Calculates the Dunn index of clustered data. WARNING: VERY SLOW.
+
+    Parameters
+    ----------
+    data_mat : ndarray
+        Array containing the feature vectors.
+    labels : itr, optional
+        Iterable containg the labels of the feature vectors. If no labels
+        are given, they are calculated using the mass_predict method.
+
+    Returns
+    -------
+    D_index : float
+        Dunn index.
+
+    """
+    k = len(centroids)
+    
+    if dist_func == 'norm':
+        dist = dist_norm
+    
+    elif dist_func == 'dtw':
+        dist = dist_dtw
+    
+    if not mute:
+        print('Calculating Dunn Index...')
+    
+    pre=time.time()
+    
+    intra_cluster_distances = np.empty(k)
+    inter_cluster_distances = np.full(shape=(k,k), fill_value = np.inf)
+    
+    for i in range(k):
+        data_mat_cluster = data_mat[np.where(labels == i)]
+        cluster_size = len(data_mat_cluster)
+        distances = np.empty(shape=(cluster_size, cluster_size))
+        
+        for h in range(cluster_size):
+            for j in range(cluster_size):
+                distances[h,j] = dist(data_mat[h], data_mat[j])
+        
+        intra_cluster_distances[i] = np.max(distances)
+
+        for j in range(k):
+            if j != i:
+                data_mat_cluster_j = data_mat[np.where(labels == j)]
+                cluster_size_j = len(data_mat_cluster_j)
+                between_cluster_distances = np.empty(shape=(cluster_size, cluster_size_j))
+                for m in range(cluster_size):
+                    for n in range(cluster_size_j):
+                        between_cluster_distances[m,n] = dist(data_mat_cluster[m], data_mat_cluster_j[n])
+                inter_cluster_distances[i,j] = np.min(between_cluster_distances)
+    
+    D_index = np.min(inter_cluster_distances)/np.max(intra_cluster_distances)
+    
+    if not mute:
+        print(f'Done. Time taken: {time.time()-pre}s')
+    
+    return D_index
+
+def silhouette_index(data_mat, labels, centroids, dist_func = 'norm', mute = False):
+    """
+    Calculates the silhouette index of clustered data.
+
+    Parameters
+    ----------
+    data_mat : ndarray
+        Array containing the feature vectors.
+    labels : itr, optional
+        Iterable containg the labels of the feature vectors. If no labels
+        are given, they are calculated using the mass_predict method.
+
+    Returns
+    -------
+    S_index : float
+        Silhouette index.
+
+    """
+
+    k = len(centroids)
+    
+    if dist_func == 'norm':
+        dist = dist_norm
+    
+    elif dist_func == 'dtw':
+        dist = dist_dtw
+    
+    if not mute:
+        print('Calculating Silhouette index...')
+    
+    pre=time.time()
+    
+    s_coefs = np.empty(len(data_mat))
+    
+    for i, vec1 in enumerate(data_mat):
+        in_cluster = np.delete(data_mat, i, axis=0)
+        in_cluster = in_cluster[np.where(np.delete(labels, i) == labels[i])]
+        
+        in_cluster_size = len(in_cluster)
+        
+        in_cluster_distances = np.empty(in_cluster_size)
+        for j, vec2 in enumerate(in_cluster):
+            in_cluster_distances[j] = dist(vec1, vec2)
+        
+        mean_out_cluster_distances = np.full(k, fill_value = np.inf)
+        
+        for j in range(k):
+            if j != labels[i]:
+                out_cluster = data_mat[np.where(labels == j)]
+                out_cluster_distances = np.empty(len(out_cluster))
+                
+                for l, vec2 in enumerate(out_cluster):
+                    out_cluster_distances[l] = dist(vec1, vec2)
+                
+                mean_out_cluster_distances[j] = np.mean(out_cluster_distances)
+    
+        ai = np.mean(in_cluster_distances)
+        bi = np.min(mean_out_cluster_distances)
+        
+        s_coefs[i] = (bi-ai)/max(ai,bi)
+        
+    S_index = np.mean(s_coefs)
+    
+    if not mute:
+        print(f'Done. Time taken: {time.time()-pre}s')
+    
+    return S_index
+
+
+
+
+
+
 
 class Stations:
     """

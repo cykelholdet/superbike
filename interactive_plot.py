@@ -8,6 +8,7 @@ Created on Thu Sep 30 11:36:11 2021
 
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 import matplotlib.pyplot as plt
 
 import holoviews as hv
@@ -18,6 +19,7 @@ import param
 from bokeh.models import HoverTool
 
 import bikeshare as bs
+import interactive_plot_utils as ipu
 import time
 
 from sklearn.cluster import AgglomerativeClustering, KMeans
@@ -30,30 +32,22 @@ from matplotlib import cm
 
 from holoviews.element.tiles import OSM
 
+from shapely.geometry import Point
+from shapely.ops import nearest_points
+from geopy.distance import great_circle
 
 cmap = cm.get_cmap('Blues')
+
+# Load bikeshare data
 
 year = 2019
 month = 9
 data = bs.Data('nyc', year, month)
 df = data.df
 
-locations = pd.DataFrame(data.stat.locations).T.rename(columns={0: 'long', 1: 'lat'}, index=data.stat.inverse)
+station_df = ipu.make_station_df(data)
 
-locations['easting'], locations['northing'] = hv.util.transform.lon_lat_to_easting_northing(locations['long'], locations['lat'])
-
-df['easting'], df['northing'] = hv.util.transform.lon_lat_to_easting_northing(df['start_stat_long'], df['start_stat_lat'])
-
-
-
-station_df = locations.copy()
-station_df['name'] = data.stat.names.values()
-station_df['n_arrivals'] = data.df['start_stat_id'].value_counts()
-station_df['n_departures'] = data.df['end_stat_id'].value_counts()
-station_df['n_arrivals'].fillna(0, inplace=True)
-station_df['n_departures'].fillna(0, inplace=True)
-
-station_df['n_trips'] = data.df['start_stat_id'].value_counts().add(data.df['end_stat_id'].value_counts(), fill_value=0)
+#%%
 
 extremes = [station_df['easting'].max(), station_df['easting'].min(), station_df['northing'].max(), station_df['northing'].min()]
 
@@ -74,7 +68,7 @@ name_dict = {'chic': 'Chicago',
              'edinburgh': 'Edinburgh'}
 
 
-#%%
+
 activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'end', 'start': 'start', 'end': 'end'}
 day_type_dict = {'weekend': 'w', 'business_days': 'b'}
 
@@ -279,7 +273,7 @@ tooltips = [
 hover = HoverTool(tooltips=tooltips)
 
 paraview.opts(tools=['tap', hover])
-paraview.opts(apply_ranges=False, nonselection_alpha=0.4, apply_extents=False)
+paraview.opts(apply_ranges=False, nonselection_alpha=0.4)
 
 selection_stream = hv.streams.Selection1D(source=paraview)
 
@@ -319,9 +313,9 @@ text = '#Bikesharing Clustering Analysis'
 panel_column = pn.Column(text, panel_param, indicator)
 bokeh_server = panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-#bokeh_server = panel_column.show(port=12345)
+# bokeh_server = panel_column.show(port=12345)
 
 #%%
 # stop the bokeh server (when needed)
-#bokeh_server.stop()
+# bokeh_server.stop()
 
