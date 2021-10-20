@@ -20,7 +20,6 @@ from bokeh.models import HoverTool
 
 import bikeshare as bs
 import interactive_plot_utils as ipu
-import time
 
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.mixture import GaussianMixture
@@ -29,8 +28,6 @@ from sklearn_extra.cluster import KMedoids
 import skimage.color as skcolor
 import matplotlib.colors as mpl_colors
 from matplotlib import cm
-
-from holoviews.element.tiles import OSM
 
 from shapely.geometry import Point
 from shapely.ops import nearest_points

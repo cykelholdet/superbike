@@ -19,12 +19,15 @@ from geopy.distance import great_circle
 def df_key(city):
     
     if city == 'nyc':
-        
         key = {'ZONEDIST' : 'zone_dist',
                'BoroCT2020' : 'census_tract',
                'Shape__Area' : 'CT_area',
                '2020 Data' : 'population'}
-        
+    elif city == 'madrid':
+        key = {}
+    else:
+        key = {}
+    
     return key
     
     
@@ -46,6 +49,21 @@ def zone_dist_transform(city, zone_dist):
             
         else:
             zone_type = 'mixed'
+    
+    elif city == 'madrid':
+        if zone_dist in ['11100', '11210', '11220']: # Continuous urban fabric (S.L. : > 80%), Discontinuous dense urban fabric (S.L. : 50% -  80%), Discontinuous medium density urban fabric (S.L. : 30% - 50%)
+            zone_type = 'residential' 
+        elif zone_dist in ['12220']: # Other roads and associated land
+            zone_type = 'road'
+        elif zone_dist in ['12100']: # Industrial, commercial, public, military and private units
+            zone_type = 'commercial'
+        elif zone_dist in ['14100']: # Green urban areas
+            zone_type = 'recreational'
+        else:
+            zone_type = 'UNKNOWN'
+    
+    else:
+        raise KeyError('city transform not found')
         
     return zone_type
 
@@ -103,23 +121,24 @@ def make_station_df(data):
     elif data.city == 'madrid':
         
         land_use_df = gpd.read_file('data/other_data/madrid_UA2018_v013.gpkg')
-        land_use_df = land_use_df[['code_2018', 'class_2018', 'area', 'Pop2018', 'geometry']]
+        land_use_df = land_use_df[['code_2018', 'class_2018', 'area', 'Pop2018', 'geometry']].to_crs('EPSG:4326')
         
         df = gpd.GeoDataFrame(df, geometry='coords', crs='EPSG:4326')
         df = gpd.tools.sjoin(df, land_use_df, op='within', how='left')
+        df.drop('index_right', axis=1, inplace=True)
+        
+        df['zone_type'] = df['code_2018'].apply(lambda x: zone_dist_transform(data.city, x))
 
     df.rename(mapper=df_key(data.city), axis=1, inplace=True)    
 
     return df
     
     
+if __name__ == "__main__":
+    import bikeshare as bs
+    import time
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
+    data = bs.Data('madrid', 2019, 9)
+    pre = time.time()
+    station_df = make_station_df(data)
+    print(f'station_df took {time.time() - pre:.2f} seconds')
