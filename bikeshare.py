@@ -3689,4 +3689,4 @@ if __name__ == "__main__":
     pre = time.time()
     data = Data('nyc', 2019, 9)
     print(time.time() - pre)
-    data.daily_traffic_average(804, plot=True)
+    data.pickle_daily_traffic(804, plot=True)

@@ -24,7 +24,7 @@ def df_key(city):
                'ZONEDIST' : 'zone_dist',
                'BoroCT2020' : 'census_tract',
                'Shape__Area' : 'CT_area',
-               '2020 Data' : 'population'}
+               'Pop_20' : 'population'}
     elif city == 'madrid':
         key = {}
     else:
@@ -72,8 +72,9 @@ def zone_dist_transform(city, zone_dist):
 
 def make_station_df(data):
         
-    df = pd.DataFrame(data.stat.locations).T.rename(columns={0: 'long', 1: 'lat'}, index=data.stat.inverse)
- 
+    df = pd.DataFrame(data.stat.locations).T.rename(columns={0: 'long', 1: 'lat'})
+    
+    df['stat_id'] = df.index.map(data.stat.inverse)
     
     df['easting'], df['northing'] = hv.util.transform.lon_lat_to_easting_northing(df['long'], df['lat'])
 
@@ -108,11 +109,12 @@ def make_station_df(data):
         df['BoroCT2020'] = df['BoroCT2020'].apply(int)
         df.drop('index_right', axis=1, inplace=True)
         
-        census_df = pd.read_excel('./data/other_data/nyc_census_data.xlsx', sheet_name=1)
-        census_df = census_df[['Unnamed: 4', '2020 Data']]
-        census_df.rename({'Unnamed: 4':'BoroCT2020'}, axis=1, inplace=True)
+        census_df = pd.read_excel('./data/other_data/nyc_census_data.xlsx', sheet_name=1, skiprows=[0,1,2])
+        census_df = census_df[['BCT2020', 'Pop_20']]
+        census_df.rename(columns={'BCT2020': 'BoroCT2020'}, inplace=True)
         
-        df = pd.merge(df, census_df, on='BoroCT2020')
+        df = df.reset_index().merge(census_df, on='BoroCT2020').set_index('index').sort_index()
+        
         df['pop_density'] = df['2020 Data'] / df['Shape__Area']
         
         subways_df = gpd.read_file('./data/other_data/nyc_subways_data.geojson')
@@ -167,7 +169,7 @@ if __name__ == "__main__":
     import bikeshare as bs
     import time
     
-    data = bs.Data('madrid', 2019, 9)
+    data = bs.Data('nyc', 2019, 9)
     pre = time.time()
     station_df = make_station_df(data)
     print(f'station_df took {time.time() - pre:.2f} seconds')
