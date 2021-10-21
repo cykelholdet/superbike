@@ -132,13 +132,11 @@ def make_station_df(data):
     df.reset_index(inplace=True)
     
     df['name'] = data.stat.names.values()
-    df['n_arrivals'] = data.df['start_stat_id'].value_counts()
-    df['n_departures'] = data.df['end_stat_id'].value_counts()
-    df['n_arrivals'].fillna(0, inplace=True)
-    df['n_departures'].fillna(0, inplace=True)
+    df['n_arrivals'] = df['stat_id'].map(data.df['start_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
+    df['n_departures'] = df['stat_id'].map(data.df['end_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
 
-    df['n_trips'] = data.df['start_stat_id'].value_counts().add(data.df['end_stat_id'].value_counts(), fill_value=0)
-
+    df['n_trips'] = df['n_arrivals'] + df['n_departures']
+    
     df['coords'] = list(zip(df['long'], df['lat']))
     df['coords'] = df['coords'].apply(Point)
     
