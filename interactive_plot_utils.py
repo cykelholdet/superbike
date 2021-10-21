@@ -20,7 +20,7 @@ def df_key(city):
     
     if city == 'nyc':
         
-        key = {'Index' : 'stat_id',
+        key = {'index' : 'stat_id',
                'ZONEDIST' : 'zone_dist',
                'BoroCT2020' : 'census_tract',
                'Shape__Area' : 'CT_area',
@@ -33,6 +33,11 @@ def df_key(city):
                'zone_class' : 'zone_dist',
                'geoid10' : 'census_block',
                'TOTAL POPULATION' : 'population'}
+    
+    elif city == 'minn':
+        key = {'ZONE_CODE' : 'zone_dist',
+               'GEOID20' : 'census_tract',
+               'ALAND20' : 'CT_area'}
     
     else:
         key = {}
@@ -127,7 +132,21 @@ def zone_dist_transform(city, zone_dist):
             else:
                 zone_type = 'UNKNOWN'
         
-        
+        elif city == 'minn':
+            
+            if 'OR' in zone_dist:
+                zone_type = 'mixed'
+            elif 'R' in zone_dist:
+                zone_type = 'residential'
+            elif 'C' in zone_dist or 'B' in zone_dist:
+                zone_type = 'commercial'
+            elif 'I' in zone_dist:
+                zone_type = 'industrial'
+            
+            else:
+                zone_type = 'UNKNOWN'
+            
+            
         else:
             raise KeyError('city transform not found')
         
@@ -275,7 +294,7 @@ def make_station_df(data):
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
     
-        # df['zone_type'] = df['ZONE_CODE'].apply(lambda x: zone_dist_transform(data.city, x))
+        df['zone_type'] = df['ZONE_CODE'].apply(lambda x: zone_dist_transform(data.city, x))
     
         CTracts_df = gpd.read_file('./data/other_data/minn_CT_data.shp')
         CTracts_df.to_crs(crs = zoning_df.crs, inplace=True)
