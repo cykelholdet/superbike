@@ -218,7 +218,7 @@ def get_data_month(city, year, month, blacklist=None):
                         'washDC', 'chic', 'london',
                         'oslo', 'edinburgh', 'bergen',
                         'buenos_aires', 'madrid',
-                        'mexico', 'taipei'] # Remember to update this list
+                        'mexico', 'taipei', 'helsinki'] # Remember to update this list
 
     if city not in supported_cities:
         raise ValueError("This city is not currently supported. Supported cities are {}".format(supported_cities))
@@ -543,6 +543,42 @@ def get_data_month(city, year, month, blacklist=None):
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
             df.drop(columns=['start_t', 'end_t'], inplace=True)
+        
+        
+        elif city == "helsinki":
+
+            try:
+                df = pd.read_csv(f'./data/{year:d}-{month:02d}-helsinki.csv')
+            except FileNotFoundError as exc:
+                raise FileNotFoundError('No trip data found. All relevant files can be found at https://hri.fi/data/en_GB/dataset/helsingin-ja-espoon-kaupunkipyorilla-ajatut-matkat') from exc
+
+            df = df.rename(columns = dataframe_key.get_key(city))
+            df.dropna(inplace=True)
+            df.reset_index(inplace = True, drop = True)
+
+            df['start_dt'] = pd.to_datetime(df['start_t'])
+            df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
+            
+            try:
+                stations = pd.read_csv('./data/Helsingin_ja_Espoon_kaupunkipyöräasemat_avoin.csv')
+            except FileNotFoundError as exc:
+                raise FileNotFoundError('No station data found. All relevant files can be found at https://hri.fi/data/en_GB/dataset/helsingin-ja-espoon-kaupunkipyorilla-ajatut-matkat') from exc
+
+            long_dict = dict(zip(stations['ID'], stations['x'].astype(float)))
+            lat_dict = dict(zip(stations['ID'], stations['y'].astype(float)))
+            addr_dict = dict(zip(stations['ID'], stations['Osoite']))
+            
+            df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
+            df['start_stat_long'] = df['start_stat_id'].map(long_dict)
+            df['start_stat_desc'] = df['start_stat_id'].map(addr_dict)
+
+            df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
+            df['end_stat_long'] = df['end_stat_id'].map(long_dict)
+            df['end_stat_desc'] = df['end_stat_id'].map(addr_dict)
+            
+            df.dropna(inplace=True)
+            df.reset_index(inplace = True, drop = True)
 
 
         elif city == "buenos_aires":
@@ -770,6 +806,7 @@ def get_data_month(city, year, month, blacklist=None):
         print("Pickle does not exist. Pickling day indices...")
         days = pickle_data(df, city, year, month)
         print("Pickling done.")
+    # days = days_index(df) # adds about 0.2 to 1 second to not pickle
 
     print(f"Data loaded: {city}{year:d}{month:02d}")
 
@@ -3689,4 +3726,4 @@ if __name__ == "__main__":
     pre = time.time()
     data = Data('nyc', 2019, 9)
     print(time.time() - pre)
-    data.pickle_daily_traffic(804, plot=True)
+    #data.pickle_daily_traffic(804, plot=True)

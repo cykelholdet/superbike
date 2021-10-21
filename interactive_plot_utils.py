@@ -52,15 +52,21 @@ def zone_dist_transform(city, zone_dist):
         else:
             zone_type = 'mixed'
     
-    elif city == 'madrid':
-        if zone_dist in ['11100', '11210', '11220']: # Continuous urban fabric (S.L. : > 80%), Discontinuous dense urban fabric (S.L. : 50% -  80%), Discontinuous medium density urban fabric (S.L. : 30% - 50%)
+    elif city in ['madrid', 'helsinki']:
+        if zone_dist in ['11100', '11210', '11220', '11230']: # Continuous urban fabric (S.L. : > 80%), Discontinuous dense urban fabric (S.L. : 50% -  80%), Discontinuous medium density urban fabric (S.L. : 30% - 50%), Discontinuous low density urban fabric (S.L. : 10% - 30%)
             zone_type = 'residential' 
         elif zone_dist in ['12220']: # Other roads and associated land
             zone_type = 'road'
         elif zone_dist in ['12100']: # Industrial, commercial, public, military and private units
             zone_type = 'commercial'
-        elif zone_dist in ['14100']: # Green urban areas
+        elif zone_dist in ['14100', '14200', '31000']: # Green urban areas, Sports and leisure facilities, Forests
             zone_type = 'recreational'
+        elif zone_dist in ['12230']: # Railways and associated land
+            zone_type = 'transport'
+        elif zone_dist in ['12300']: # Port areas
+            zone_type = 'port'
+        elif zone_dist in ['13100', 'Construction sites']: # Mineral extraction and dump sites
+            zone_type = 'industrial'
         else:
             zone_type = 'UNKNOWN'
     
@@ -122,9 +128,9 @@ def make_station_df(data):
         df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
         df['nearest_subway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]).meters, axis=1)
     
-    elif data.city == 'madrid':
+    elif data.city in ['madrid', 'helsinki']:
         
-        land_use_df = gpd.read_file('data/other_data/madrid_UA2018_v013.gpkg')
+        land_use_df = gpd.read_file(f'data/other_data/{data.city}_UA2018_v013.gpkg')
         land_use_df = land_use_df[['code_2018', 'class_2018', 'area', 'Pop2018', 'geometry']].to_crs('EPSG:4326')
         
         df = gpd.GeoDataFrame(df, geometry='coords', crs='EPSG:4326')

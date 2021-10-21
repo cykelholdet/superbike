@@ -18,6 +18,7 @@ import panel as pn
 import param
 from bokeh.models import HoverTool
 
+
 import bikeshare as bs
 import interactive_plot_utils as ipu
 
@@ -62,7 +63,8 @@ name_dict = {'chic': 'Chicago',
               'oslo': 'Oslo',
               'bergen': 'Bergen',
               'trondheim': 'Trondheim',
-              'edinburgh': 'Edinburgh'}
+              'edinburgh': 'Edinburgh',
+              'helsinki': 'Helsinki'}
 
 
 
@@ -314,11 +316,11 @@ param_column = pn.Column(params.widgets)
 panel_param = pn.Row(params, tileview*paraview, linecol)
 text = '#Bikesharing Clustering Analysis'
 panel_column = pn.Column(text, panel_param, indicator)
-# bokeh_server = panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
+bokeh_server = panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-bokeh_server = panel_column.show(port=12345)
+#bokeh_server = panel_column.show(port=12345)
 
 #%%
 # stop the bokeh server (when needed)
-bokeh_server.stop()
+#bokeh_server.stop()
 

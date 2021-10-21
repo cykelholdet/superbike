@@ -144,6 +144,16 @@ def get_key(city):
                'end_station_name': 'end_stat_name',
                'end_station_latitude': 'end_stat_lat',
                'end_station_longitude': 'end_stat_long'}
+    
+    elif city == 'helsinki':
+        key = {'Duration (sec.)': 'duration',
+               'Departure': 'start_t',
+               'Return': 'end_t',
+               'Departure station id': 'start_stat_id',
+               'Departure station name': 'start_stat_name',
+               'Return station id': 'end_stat_id',
+               'Return station name': 'end_stat_name',
+               'Covered distance (m)': 'distance'}
 
     elif city == "buenos_aires":
         key = {'periodo': 'year',
