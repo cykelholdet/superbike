@@ -17,7 +17,8 @@ hv.extension('bokeh', logo=False)
 import panel as pn
 import param
 from bokeh.models import HoverTool
-
+import geoviews as gv
+import cartopy.crs as ccrs
 
 import bikeshare as bs
 import interactive_plot_utils as ipu
@@ -40,11 +41,11 @@ cmap = cm.get_cmap('Blues')
 
 year = 2019
 month = 9
-data = bs.Data('chic', year, month)
+data = bs.Data('nyc', year, month)
 df = data.df
 
 station_df = ipu.make_station_df(data)
-
+#station_df.dropna(inplace=True)
 #%%
 
 extremes = [station_df['easting'].max(), station_df['easting'].min(), station_df['northing'].max(), station_df['northing'].min()]
@@ -144,17 +145,23 @@ class BikeParameters2(param.Parameterized):
         elif self.clustering == 'zoning':
             self.clusters = None
             self.labels = None
-            station_df['color'] = station_df['zone_type']
+            station_df['color'] = [color_dict[zone] for zone in pd.factorize(station_df['zone_type'])[0]]
             
         else:
             self.clusters = None
             self.labels = None
+            station_df['color'] = None
         if self.clustering == 'none':
             title = f'Number of trips per station in {month_dict[data.month]} {data.year} in {name_dict[data.city]}'
         else:
             title = f"{self.clustering} clustering in {month_dict[data.month]} {data.year} in {name_dict[data.city]}"
-        plot = station_df.hvplot(kind='points', x='easting', y='northing', c='color', s=100, hover_cols=['name', 'n_trips', 'n_departures', 'n_arrivals', 'zone_type'], title=title,  line_color='black', colorbar=False)
-        plot.opts(apply_ranges=False)
+        #plot = station_df.hvplot(kind='points', x='easting', y='northing', c='color', s=100, hover_cols=['name', 'n_trips', 'n_departures', 'n_arrivals', 'zone_type'], title=title,  line_color='black', colorbar=False)
+        #plot.opts(apply_ranges=False)
+        #ds = gv.Dataset(station_df, kdims=['stat_id'], vdims=['long', 'lat', 'color'],)
+        #plot = ds.to(gv.Points, ['long', 'lat'], ['stat_id'])
+        plot = gv.Points(station_df, kdims=['long', 'lat'], vdims=['stat_id', 'color', 'n_trips', 'zone_type', 'name', ])
+        plot.opts(gv.opts.Points(fill_color='color', size=10, line_color='black'))
+        #plot = gv.Points(station_df, ["easting", "northing"])#.opts(projection=ccrs.GOOGLE_MERCATOR, global_extent=True)
         return plot
     
 
@@ -258,7 +265,7 @@ def line_callback_both(index, day_type):
 def plot_tiles(clustering):
     
     tiles = hv.element.tiles.StamenTerrainRetina()
-    #tiles = gts.StamenTerrainRetina
+    tiles = gv.tile_sources.StamenTerrainRetina()
     tiles.opts(height=800, width=800, xlim=(extremes[1], extremes[0]), ylim=(extremes[3], extremes[2]), active_tools=['wheel_zoom'])
     return tiles
 
@@ -270,15 +277,15 @@ tileview = hv.DynamicMap(plot_tiles)
 tooltips = [
     ('Name', '@name'),
     ('Cluster', '@color'),
-    ('n_departures', '@n_departures'),
-    ('n_arrivals', '@n_arrivals'),
+    #('n_departures', '@n_departures'),
+    #('n_arrivals', '@n_arrivals'),
     ('n_trips', '@n_trips total'),
     ('land use', '@zone_type')
 ]
 hover = HoverTool(tooltips=tooltips)
 
 paraview.opts(tools=['tap', hover])
-paraview.opts(apply_ranges=False, nonselection_alpha=0.4)
+#paraview.opts(apply_ranges=False, nonselection_alpha=0.4)
 
 selection_stream = hv.streams.Selection1D(source=paraview)
 
@@ -316,11 +323,11 @@ param_column = pn.Column(params.widgets)
 panel_param = pn.Row(params, tileview*paraview, linecol)
 text = '#Bikesharing Clustering Analysis'
 panel_column = pn.Column(text, panel_param, indicator)
-bokeh_server = panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
+#bokeh_server = panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-#bokeh_server = panel_column.show(port=12345)
+bokeh_server = panel_column.show(port=12345)
 
 #%%
 # stop the bokeh server (when needed)
-#bokeh_server.stop()
+bokeh_server.stop()
 
