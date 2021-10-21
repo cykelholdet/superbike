@@ -218,7 +218,7 @@ def get_data_month(city, year, month, blacklist=None):
                         'washDC', 'chic', 'london',
                         'oslo', 'edinburgh', 'bergen',
                         'buenos_aires', 'madrid',
-                        'mexico', 'taipei', 'helsinki'] # Remember to update this list
+                        'mexico', 'taipei', 'helsinki', 'minn'] # Remember to update this list
 
     if city not in supported_cities:
         raise ValueError("This city is not currently supported. Supported cities are {}".format(supported_cities))
@@ -316,7 +316,24 @@ def get_data_month(city, year, month, blacklist=None):
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
             df.drop(columns=['start_t', 'end_t'], inplace=True)
+        
+        
+        elif city == 'minn':
+            try:
+                df = pd.read_csv(f'./data/{year:d}{month:02d}-niceride-tripdata.csv')
 
+            except FileNotFoundError as exc:
+                raise FileNotFoundError('No trip data found. All relevant files can be found at https://www.niceridemn.com/system-data') from exc
+            
+            df = df.rename(columns = dataframe_key.get_key(city))
+            
+            df.dropna(inplace=True)
+            df.reset_index(inplace = True, drop = True)
+
+            df['start_dt'] = pd.to_datetime(df['start_t'])
+            df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)            
+            
 
         elif city == "chic":
 
@@ -789,7 +806,7 @@ def get_data_month(city, year, month, blacklist=None):
             df.dropna(inplace=True)
             df.sort_values(by=['start_dt'], inplace=True)
             df.reset_index(inplace=True, drop = True)
-
+            
         if blacklist:
             df = df[~df['start_stat_id'].isin(blacklist)]
             df = df[~df['end_stat_id'].isin(blacklist)]
@@ -3724,6 +3741,6 @@ class Classifier:
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('nyc', 2019, 9)
+    data = Data('minn', 2019, 9)
     print(time.time() - pre)
     #data.pickle_daily_traffic(804, plot=True)

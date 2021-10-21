@@ -31,9 +31,6 @@ import skimage.color as skcolor
 import matplotlib.colors as mpl_colors
 from matplotlib import cm
 
-from shapely.geometry import Point
-from shapely.ops import nearest_points
-from geopy.distance import great_circle
 
 cmap = cm.get_cmap('Blues')
 
@@ -41,11 +38,12 @@ cmap = cm.get_cmap('Blues')
 
 year = 2019
 month = 9
+
 data = bs.Data('nyc', year, month)
 df = data.df
 
 station_df = ipu.make_station_df(data)
-#station_df.dropna(inplace=True)
+
 #%%
 
 extremes = [station_df['easting'].max(), station_df['easting'].min(), station_df['northing'].max(), station_df['northing'].min()]
