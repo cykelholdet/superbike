@@ -37,7 +37,7 @@ def get_key(city):
         Dictionary used for renaming coloumn labels.
 
     """
-    if city == "nyc":
+    if city in ['nyc', 'boston']:
         key = {'tripduration': 'duration',
                'starttime': 'start_t',
                'stoptime': 'end_t',
@@ -120,23 +120,7 @@ def get_key(city):
                'gender': 'gender',
                'bike type' : 'bike_type'}
     
-    elif city == "sfran":
-        key = {'duration_sec': 'duration',
-               'start_time': 'start_t',
-               'end_time': 'end_t',
-               'start_station_id': 'start_stat_id',
-               'start_station_name': 'start_stat_name',
-               'start_station_latitude': 'start_stat_lat',
-               'start_station_longitude': 'start_stat_long',
-               'end_station_id': 'end_stat_id',
-               'end_station_name': 'end_stat_name',
-               'end_station_latitude': 'end_stat_lat',
-               'end_station_longitude': 'end_stat_long',
-               'bike_id': 'bike_id',
-               'user_type': 'user_type',
-               'bike_share_for_all_trip': 'bike_share_for_all_trip'}
-
-    elif city == "sjose":
+    elif city in ['sfran', 'sjose']:
         key = {'duration_sec': 'duration',
                'start_time': 'start_t',
                'end_time': 'end_t',

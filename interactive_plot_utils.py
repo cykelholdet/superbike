@@ -34,6 +34,11 @@ def df_key(city):
                'geoid10' : 'census_block',
                'TOTAL POPULATION' : 'population'}
     
+    elif city == 'washDC':
+        key = {'ZONING LABEL' : 'zone_dist',
+               'GEOID' : 'census_tract',
+               'P0010001' : 'population'}
+    
     elif city == 'minn':
         key = {'ZONE_CODE' : 'zone_dist',
                'GEOID20' : 'census_tract',
@@ -120,14 +125,36 @@ def zone_dist_transform(city, zone_dist):
                          'RA-8', 'RA-9', 'RA-10', 'R-9', 'R-8', 'R-6', 'R-3',
                          'R-21', 'R-20', 'R-2', 'R-19', 'R-17', 'R-16', 'R-15', 
                          'R-14', 'R-13', 'R-12', 'R-11', 'R-10', 'R-1-B', 
-                         'R-1-A']
+                         'R-1-A', 'ARTS-2', 'CG-1', 'CG-2', 'D-1-R', 'D-4-R',
+                         'MU-15', 'MU-16', 'MU-18', 'MU-19', 'MU-23', 'MU-5A',
+                         'MU-5B', 'MU-6', 'NC-10', 'NC-11', 'NC-13', 'NC-5',
+                         'NC-9']
+            
+            com_zones = ['ARTS-3', 'CG-3', 'D-3', 'D-4', 'D-5', 'D-6-R', 'D-7',
+                         'MU-20', 'MU-21', 'MU-28', 'MU-8', 'M-9', 'NC-16', 
+                         'NC-17', 'NC-8']
+            
+            mix_zones = ['ARTS-1', 'ARTS-4', 'CG-5', 'D-5-R', 'D-6', 'MU-1',
+                         'MU-10', 'MU-12', 'MU-13', 'MU-14', 'MU-17', 'MU-2',
+                         'MU-22', 'MU-24', 'MU-25', 'MU-26', 'MU-27', 'MU-29',
+                         'MU-3A', 'MU-3B', 'MU-4', 'MU-7', 'NC-1', 'NC-2',
+                         'NC-3', 'NC-4', 'NC-6', 'NC-7', 'NHR', 'SEFC-1A',
+                         'SEFC-1B', 'SEFC-2', 'SEFC-3', 'SEFC-4']
+            
+            rec_zones = ['MU-11', 'NC-14', 'NC-15']
             
             if zone_dist in res_zones:
                 zone_type = 'residential'
+            elif zone_dist in com_zones:
+                zone_type = 'commercial'
+            elif zone_dist in rec_zones:
+                zone_type = 'recreational'
             elif 'PDR' in zone_dist:
                 zone_type = 'manufacturing'
-            elif 'MU' in zone_dist or 'NC' in zone_dist or 'NHR' in zone_dist:
+            elif zone_dist in mix_zones or 'WR' in zone_dist:
                 zone_type = 'mixed'
+            elif 'StE' in zone_dist:
+                zone_type = 'educational'
             
             else:
                 zone_type = 'UNKNOWN'
@@ -263,7 +290,7 @@ def make_station_df(data):
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
     
-        # df['zone_type'] = df['ZONING_LABEL'].apply(lambda x: zone_dist_transform(data.city, x))
+        df['zone_type'] = df['ZONING_LABEL'].apply(lambda x: zone_dist_transform(data.city, x))
         
         census_df = gpd.read_file('./data/other_data/washDC_census_data.geojson')
         census_df = census_df[['GEOID', 'P0010001', 'geometry']]
@@ -317,6 +344,43 @@ def make_station_df(data):
         df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
         df['nearest_subway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]).meters, axis=1)
     
+    
+    elif data.city == 'boston':
+        
+        zoning_df = gpd.read_file('./data/other_data/boston_zoning_data.geojson')
+        zoning_df = zoning_df[['ZONE_', 'SUBDISTRIC', 'geometry']]
+        
+        df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
+        df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
+        df.drop('index_right', axis=1, inplace=True)
+    
+        # df['zone_type'] = df['ZONE_CODE'].apply(lambda x: zone_dist_transform(data.city, x))
+    
+        CTracts_df = gpd.read_file('./data/other_data/boston_CT_data.shp')
+        CTracts_df = CTracts_df.to_crs(epsg=4326)
+        CTracts_df = CTracts_df[['GEOID20', 'ALAND20', 'geometry']]
+        
+        df = gpd.tools.sjoin(df, CTracts_df, op='within', how='left')
+        df['GEOID20'] = df['GEOID20'].apply(lambda x: int(x) if pd.notnull(x) else x)
+        df.drop('index_right', axis=1, inplace=True)
+        
+        census_df = pd.read_csv('./data/other_data/boston_census_data.csv')
+        census_df = census_df[['GEOCODE', 'P0020001']].iloc[1:]
+        census_df['GEOCODE'] = census_df['GEOCODE'].apply(lambda x: int(x) if pd.notnull(x) else x)
+        
+        pop_map = dict(zip(census_df['GEOCODE'], census_df['P0020001']))
+        
+        df['population'] = df['GEOID20'].map(pop_map).apply(lambda x: int(x) if pd.notnull(x) else x)
+        df['pop_density'] = df['population'] / df['ALAND20']
+        
+        
+        subways_df = gpd.read_file('./data/other_data/boston_subways_data.shp').to_crs(epsg = 4326)
+        
+        df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
+        df['nearest_subway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]).meters, axis=1)
+    
+    
+    
     df.rename(mapper=df_key(data.city), axis=1, inplace=True)    
     
     return df
@@ -326,7 +390,7 @@ if __name__ == "__main__":
     import bikeshare as bs
     import time
     
-    data = bs.Data('minn', 2019, 9)
+    data = bs.Data('boston', 2019, 9)
     pre = time.time()
     station_df = make_station_df(data)
     print(f'station_df took {time.time() - pre:.2f} seconds')
