@@ -37,7 +37,7 @@ def get_key(city):
         Dictionary used for renaming coloumn labels.
 
     """
-    if city == "nyc":
+    if city in ['nyc', 'boston']:
         key = {'tripduration': 'duration',
                'starttime': 'start_t',
                'stoptime': 'end_t',
@@ -88,24 +88,39 @@ def get_key(city):
                'usertype': 'user_type',
                'birthyear': 'birth_year',
                'gender': 'gender'}
-
-    elif city == "sfran":
-        key = {'duration_sec': 'duration',
+    
+    elif city == "minn":
+        key = {'ride_id' : 'ride_id',
+               'rideable_type' : 'bike_type',
+               'started_at' : 'start_t',
+               'ended_at' : 'end_t',
+               'start_station_name' : 'start_stat_name',
+               'start_station_id' : 'start_stat_id',
+               'end_station_name' : 'end_stat_name',
+               'end_station_id' : 'end_stat_id',
+               'start_lat' : 'start_stat_lat',
+               'start_lng' : 'start_stat_long',
+               'end_lat' : 'end_stat_lat',
+               'end_lng' : 'end_stat_long',
+               'member_casual' : 'user_type',
+               'tripduration': 'duration',
                'start_time': 'start_t',
                'end_time': 'end_t',
-               'start_station_id': 'start_stat_id',
-               'start_station_name': 'start_stat_name',
-               'start_station_latitude': 'start_stat_lat',
-               'start_station_longitude': 'start_stat_long',
-               'end_station_id': 'end_stat_id',
-               'end_station_name': 'end_stat_name',
-               'end_station_latitude': 'end_stat_lat',
-               'end_station_longitude': 'end_stat_long',
-               'bike_id': 'bike_id',
-               'user_type': 'user_type',
-               'bike_share_for_all_trip': 'bike_share_for_all_trip'}
-
-    elif city == "sjose":
+               'start station id': 'start_stat_id',
+               'start station name': 'start_stat_name',
+               'start station latitude': 'start_stat_lat',
+               'start station longitude': 'start_stat_long',
+               'end station id': 'end_stat_id',
+               'end station name': 'end_stat_name',
+               'end station latitude': 'end_stat_lat',
+               'end station longitude': 'end_stat_long',
+               'bikeid': 'bike_id',
+               'usertype': 'user_type',
+               'birth year': 'birth_year',
+               'gender': 'gender',
+               'bike type' : 'bike_type'}
+    
+    elif city in ['sfran', 'sjose']:
         key = {'duration_sec': 'duration',
                'start_time': 'start_t',
                'end_time': 'end_t',
