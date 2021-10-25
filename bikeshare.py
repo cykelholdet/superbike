@@ -220,7 +220,7 @@ def get_data_month(city, year, month, blacklist=None):
                         'washDC', 'chic', 'london',
                         'oslo', 'edinburgh', 'bergen',
                         'buenos_aires', 'madrid',
-                        'mexico', 'taipei', 'helsinki', 
+                        'mexico', 'taipei', 'helsinki',
                         'minn', 'boston']  # Remember to update this list
 
     if city not in supported_cities:
@@ -1713,7 +1713,7 @@ def adjacency_filtered(df, day_index, days, n_tot, id_index, threshold=1, remove
     days : tuple
         Tuple of days in consideration.
     threshold : int, optional
-        Threshold for weights. If an edge has a weight below the threshold 
+        Threshold for weights. If an edge has a weight below the threshold
         then the weight is set to zero. The default threshold is 1.
     remove_self_loops : bool, optional
         Does not count trips which start and end at the same station if
@@ -2804,7 +2804,7 @@ class Data:
     def daily_traffic_average(self, stat_index, period='b', normalise=True, plot=False, return_all=False, return_fig=False, return_std=False):
         """
         Computes the average daily traffic of a station over either business
-        days or weekends. Both average number of departures and arrivals are 
+        days or weekends. Both average number of departures and arrivals are
         computed for each hour.
 
         Parameters
@@ -2812,7 +2812,7 @@ class Data:
         stat_index : int
             Station index.
         period : str, optional
-            Period to average over. Either 'b' = business days or 'w' = weekends. 
+            Period to average over. Either 'b' = business days or 'w' = weekends.
             The default is 'b'.
         plot : bool, optional
             Plots the average daily traffic if set to True. The default is False.
@@ -2825,10 +2825,10 @@ class Data:
         Returns
         -------
         trips_departures_average : ndarray
-            24-dimensional array containing average number of departures for 
+            24-dimensional array containing average number of departures for
             each hour.
         trips_arrivals_average : ndarray
-            24-dimensional array containing average number of arrivals for 
+            24-dimensional array containing average number of arrivals for
             each hour.
 
         """
@@ -2936,7 +2936,7 @@ class Data:
     def daily_traffic_average_all(self, period='b', normalise=True, plot=False, return_all=False):
         """
         Computes the average daily traffic of a station over either business
-        days or weekends. Both average number of departures and arrivals are 
+        days or weekends. Both average number of departures and arrivals are
         computed for each hour.
 
         Parameters
@@ -2944,7 +2944,7 @@ class Data:
         stat_index : int
             Station index.
         period : str, optional
-            Period to average over. Either 'b' = business days or 'w' = weekends. 
+            Period to average over. Either 'b' = business days or 'w' = weekends.
             The default is 'b'.
         plot : bool, optional
             Plots the average daily traffic if set to True. The default is False.
@@ -2957,10 +2957,10 @@ class Data:
         Returns
         -------
         trips_departures_average : ndarray
-            24-dimensional array containing average number of departures for 
+            24-dimensional array containing average number of departures for
             each hour.
         trips_arrivals_average : ndarray
-            24-dimensional array containing average number of arrivals for 
+            24-dimensional array containing average number of arrivals for
             each hour.
 
         """
@@ -3102,7 +3102,7 @@ class Data:
     def daily_traffic_average_all_mean_before_normalising(self, period='b', normalise=True, plot=False, return_all=False):
         """
         Computes the average daily traffic of a station over either business
-        days or weekends. Both average number of departures and arrivals are 
+        days or weekends. Both average number of departures and arrivals are
         computed for each hour.
 
         Parameters
@@ -3110,7 +3110,7 @@ class Data:
         stat_index : int
             Station index.
         period : str, optional
-            Period to average over. Either 'b' = business days or 'w' = weekends. 
+            Period to average over. Either 'b' = business days or 'w' = weekends.
             The default is 'b'.
         plot : bool, optional
             Plots the average daily traffic if set to True. The default is False.
@@ -3123,10 +3123,10 @@ class Data:
         Returns
         -------
         trips_departures_average : ndarray
-            24-dimensional array containing average number of departures for 
+            24-dimensional array containing average number of departures for
             each hour.
         trips_arrivals_average : ndarray
-            24-dimensional array containing average number of arrivals for 
+            24-dimensional array containing average number of arrivals for
             each hour.
 
         """
@@ -3312,9 +3312,9 @@ class Data:
 
     def pickle_daily_traffic(self, normalise=True, plot=False, overwrite=False):
         """
-        Pickles matrices containing the average number of departures and 
+        Pickles matrices containing the average number of departures and
         arrivals to and from each station for every hour. One matrix
-        contains the average traffic on business days while the other contains 
+        contains the average traffic on business days while the other contains
         the average traffic for weekends.
 
         The matrices are of shape (n,48) where n is the number of stations.

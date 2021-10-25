@@ -64,7 +64,9 @@ name_dict = {'chic': 'Chicago',
               'bergen': 'Bergen',
               'trondheim': 'Trondheim',
               'edinburgh': 'Edinburgh',
-              'helsinki': 'Helsinki'}
+              'helsinki': 'Helsinki',
+              'minn' : 'Minneapolis',
+              'boston' : 'Boston'}
 
 
 
@@ -284,7 +286,7 @@ tooltips = [
 hover = HoverTool(tooltips=tooltips)
 
 paraview.opts(tools=['tap', hover])
-#paraview.opts(apply_ranges=False, nonselection_alpha=0.4)
+paraview.opts(nonselection_alpha=0.3)
 
 selection_stream = hv.streams.Selection1D(source=paraview)
 
@@ -335,6 +337,4 @@ panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 #bokeh_server = panel_column.show(port=12345)
 
 #%%
-# stop the bokeh server (when needed)
-#bokeh_server.stop()
-
+bokeh_server = panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
