@@ -20,6 +20,8 @@ from bokeh.models import HoverTool
 import geoviews as gv
 import cartopy.crs as ccrs
 
+import simpledtw as dtw
+
 import bikeshare as bs
 import interactive_plot_utils as ipu
 
@@ -41,7 +43,7 @@ cmap = cm.get_cmap('Blues')
 
 year = 2019
 month = 9
-data = bs.Data('nyc', year, month)
+data = bs.Data('helsinki', year, month)
 df = data.df
 
 station_df = ipu.make_station_df(data)
@@ -71,6 +73,7 @@ name_dict = {'chic': 'Chicago',
 
 activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'end', 'start': 'start', 'end': 'end'}
 day_type_dict = {'weekend': 'w', 'business_days': 'b'}
+dist_func_dict = {'euclidean': 'euclidean', 'dtw': dtw.dtw1}
 
 color_dict = {0 : 'blue', 1 : 'red', 2 : 'yellow', 3 : 'green', #tab:
               4 : 'purple', 5 : 'brown', 6: 'pink',
@@ -97,7 +100,7 @@ class BikeParameters2(param.Parameterized):
     cnorm = param.Selector(objects=['linear', 'log'])
     min_trips = param.Integer(default=0, bounds=(0, 600))
     day = param.Integer(default=1, bounds=(1, data.num_days))
-    dist_func = param.Selector(objects=['norm'])
+    dist_func = param.Selector(objects=['euclidean', 'dtw'])
     plot_all_clusters = param.Selector(objects=['False', 'True'])
     random_state = param.Integer(default=42, bounds=(0, 10000))
     
@@ -106,6 +109,8 @@ class BikeParameters2(param.Parameterized):
         self.clusters = None
         self.labels = None
         self.index = index
+    
+
     
     @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', watch=False)
     def plot_clusters_full(self):
@@ -120,7 +125,7 @@ class BikeParameters2(param.Parameterized):
             station_df['color'] = [color_dict[label] for label in self.labels]
     
         elif self.clustering == 'k_medoids':
-            self.clusters = KMedoids(self.k, random_state=self.random_state).fit(traffic_matrix)
+            self.clusters = KMedoids(self.k, random_state=self.random_state, metric=dist_func_dict[self.dist_func]).fit(traffic_matrix)
             self.labels = self.clusters.predict(traffic_matrix)
             station_df['color'] = [color_dict[label] for label in self.labels]
             
@@ -160,7 +165,7 @@ class BikeParameters2(param.Parameterized):
         #ds = gv.Dataset(station_df, kdims=['stat_id'], vdims=['long', 'lat', 'color'],)
         #plot = ds.to(gv.Points, ['long', 'lat'], ['stat_id'])
         plot = gv.Points(station_df, kdims=['long', 'lat'], vdims=['stat_id', 'color', 'n_trips', 'zone_type', 'name', ])
-        plot.opts(gv.opts.Points(fill_color='color', size=10, line_color='black'))
+        plot.opts(gv.opts.Points(fill_color='color', size=10, line_color='black', title=title, show_legend=True, legend_cols=1))
         #plot = gv.Points(station_df, ["easting", "northing"])#.opts(projection=ccrs.GOOGLE_MERCATOR, global_extent=True)
         return plot
     
@@ -236,6 +241,7 @@ params = pn.Param(bike_params.param, widgets={
     'day_type': pn.widgets.RadioButtonGroup,
     'day': pn.widgets.IntSlider,
     'random_state': pn.widgets.IntInput,
+    'k': pn.widgets.IntSlider,
     },
     name="Bikeshare Parameters"
     )
@@ -314,6 +320,14 @@ def plotterino(index, plot_all_clusters, clustering, k):
 @pn.depends(pn.state.param.busy)
 def indicator(busy):
     return "I'm busy" if busy else "I'm idle"
+
+
+@pn.depends(clustering=bike_params.param.clustering, watch=True)
+def show_widgets(clustering):
+    if clustering in ['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture']:
+        params.widgets['k'].visible = False
+    else:
+        params.widgets['k'].visible = True
 
 
 linecol = pn.Column(plot_daily_traffic, plotterino)
