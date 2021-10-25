@@ -237,6 +237,7 @@ params = pn.Param(bike_params.param, widgets={
     'day_type': pn.widgets.RadioButtonGroup,
     'day': pn.widgets.IntSlider,
     'random_state': pn.widgets.IntInput,
+    'k': pn.widgets.IntSlider,
     },
     name="Bikeshare Parameters"
     )
