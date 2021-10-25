@@ -321,9 +321,9 @@ def indicator(busy):
 @pn.depends(clustering=bike_params.param.clustering, watch=True)
 def show_widgets(clustering):
     if clustering in ['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture']:
-        params.widgets['k'].visible = False
-    else:
         params.widgets['k'].visible = True
+    else:
+        params.widgets['k'].visible = False
 
 
 linecol = pn.Column(plot_daily_traffic, plotterino)
@@ -333,7 +333,7 @@ param_column = pn.Column(params.widgets)
 panel_param = pn.Row(params, tileview*paraview, linecol)
 text = '#Bikesharing Clustering Analysis'
 panel_column = pn.Column(text, panel_param, indicator)
-panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
+# panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
 #bokeh_server = panel_column.show(port=12345)
 
