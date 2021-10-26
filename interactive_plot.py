@@ -333,9 +333,9 @@ param_column = pn.Column(params.widgets)
 panel_param = pn.Row(params, tileview*paraview, linecol)
 text = '#Bikesharing Clustering Analysis'
 panel_column = pn.Column(text, panel_param, indicator)
-# panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
+panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-#bokeh_server = panel_column.show(port=12345)
+# bokeh_server = panel_column.show(port=12345)
 
 #%%
-bokeh_server = panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
+# bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload

@@ -701,14 +701,15 @@ def get_data_month(city, year, month, blacklist=None):
             else:
                 try:
                     df = pd.read_json(
-                        f"./data/{year:d}{month:02d}_Usage_Bicimad.json", lines=True)
+                        f"./data/{year:d}{month:02d}_Usage_Bicimad.json", lines=True, encoding = "ISO-8859-1")
                 except FileNotFoundError as exc:
                     raise FileNotFoundError(
                         'No trip data found. All relevant files can be found at https://opendata.emtmadrid.es/Datos-estaticos/Datos-generales-(1)') from exc
 
+                df.drop(columns=['track'], inplace=True) # Remember that they exist in some data
                 df['unplug_hourTime'] = pd.json_normalize(
                     df['unplug_hourTime'])
-                df = df.rename(columns=dataframe_key.get_key(city))
+                df.rename(columns = dataframe_key.get_key(city), inplace=True)
                 df['start_t'] = df['start_t'].str[:-6]
                 # Timezone is correct in older data.
                 df['start_dt'] = pd.to_datetime(
@@ -899,7 +900,7 @@ def get_data_month(city, year, month, blacklist=None):
 
 def get_data_year(city, year, blacklist=None):
 
-    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london'
+    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid'
                         ]  # Remember to update this list
 
     if city not in supported_cities:
@@ -1171,6 +1172,13 @@ def get_data_year(city, year, blacklist=None):
 
         df['start_dt'] = pd.to_datetime(df['start_t'])
         df['end_dt'] = pd.to_datetime(df['end_t'])
+
+
+    elif city == 'madrid':
+        dfs = []
+        for month in range(1, 13):
+            dfs.append(get_data_month(city, year, month)[0] )
+        df = pd.concat(dfs)
 
     if blacklist:
         df = df[~df['start_stat_id'].isin(blacklist)]
