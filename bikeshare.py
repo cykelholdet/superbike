@@ -1937,8 +1937,7 @@ def dist_norm(vec1, vec2):
 def dist_dtw(vec1, vec2):
     return dtw.dtw(vec1, vec2)[1]
 
-
-def Davies_Bouldin_index(data_mat, labels, centroids, dist_func='norm', mute=False):
+def Davies_Bouldin_index(data_mat, labels, centroids, dist_func='norm', verbose=False):
     """
     Calculates the Davies-Bouldin index of clustered data.
 
@@ -1965,7 +1964,7 @@ def Davies_Bouldin_index(data_mat, labels, centroids, dist_func='norm', mute=Fal
     elif dist_func == 'dtw':
         dist = dist_dtw
 
-    if not mute:
+    if verbose:
         print('Calculating Davies-Bouldin index...')
 
     pre = time.time()
@@ -1990,13 +1989,13 @@ def Davies_Bouldin_index(data_mat, labels, centroids, dist_func='norm', mute=Fal
 
     DB_index = np.mean(D)
 
-    if not mute:
+    if verbose:
         print(f'Done. Time taken: {time.time()-pre}s')
 
     return DB_index
 
 
-def Dunn_index(data_mat, labels, centroids, dist_func='norm', mute=False):
+def Dunn_index(data_mat, labels, centroids, dist_func='norm', verbose=False):
     """
     Calculates the Dunn index of clustered data. WARNING: VERY SLOW.
 
@@ -2022,7 +2021,7 @@ def Dunn_index(data_mat, labels, centroids, dist_func='norm', mute=False):
     elif dist_func == 'dtw':
         dist = dist_dtw
 
-    if not mute:
+    if verbose:
         print('Calculating Dunn Index...')
 
     pre = time.time()
@@ -2056,13 +2055,13 @@ def Dunn_index(data_mat, labels, centroids, dist_func='norm', mute=False):
 
     D_index = np.min(inter_cluster_distances)/np.max(intra_cluster_distances)
 
-    if not mute:
+    if verbose:
         print(f'Done. Time taken: {time.time()-pre}s')
 
     return D_index
 
 
-def silhouette_index(data_mat, labels, centroids, dist_func='norm', mute=False):
+def silhouette_index(data_mat, labels, centroids, dist_func='norm', verbose=False):
     """
     Calculates the silhouette index of clustered data.
 
@@ -2089,7 +2088,7 @@ def silhouette_index(data_mat, labels, centroids, dist_func='norm', mute=False):
     elif dist_func == 'dtw':
         dist = dist_dtw
 
-    if not mute:
+    if verbose:
         print('Calculating Silhouette index...')
 
     pre = time.time()
@@ -2101,35 +2100,137 @@ def silhouette_index(data_mat, labels, centroids, dist_func='norm', mute=False):
         in_cluster = in_cluster[np.where(np.delete(labels, i) == labels[i])]
 
         in_cluster_size = len(in_cluster)
+        
+        if in_cluster_size != 0:
+        
+            in_cluster_distances = np.empty(in_cluster_size)
+            for j, vec2 in enumerate(in_cluster):
+                in_cluster_distances[j] = dist(vec1, vec2)
+    
+            mean_out_cluster_distances = np.full(k, fill_value=np.inf)
+    
+            for j in range(k):
+                if j != labels[i]:
+                    out_cluster = data_mat[np.where(labels == j)]
+                    out_cluster_distances = np.empty(len(out_cluster))
+    
+                    for l, vec2 in enumerate(out_cluster):
+                        out_cluster_distances[l] = dist(vec1, vec2)
+    
+                    mean_out_cluster_distances[j] = np.mean(out_cluster_distances)
+    
+            ai = np.mean(in_cluster_distances)
+            bi = np.min(mean_out_cluster_distances)
+    
+            s_coefs[i] = (bi-ai)/max(ai, bi)
 
-        in_cluster_distances = np.empty(in_cluster_size)
-        for j, vec2 in enumerate(in_cluster):
-            in_cluster_distances[j] = dist(vec1, vec2)
-
-        mean_out_cluster_distances = np.full(k, fill_value=np.inf)
-
-        for j in range(k):
-            if j != labels[i]:
-                out_cluster = data_mat[np.where(labels == j)]
-                out_cluster_distances = np.empty(len(out_cluster))
-
-                for l, vec2 in enumerate(out_cluster):
-                    out_cluster_distances[l] = dist(vec1, vec2)
-
-                mean_out_cluster_distances[j] = np.mean(out_cluster_distances)
-
-        ai = np.mean(in_cluster_distances)
-        bi = np.min(mean_out_cluster_distances)
-
-        s_coefs[i] = (bi-ai)/max(ai, bi)
+        else:
+            s_coefs[i] = 0
 
     S_index = np.mean(s_coefs)
 
-    if not mute:
+    if verbose:
         print(f'Done. Time taken: {time.time()-pre}s')
 
     return S_index
 
+def k_test(data_mat, cluster_func, k_max = 10, random_state = 42, 
+           tests = 'full', plot = False):
+    
+    test_dict = {'SSE' : 'SSE',
+                 'DB' : 'DB_index',
+                 'D' : 'D_index',
+                 'S' : 'S_index'}
+    
+    if tests == 'full':
+        tests = ['SSE', 'DB', 'D', 'S']
+    
+    results = np.zeros(shape=(len(tests),k_max-1))
+
+    if type(tests) == str:
+        spacing = 20
+
+    else:
+        spacing = len(tests)*15+5
+
+    # print(f'{f"Test result for {cluster_func}":^{spacing}}')
+    # print('-'*spacing)
+
+    if tests == 'full' or len(tests) == 4:
+        print(f'{"k":5}{"SSE":15}{"DB_index":15}{"D_index":15}{"S_index":15}')
+    elif type(tests) == str:
+        print(f'{"k":5}{test_dict[tests]:15}')
+    elif len(tests) == 2:
+        print(f'{"k":5}{test_dict[tests[0]]:15}{test_dict[tests[1]]:15}')
+    elif len(tests) == 3:
+        print(f'{"k":5}{test_dict[tests[0]]:15}{test_dict[tests[1]]:15}{test_dict[tests[2]]:15}')
+    print('-'*spacing)
+
+    for i, k in enumerate(range(2, k_max+1)):
+        clusters = cluster_func(k, random_state = random_state).fit(data_mat)
+        labels = clusters.predict(data_mat)
+        centroids = clusters.cluster_centers_
+        
+        test_i = 0
+        
+        if 'SSE' in tests:
+            results[test_i, i] = clusters.inertia_
+            test_i +=1
+            
+        if 'DB' in tests:
+            results[test_i, i] = Davies_Bouldin_index(data_mat, labels, centroids)
+            test_i +=1
+            
+        if 'D' in tests:
+            results[test_i, i] = Dunn_index(data_mat, labels, centroids)
+            test_i +=1
+        
+        if 'S' in tests:
+            results[test_i, i] = silhouette_index(data_mat, labels, centroids)
+            test_i +=1
+        
+        if tests == 'full' or len(tests) == 4:
+            print(
+               f'{k:<5,d}{results[0,i]:<15.8f}{results[1,i]:<15.8f}{results[2,i]:<15.8f}{results[3,i]:<15,.8f}')
+        elif type(tests) == str:
+            print(
+               f'{k:<5,d}{results[0,i]:<15.8f}')
+        elif len(tests) == 2:
+            print(
+               f'{k:<5,d}{results[0,i]:<15.8f}{results[1,i]:<15.8f}')
+        elif len(tests) == 3:
+            print(
+               f'{k:<5,d}{results[0,i]:<15.8f}{results[1,i]:<15.8f}{results[2,i]:<15.8f}')
+    
+    res_df = pd.DataFrame(index = range(2,k_max+1),
+                          columns = ['SSE', 'DB', 'D', 'S'][:len(tests)])
+    res_df.index.rename('k', inplace=True)
+    
+    for test_i, test in enumerate(res_df.columns):
+        res_df[test] = results[test_i]
+    
+    if plot:
+        
+        if tests == 'full' or len(tests) == 4:
+            plt.subplot(211)
+
+        for test in res_df.columns:
+            plt.plot(range(2,k_max+1), res_df[test])
+        plt.xticks(range(2,k_max+1))
+        plt.xlabel('$k$')
+        # plt.title(f'$k$-test for {cluster_func}')
+        plt.legend([test_dict[test] for test in tests])
+        
+        if tests == 'full' or len(tests) == 4:
+            plt.subplot(212)
+            plt.plot(range(2,k_max+1), res_df['D'], c='tab:green')
+            plt.plot(range(2,k_max+1), res_df['S'], c='tab:red')
+            plt.ylim(min(np.min(res_df['D']), np.min(res_df['S']))-0.1,
+                     max(np.max(res_df['D']), np.max(res_df['S']))+0.1)
+            plt.legend(['D_index', 'S_index'])
+            plt.xlabel('$k$')
+    
+    return res_df
 
 class Stations:
     """
@@ -3412,7 +3513,7 @@ class Classifier:
     def dist_dtw(self, vec1, vec2):
         return dtw.dtw(vec1, vec2)[1]
 
-    def k_means(self, data_matrix, k, init_centroids=None, max_iter=15, seed=None, mute=False):
+    def k_means(self, data_matrix, k, init_centroids=None, max_iter=15, seed=None, verbose=False):
 
         n_stations = len(data_matrix)
 
@@ -3432,7 +3533,7 @@ class Classifier:
         labels_old = np.ones(n_stations)
         labels_new = np.zeros(n_stations)
 
-        if not mute:
+        if verbose:
             print('Starting clustering...')
 
         pre = time.time()
@@ -3455,24 +3556,24 @@ class Classifier:
 
             i += 1
 
-            if not mute:
+            if verbose:
                 print(
                     f'Iteration: {i} - # Changed labels: {sum(labels_old-labels_new != 0)} - Runtime: {time.time()-pre}s')
 
         self.centroids = centroids
-        if not mute:
+        if verbose:
             print('Clustering done')
 
-    def k_medoids(self, data_mat, k, mute=False):
+    def k_medoids(self, data_mat, k, verbose=False):
 
-        if not mute:
+        if verbose:
             print('Starting clustering...')
 
         n = len(data_mat)
 
         # BUILD
 
-        if not mute:
+        if verbose:
             print('Finding distance matrix...')
 
         d_mat = np.zeros(shape=(n, n))
@@ -3484,7 +3585,7 @@ class Classifier:
 
         d_sums = np.sum(d_mat, axis=1)
 
-        if not mute:
+        if verbose:
             print('Building medoids...')
 
         m_indices = [int(np.argmin(d_sums))]
@@ -3511,7 +3612,7 @@ class Classifier:
 
             medoids[label, :] = data_mat[m_indices[label], :]
 
-        if not mute:
+        if verbose:
             print('Assigning initial labels...')
 
         labels = np.empty(n)
@@ -3523,7 +3624,7 @@ class Classifier:
 
         # SWAP
 
-        if not mute:
+        if verbose:
             print('Swapping medoids...')
 
         current_cost = 0
@@ -3583,7 +3684,7 @@ class Classifier:
 
         self.centroids = medoids
 
-        if not mute:
+        if verbose:
             print('clustering done')
 
     def h_clustering_find_clusters(self, data_mat, init_distance_filename):
@@ -3705,7 +3806,7 @@ class Classifier:
 
         return labels
 
-    def get_Davies_Bouldin_index(self, data_mat, labels=None, mute=False):
+    def get_Davies_Bouldin_index(self, data_mat, labels=None, verbose=False):
         """
         Calculates the Davies-Bouldin index of clustered data.
 
@@ -3724,13 +3825,13 @@ class Classifier:
 
         """
         if labels is None:
-            if not mute:
+            if verbose:
                 print('Getting labels...')
             labels = self.mass_predict(data_mat)
 
         k = len(self.centroids)
 
-        if not mute:
+        if verbose:
             print('Calculating Davies-Bouldin index...')
 
         pre = time.time()
@@ -3756,14 +3857,14 @@ class Classifier:
 
         DB_index = np.mean(D)
 
-        if not mute:
+        if verbose:
             print(f'Done. Time taken: {time.time()-pre}s')
 
         self.Davies_Bouldin_index = DB_index
 
         return DB_index
 
-    def get_Dunn_index(self, data_mat, labels=None, mute=False):
+    def get_Dunn_index(self, data_mat, labels=None, verbose=False):
         """
         Calculates the Dunn index of clustered data. WARNING: VERY SLOW.
 
@@ -3782,13 +3883,13 @@ class Classifier:
 
         """
         if labels is None:
-            if not mute:
+            if verbose:
                 print('Getting labels...')
             labels = self.mass_predict(data_mat)
 
         k = len(self.centroids)
 
-        if not mute:
+        if verbose:
             print('Calculating Dunn Index...')
 
         pre = time.time()
@@ -3823,14 +3924,14 @@ class Classifier:
         D_index = np.min(inter_cluster_distances) / \
             np.max(intra_cluster_distances)
 
-        if not mute:
+        if verbose:
             print(f'Done. Time taken: {time.time()-pre}s')
 
         self.Dunn_index = D_index
 
         return D_index
 
-    def get_silhouette_index(self, data_mat, labels=None, mute=False):
+    def get_silhouette_index(self, data_mat, labels=None, verbose=False):
         """
         Calculates the silhouette index of clustered data.
 
@@ -3849,13 +3950,13 @@ class Classifier:
 
         """
         if labels is None:
-            if not mute:
+            if verbose:
                 print('Getting labels...')
             labels = self.mass_predict(data_mat)
 
         k = len(self.centroids)
 
-        if not mute:
+        if verbose:
             print('Calculating Silhouette index...')
 
         pre = time.time()
@@ -3893,7 +3994,7 @@ class Classifier:
 
         S_index = np.mean(s_coefs)
 
-        if not mute:
+        if verbose:
             print(f'Done. Time taken: {time.time()-pre}s')
 
         self.Silhouette_index = S_index
@@ -3907,12 +4008,12 @@ class Classifier:
         results = [0 for _ in k_range]
 
         for i, k in enumerate(k_range):
-            self.k_means(data_mat, k, seed=seed, mute=True)
+            self.k_means(data_mat, k, seed=seed, verbose=False)
             labels = self.mass_predict(data_mat)
             DB_index = self.get_Davies_Bouldin_index(
-                data_mat, labels, mute=True)
-            D_index = self.get_Dunn_index(data_mat, labels, mute=True)
-            S_index = self.get_silhouette_index(data_mat, labels, mute=True)
+                data_mat, labels, verbose=False)
+            D_index = self.get_Dunn_index(data_mat, labels, verbose=False)
+            S_index = self.get_silhouette_index(data_mat, labels, verbose=False)
 
             results[i] = (k, DB_index, D_index, S_index)
 

@@ -4,18 +4,13 @@ Created on Mon Oct 25 15:35:06 2021
 
 @author: Nicolai
 """
-import os
-import calendar
+
+import time
 import pickle
 import numpy as np
-import networkx as nx
-import matplotlib as mpl
 import matplotlib.pyplot as plt
-import contextily as ctx
+import pandas as pd
 import bikeshare as bs
-import simpledtw as dtw
-import plotting
-import time
 
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.mixture import GaussianMixture
@@ -25,8 +20,8 @@ from sklearn_extra.cluster import KMedoids
 
 city = 'nyc'
 year = 2019
-month = 4
-period = 'w' # 'b' = business days or 'w' = weekends
+month = 1
+period = 'b' # 'b' = business days or 'w' = weekends
 
 # if city == 'nyc':
 #     gov_stations = [3254, 3182, 3479]
@@ -34,33 +29,33 @@ period = 'w' # 'b' = business days or 'w' = weekends
 
 data = bs.Data(city,year,month)
 
-with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}{data.month:02d}.pickle', 'rb') as file:
-        
+try:
+    with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}{data.month:02d}.pickle', 'rb') as file:
+            
+        if period == 'b':
+            traffic_matrix=pickle.load(file)[0]
+        elif period == 'w':
+            traffic_matrix=pickle.load(file)[1]
+
+except FileNotFoundError:
     if period == 'b':
-        traffic_matrix=pickle.load(file)[0]
-    else:
-        traffic_matrix=pickle.load(file)[1]
+        traffic_matrix = data.pickle_daily_traffic()[0]
+    elif period == 'w':
+        traffic_matrix = data.pickle_daily_traffic()[1]
 
-#%% k_tests
+#%% k-test
 
-k_max = 10
+cluster_func = KMeans
 
-index_mat = np.zeros(16, k_max-1)
+k_test = bs.k_test(traffic_matrix, KMeans, plot=True)
 
-DB_indices = np.zeros(k_max-1)
-D_indices = np.zeros(k_max-1)
-S_indices = np.zeros(k_max-1)
+if cluster_func == KMeans:
+    clustering = 'KMeans'
+elif cluster_func == KMedoids:
+    clustering = 'KMedoids'
+elif cluster_func == AgglomerativeClustering:
+    clustering = 'AgglomerativeClustering'
+elif cluster_func == GaussianMixture:
+    clustering = 'GaussianMixture'
 
-for i, k in enumerate(range(2, k_max+1)):
-    clf = KMeans(k, )
-    
-    
-    DB_indices[i] = 
-
-
-
-
-
-
-
-
+plt.savefig(f'./figures/k_tests/{data.city}{data.year}{data.month:02d}_{clustering}_k-test.pdf')
