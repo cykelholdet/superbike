@@ -261,11 +261,6 @@ color_map = [color_dict[label] for label in clf.labels_]
 plt.scatter(samples[:,0],samples[:,1], c= color_map)
 plt.scatter(clf.cluster_centers_[:,0], clf.cluster_centers_[:,1],c='k')
 
-
-
-
-
-
 #%% Clustering
 
 k = 3

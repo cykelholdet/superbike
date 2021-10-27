@@ -39,7 +39,7 @@ cmap = cm.get_cmap('Blues')
 # Load bikeshare data
 
 year = 2019
-month = 9
+month = 4
 data = bs.Data('nyc', year, month)
 df = data.df
 
