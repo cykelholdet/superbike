@@ -572,7 +572,7 @@ def get_data_month(city, year, month, blacklist=None):
         elif city == "edinburgh":
 
             try:
-                df = pd.read_csv(f'./data/{year:d}{month:02d}-edinburgh.csv')
+                df = pd.read_csv(f'./data/{year:d}-{month:02d}-edinburgh.csv')
             except FileNotFoundError as exc:
                 raise FileNotFoundError(
                     'No trip data found. All relevant files can be found at https://edinburghcyclehire.com/open-data/historical') from exc
@@ -898,9 +898,9 @@ def get_data_month(city, year, month, blacklist=None):
     return df, days
 
 
-def get_data_year(city, year, blacklist=None):
+def get_data_year(city, year, blacklist=None, day_index=True):
 
-    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid'
+    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki'
                         ]  # Remember to update this list
 
     if city not in supported_cities:
@@ -911,282 +911,354 @@ def get_data_year(city, year, blacklist=None):
     if not os.path.exists('python_variables/big_data'):
         os.makedirs('python_variables/big_data')
 
-    if city == "nyc":
+    try:
+        with open(f'./python_variables/big_data/{city}{year:d}_dataframe.pickle', 'rb') as file:
+            df = pickle.load(file)
+        print('Pickle loaded')
 
-        files = [file for file in os.listdir(
-            'data') if f'{year:d}' in file[:4] and 'citibike' in file]
-        files.sort()
-
-        if len(files) < 12:
-            raise FileNotFoundError(
-                "Data not found the whole year. Please check that all monthly data is present. All relevant files can be found at https://www.lyft.com/bikes/bay-wheels/system-data")
-
-        df = pd.read_csv('data/' + files[0])
-
-        for file in files[1:]:
-            df_temp = pd.read_csv('data/' + file)
-            df = pd.concat([df, df_temp], sort=False)
-
-        df = df.rename(columns=dataframe_key.get_key(city))
-
-        try:
-            with open('./python_variables/JC_blacklist', 'rb') as file:
-                JC_blacklist = pickle.load(file)
-
-            df = df[~df['start_stat_id'].isin(JC_blacklist)]
-            df = df[~df['end_stat_id'].isin(JC_blacklist)]
-
-        except FileNotFoundError:
-            print('No JC blacklist found. Continuing...')
-
-        df.dropna(inplace=True)
-        df.reset_index(inplace=True, drop=True)
-
-        df['start_dt'] = pd.to_datetime(df['start_t'])
-        df['end_dt'] = pd.to_datetime(df['end_t'])
-
-    elif city == "washDC":
-
-        files = [file for file in os.listdir(
-            'data') if f'{year:d}' in file[:4] and 'capitalbikeshare' in file]
-        files.sort()
-
-        if len(files) < 12:
-            raise FileNotFoundError(
-                "Data not found the whole year. Please check that all monthly data is present. All relevant files can be found at https://www.lyft.com/bikes/bay-wheels/system-data")
-
-        df = pd.read_csv('data/' + files[0])
-
-        for file in files[1:]:
-            df_temp = pd.read_csv('data/' + file)
-            df = pd.concat([df, df_temp], sort=False)
-
-        df.reset_index(inplace=True, drop=True)
-
-        df = df.rename(columns=dataframe_key.get_key(city))
-
-        df['start_stat_lat'] = ''
-        df['start_stat_long'] = ''
-        df['end_stat_lat'] = ''
-        df['end_stat_long'] = ''
-
-        stat_df = pd.read_csv('data/Capital_Bike_Share_Locations.csv')
-
-        for _, stat in stat_df.iterrows():
-            start_matches = np.where(
-                df['start_stat_id'] == stat['TERMINAL_NUMBER'])
-            end_matches = np.where(
-                df['end_stat_id'] == stat['TERMINAL_NUMBER'])
-
-            df.at[start_matches[0], 'start_stat_lat'] = stat['LATITUDE']
-            df.at[start_matches[0], 'start_stat_long'] = stat['LONGITUDE']
-            df.at[end_matches[0], 'end_stat_lat'] = stat['LATITUDE']
-            df.at[end_matches[0], 'end_stat_long'] = stat['LONGITUDE']
-
-        df.replace('', np.nan, inplace=True)
-        df.dropna(inplace=True)
-
-        max_lat = 38.961029
-        min_lat = 38.792686
-        max_long = -76.909415
-        min_long = -77.139396
-
-        df = df.iloc[np.where(
-            (df['start_stat_lat'] < max_lat) &
-            (df['start_stat_lat'] > min_lat) &
-            (df['start_stat_long'] < max_long) &
-            (df['start_stat_long'] > min_long))]
-
-        df = df.iloc[np.where(
-            (df['end_stat_lat'] < max_lat) &
-            (df['end_stat_lat'] > min_lat) &
-            (df['end_stat_long'] < max_long) &
-            (df['end_stat_long'] > min_long))]
-
-        df.reset_index(inplace=True, drop=True)
-
-        df['start_dt'] = pd.to_datetime(df['start_t'])
-        df['end_dt'] = pd.to_datetime(df['end_t'])
-
-    elif city == "chic":
-
-        files = [file for file in os.listdir(
-            'data') if f'Divvy_Trips_{year:d}' in file]
-        files.sort()
-
-        if len(files) < 4:
-            raise FileNotFoundError(
-                "Data not found the whole year. Please check that all monthly data is present. All relevant files can be found at https://www.lyft.com/bikes/bay-wheels/system-data")
-
-        df = pd.read_csv('data/' + files[0])
-
-        for file in files[1:]:
-            if file == 'Divvy_Trips_2019_Q2.csv':
-                col_dict = {'01 - Rental Details Rental ID': 'trip_id',
-                            '01 - Rental Details Local Start Time': 'start_time',
-                            '01 - Rental Details Local End Time': 'end_time',
-                            '01 - Rental Details Bike ID': 'bikeid',
-                            '01 - Rental Details Duration In Seconds Uncapped': 'tripduration',
-                            '03 - Rental Start Station ID': 'from_station_id',
-                            '03 - Rental Start Station Name': 'from_station_name',
-                            '02 - Rental End Station ID': 'to_station_id',
-                            '02 - Rental End Station Name': 'to_station_name',
-                            'User Type': 'usertype',
-                            'Member Gender': 'gender',
-                            '05 - Member Details Member Birthday Year': 'birthyear'}
-                df_temp = pd.read_csv('data/' + file).rename(columns=col_dict)
-                # df_temp = df_temp.rename(columns = col_dict)
-
-            else:
+    except FileNotFoundError:
+        print('Pickle not found. Pickling dataframe...')
+        
+        if city == "nyc":
+    
+            files = [file for file in os.listdir(
+                'data') if f'{year:d}' in file[:4] and 'citibike' in file]
+            files.sort()
+    
+            if len(files) < 12:
+                raise FileNotFoundError(
+                    "Data not found the whole year. Please check that all monthly data is present. All relevant files can be found at https://www.lyft.com/bikes/bay-wheels/system-data")
+    
+            df = pd.read_csv('data/' + files[0])
+    
+            for file in files[1:]:
                 df_temp = pd.read_csv('data/' + file)
+                df = pd.concat([df, df_temp], sort=False)
+    
+            df = df.rename(columns=dataframe_key.get_key(city))
+    
+            try:
+                with open('./python_variables/JC_blacklist', 'rb') as file:
+                    JC_blacklist = pickle.load(file)
+    
+                df = df[~df['start_stat_id'].isin(JC_blacklist)]
+                df = df[~df['end_stat_id'].isin(JC_blacklist)]
+    
+            except FileNotFoundError:
+                print('No JC blacklist found. Continuing...')
+    
+            df.dropna(inplace=True)
+            df.reset_index(inplace=True, drop=True)
+    
+            df['start_dt'] = pd.to_datetime(df['start_t'])
+            df['end_dt'] = pd.to_datetime(df['end_t'])
+    
+        elif city == "washDC":
+    
+            files = [file for file in os.listdir(
+                'data') if f'{year:d}' in file[:4] and 'capitalbikeshare' in file]
+            files.sort()
+    
+            if len(files) < 12:
+                raise FileNotFoundError(
+                    "Data not found the whole year. Please check that all monthly data is present. All relevant files can be found at https://www.lyft.com/bikes/bay-wheels/system-data")
+    
+            df = pd.read_csv('data/' + files[0])
+    
+            for file in files[1:]:
+                df_temp = pd.read_csv('data/' + file)
+                df = pd.concat([df, df_temp], sort=False)
+    
+            df.reset_index(inplace=True, drop=True)
+    
+            df = df.rename(columns=dataframe_key.get_key(city))
+    
+            df['start_stat_lat'] = ''
+            df['start_stat_long'] = ''
+            df['end_stat_lat'] = ''
+            df['end_stat_long'] = ''
+    
+            stat_df = pd.read_csv('data/Capital_Bike_Share_Locations.csv')
+    
+            for _, stat in stat_df.iterrows():
+                start_matches = np.where(
+                    df['start_stat_id'] == stat['TERMINAL_NUMBER'])
+                end_matches = np.where(
+                    df['end_stat_id'] == stat['TERMINAL_NUMBER'])
+    
+                df.at[start_matches[0], 'start_stat_lat'] = stat['LATITUDE']
+                df.at[start_matches[0], 'start_stat_long'] = stat['LONGITUDE']
+                df.at[end_matches[0], 'end_stat_lat'] = stat['LATITUDE']
+                df.at[end_matches[0], 'end_stat_long'] = stat['LONGITUDE']
+    
+            df.replace('', np.nan, inplace=True)
+            df.dropna(inplace=True)
+    
+            max_lat = 38.961029
+            min_lat = 38.792686
+            max_long = -76.909415
+            min_long = -77.139396
+    
+            df = df.iloc[np.where(
+                (df['start_stat_lat'] < max_lat) &
+                (df['start_stat_lat'] > min_lat) &
+                (df['start_stat_long'] < max_long) &
+                (df['start_stat_long'] > min_long))]
+    
+            df = df.iloc[np.where(
+                (df['end_stat_lat'] < max_lat) &
+                (df['end_stat_lat'] > min_lat) &
+                (df['end_stat_long'] < max_long) &
+                (df['end_stat_long'] > min_long))]
+    
+            df.reset_index(inplace=True, drop=True)
+    
+            df['start_dt'] = pd.to_datetime(df['start_t'])
+            df['end_dt'] = pd.to_datetime(df['end_t'])
+    
+        elif city == "chic":
+    
+            files = [file for file in os.listdir(
+                'data') if f'Divvy_Trips_{year:d}' in file]
+            files.sort()
+    
+            if len(files) < 4:
+                raise FileNotFoundError(
+                    "Data not found the whole year. Please check that all monthly data is present. All relevant files can be found at https://www.lyft.com/bikes/bay-wheels/system-data")
+    
+            df = pd.read_csv('data/' + files[0])
+    
+            for file in files[1:]:
+                if file == 'Divvy_Trips_2019_Q2.csv':
+                    col_dict = {'01 - Rental Details Rental ID': 'trip_id',
+                                '01 - Rental Details Local Start Time': 'start_time',
+                                '01 - Rental Details Local End Time': 'end_time',
+                                '01 - Rental Details Bike ID': 'bikeid',
+                                '01 - Rental Details Duration In Seconds Uncapped': 'tripduration',
+                                '03 - Rental Start Station ID': 'from_station_id',
+                                '03 - Rental Start Station Name': 'from_station_name',
+                                '02 - Rental End Station ID': 'to_station_id',
+                                '02 - Rental End Station Name': 'to_station_name',
+                                'User Type': 'usertype',
+                                'Member Gender': 'gender',
+                                '05 - Member Details Member Birthday Year': 'birthyear'}
+                    df_temp = pd.read_csv('data/' + file).rename(columns=col_dict)
+                    # df_temp = df_temp.rename(columns = col_dict)
+    
+                else:
+                    df_temp = pd.read_csv('data/' + file)
+    
+                df = pd.concat([df, df_temp], sort=False)
+    
+            df = df.rename(columns=dataframe_key.get_key(city))
+    
+            df.reset_index(inplace=True, drop=True)
+    
+            df['start_stat_lat'] = ''
+            df['start_stat_long'] = ''
+            df['end_stat_lat'] = ''
+            df['end_stat_long'] = ''
+    
+            with open('./python_variables/Chicago_stations.pickle', 'rb') as file:
+                stat_df = pickle.load(file)
+    
+            for _, stat in stat_df.iterrows():
+                start_matches = np.where(df['start_stat_name'] == stat['name'])
+                end_matches = np.where(df['end_stat_name'] == stat['name'])
+    
+                df.at[start_matches[0], 'start_stat_lat'] = stat['latitude']
+                df.at[start_matches[0], 'start_stat_long'] = stat['longitude']
+                df.at[end_matches[0], 'end_stat_lat'] = stat['latitude']
+                df.at[end_matches[0], 'end_stat_long'] = stat['longitude']
+    
+            df.replace('', np.nan, inplace=True)
+            df.dropna(subset=['start_stat_lat',
+                              'start_stat_long',
+                              'end_stat_lat',
+                              'end_stat_long'], inplace=True)
+    
+            df.reset_index(inplace=True, drop=True)
+    
+            df['start_dt'] = pd.to_datetime(df['start_t'])
+            df['end_dt'] = pd.to_datetime(df['end_t'])
+            df['duration'] = df['duration'].str.replace(',', '').astype(float)
+    
+        elif city == "sfran":
+    
+            col_list = ['duration_sec', 'start_time', 'end_time', 'start_station_id',
+                        'start_station_name', 'start_station_latitude',
+                        'start_station_longitude', 'end_station_id', 'end_station_name',
+                        'end_station_latitude', 'end_station_longitude', 'bike_id', 'user_type']
+    
+            files = []
+            for file in os.listdir('data'):
+                if f'{year:d}' and 'baywheels-tripdata' in file:
+                    files.append(file)
+                elif f'{year:d}' and 'fordgobike-tripdata' in file:
+                    files.append(file)
+            files.sort()
+    
+            if len(files) < 12:
+                raise FileNotFoundError(
+                    "Data not found the whole year. Please check that all monthly data is present. All relevant files can be found at https://www.lyft.com/bikes/bay-wheels/system-data")
+    
+            df = pd.DataFrame(columns=col_list)
+    
+            for file in files:
+                df_temp = pd.read_csv('data/' + file)[col_list]
+                df = pd.concat([df, df_temp], sort=False)
+    
+            df = df.rename(columns=dataframe_key.get_key(city))
+            df.dropna(inplace=True)
+    
+            df = df.iloc[np.where(df['start_stat_lat'] > 37.593220)]
+            df = df.iloc[np.where(df['end_stat_lat'] > 37.593220)]
+    
+            df.sort_values(by='start_t', inplace=True)
+            df.reset_index(inplace=True, drop=True)
+    
+            df['start_dt'] = pd.to_datetime(df['start_t'])
+            df['end_dt'] = pd.to_datetime(df['end_t'])
+    
+        elif city == "london":
+    
+            data_files = [file for file in os.listdir(
+                'data') if 'JourneyDataExtract' in file]
+            data_files = [file for file in data_files if f'{year:d}' in file]
+            data_files.sort()
+    
+            if len(data_files) == 0:
+                raise FileNotFoundError(
+                    f'No London data for {year:d} found. All relevant files can be found at https://cycling.data.tfl.gov.uk/.')
+    
+            if isinstance(data_files, str):
+                warnings.warn(
+                    'Only one data file found. Please check that you have all available data.')
+    
+            df = pd.read_csv('./data/' + data_files[0])
+    
+            for file in data_files[1:]:
+                df_temp = pd.read_csv('./data/' + file)
+                df = pd.concat([df, df_temp], sort=False)
+    
+            df.rename(columns=dataframe_key.get_key(city), inplace=True)
+    
+            df['start_t'] = pd.to_datetime(
+                df['start_t'], format='%d/%m/%Y %H:%M').astype(str)
+            df['end_t'] = pd.to_datetime(
+                df['end_t'], format='%d/%m/%Y %H:%M').astype(str)
+    
+            df = df.iloc[np.where(df['start_t'] >= f'{year:d}-01-01 00:00:00')]
+            df = df.iloc[np.where(df['start_t'] <= f'{year:d}-31-12-23:59:59')]
+    
+            df.sort_values(by='start_t', inplace=True)
+            df.reset_index(inplace=True, drop=True)
+    
+            stat_df = pd.read_csv('./data/london_stations.csv')
+            stat_df.at[np.where(stat_df['station_id'] == 502)
+                       [0][0], 'latitude'] = 51.53341
+    
+            df['start_stat_lat'] = ''
+            df['start_stat_long'] = ''
+            df['end_stat_lat'] = ''
+            df['end_stat_long'] = ''
+    
+            for _, stat in stat_df.iterrows():
+                start_matches = np.where(
+                    df['start_stat_name'] == stat['station_name'])
+                end_matches = np.where(df['end_stat_name'] == stat['station_name'])
+    
+                df.at[start_matches[0], 'start_stat_lat'] = stat['latitude']
+                df.at[start_matches[0], 'start_stat_long'] = stat['longitude']
+                df.at[end_matches[0], 'end_stat_lat'] = stat['latitude']
+                df.at[end_matches[0], 'end_stat_long'] = stat['longitude']
+    
+            df.replace('', np.nan, inplace=True)
+            df.dropna(inplace=True)
+    
+            df.reset_index(inplace=True, drop=True)
+    
+            df['start_dt'] = pd.to_datetime(df['start_t'])
+            df['end_dt'] = pd.to_datetime(df['end_t'])
+    
+    
+        elif city == 'mexico':
+            files = [file for file in os.listdir(
+                'data') if f'Divvy_Trips_{year:d}' in file]
+            files.sort()
+            
+            if len(files) < 12:
+                raise FileNotFoundError(
+                    "Data not found the whole year. Please check that all monthly data is present. All relevant files can be found at https://www.lyft.com/bikes/bay-wheels/system-data")
+    
+            df = pd.read_csv('data/' + files[0])
+    
+            for file in files[1:]:
+                df_temp = pd.read_csv('data/' + file)
+                df = pd.concat([df, df_temp], sort=False)
+            
+            df.rename(columns=dataframe_key.get_key(city), inplace=True)
 
-            df = pd.concat([df, df_temp], sort=False)
+            df['start_dt'] = pd.to_datetime(df['start_date'] + df['start_time'],
+                                            format='%d/%m/%Y%H:%M:%S')
+            df['end_dt'] = pd.to_datetime(df['end_date'] + df['end_time'],
+                                          format='%d/%m/%Y%H:%M:%S')
+            df.drop(['start_date', 'start_time', 'end_date',
+                    'end_time'], axis=1, inplace=True)
+            df['duration'] = (df['end_dt'] - df['start_dt']).dt.total_seconds()
 
-        df = df.rename(columns=dataframe_key.get_key(city))
+            stations = pd.DataFrame(pd.read_json("./data/stations_mexico.json",
+                                                 lines=True)['stations'][0])
 
-        df.reset_index(inplace=True, drop=True)
+            name_dict = dict(zip(stations['id'], stations['address']))
+            locations = stations['location'].apply(pd.Series)
+            long_dict = dict(
+                zip(stations['id'], locations['lon'].astype(float)))
+            lat_dict = dict(
+                zip(stations['id'], locations['lat'].astype(float)))
+            type_dict = dict(zip(stations['id'], stations['stationType']))
 
-        df['start_stat_lat'] = ''
-        df['start_stat_long'] = ''
-        df['end_stat_lat'] = ''
-        df['end_stat_long'] = ''
+            df['start_stat_name'] = df['start_stat_id'].map(name_dict)
+            df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
+            df['start_stat_long'] = df['start_stat_id'].map(long_dict)
 
-        with open('./python_variables/Chicago_stations.pickle', 'rb') as file:
-            stat_df = pickle.load(file)
+            df['end_stat_name'] = df['end_stat_id'].map(name_dict)
+            df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
+            df['end_stat_long'] = df['end_stat_id'].map(long_dict)
+            df['station_type'] = df['end_stat_id'].map(type_dict)
 
-        for _, stat in stat_df.iterrows():
-            start_matches = np.where(df['start_stat_name'] == stat['name'])
-            end_matches = np.where(df['end_stat_name'] == stat['name'])
+            df.dropna(inplace=True)
+            #df = df[df.start_dt.dt.month == month]
+            df.sort_values(by=['start_dt'], inplace=True)
+            df.reset_index(inplace=True, drop=True)
+    
+    
+        elif city in ['madrid', 'edinburgh']:
+            dfs = []
+            for month in range(1, 13):
+                dfs.append(get_data_month(city, year, month)[0] )
+            df = pd.concat(dfs)
 
-            df.at[start_matches[0], 'start_stat_lat'] = stat['latitude']
-            df.at[start_matches[0], 'start_stat_long'] = stat['longitude']
-            df.at[end_matches[0], 'end_stat_lat'] = stat['latitude']
-            df.at[end_matches[0], 'end_stat_long'] = stat['longitude']
+        elif city in ['helsinki']:
+            dfs = []
+            for month in range(4, 10+1):
+                dfs.append(get_data_month(city, year, month)[0] )
+            df = pd.concat(dfs)
+        
+        with open(f'./python_variables/big_data/{city}{year:d}_dataframe.pickle', 'wb') as file:
+            pickle.dump(df, file)
 
-        df.replace('', np.nan, inplace=True)
-        df.dropna(subset=['start_stat_lat',
-                          'start_stat_long',
-                          'end_stat_lat',
-                          'end_stat_long'], inplace=True)
-
-        df.reset_index(inplace=True, drop=True)
-
-        df['start_dt'] = pd.to_datetime(df['start_t'])
-        df['end_dt'] = pd.to_datetime(df['end_t'])
-        df['duration'] = df['duration'].str.replace(',', '').astype(float)
-
-    elif city == "sfran":
-
-        col_list = ['duration_sec', 'start_time', 'end_time', 'start_station_id',
-                    'start_station_name', 'start_station_latitude',
-                    'start_station_longitude', 'end_station_id', 'end_station_name',
-                    'end_station_latitude', 'end_station_longitude', 'bike_id', 'user_type']
-
-        files = []
-        for file in os.listdir('data'):
-            if f'{year:d}' and 'baywheels-tripdata' in file:
-                files.append(file)
-            elif f'{year:d}' and 'fordgobike-tripdata' in file:
-                files.append(file)
-        files.sort()
-
-        if len(files) < 12:
-            raise FileNotFoundError(
-                "Data not found the whole year. Please check that all monthly data is present. All relevant files can be found at https://www.lyft.com/bikes/bay-wheels/system-data")
-
-        df = pd.DataFrame(columns=col_list)
-
-        for file in files:
-            df_temp = pd.read_csv('data/' + file)[col_list]
-            df = pd.concat([df, df_temp], sort=False)
-
-        df = df.rename(columns=dataframe_key.get_key(city))
-        df.dropna(inplace=True)
-
-        df = df.iloc[np.where(df['start_stat_lat'] > 37.593220)]
-        df = df.iloc[np.where(df['end_stat_lat'] > 37.593220)]
-
-        df.sort_values(by='start_t', inplace=True)
-        df.reset_index(inplace=True, drop=True)
-
-        df['start_dt'] = pd.to_datetime(df['start_t'])
-        df['end_dt'] = pd.to_datetime(df['end_t'])
-
-    elif city == "london":
-
-        data_files = [file for file in os.listdir(
-            'data') if 'JourneyDataExtract' in file]
-        data_files = [file for file in data_files if f'{year:d}' in file]
-        data_files.sort()
-
-        if len(data_files) == 0:
-            raise FileNotFoundError(
-                f'No London data for {year:d} found. All relevant files can be found at https://cycling.data.tfl.gov.uk/.')
-
-        if isinstance(data_files, str):
-            warnings.warn(
-                'Only one data file found. Please check that you have all available data.')
-
-        df = pd.read_csv('./data/' + data_files[0])
-
-        for file in data_files[1:]:
-            df_temp = pd.read_csv('./data/' + file)
-            df = pd.concat([df, df_temp], sort=False)
-
-        df.rename(columns=dataframe_key.get_key(city), inplace=True)
-
-        df['start_t'] = pd.to_datetime(
-            df['start_t'], format='%d/%m/%Y %H:%M').astype(str)
-        df['end_t'] = pd.to_datetime(
-            df['end_t'], format='%d/%m/%Y %H:%M').astype(str)
-
-        df = df.iloc[np.where(df['start_t'] >= f'{year:d}-01-01 00:00:00')]
-        df = df.iloc[np.where(df['start_t'] <= f'{year:d}-31-12-23:59:59')]
-
-        df.sort_values(by='start_t', inplace=True)
-        df.reset_index(inplace=True, drop=True)
-
-        stat_df = pd.read_csv('./data/london_stations.csv')
-        stat_df.at[np.where(stat_df['station_id'] == 502)
-                   [0][0], 'latitude'] = 51.53341
-
-        df['start_stat_lat'] = ''
-        df['start_stat_long'] = ''
-        df['end_stat_lat'] = ''
-        df['end_stat_long'] = ''
-
-        for _, stat in stat_df.iterrows():
-            start_matches = np.where(
-                df['start_stat_name'] == stat['station_name'])
-            end_matches = np.where(df['end_stat_name'] == stat['station_name'])
-
-            df.at[start_matches[0], 'start_stat_lat'] = stat['latitude']
-            df.at[start_matches[0], 'start_stat_long'] = stat['longitude']
-            df.at[end_matches[0], 'end_stat_lat'] = stat['latitude']
-            df.at[end_matches[0], 'end_stat_long'] = stat['longitude']
-
-        df.replace('', np.nan, inplace=True)
-        df.dropna(inplace=True)
-
-        df.reset_index(inplace=True, drop=True)
-
-        df['start_dt'] = pd.to_datetime(df['start_t'])
-        df['end_dt'] = pd.to_datetime(df['end_t'])
-
-
-    elif city == 'madrid':
-        dfs = []
-        for month in range(1, 13):
-            dfs.append(get_data_month(city, year, month)[0] )
-        df = pd.concat(dfs)
-
+        print('Pickling done.')
+        
     if blacklist:
         df = df[~df['start_stat_id'].isin(blacklist)]
         df = df[~df['end_stat_id'].isin(blacklist)]
 
-    days = days_index(df)
-
-    return df, days
+    if day_index:
+        days = days_index(df)
+        return df, days
+    else:
+        return df
 
 
 def station_locations(df, id_index):
@@ -1605,7 +1677,7 @@ def get_weather(city, year, month):
     n_days = calendar.monthrange(year, month)[1]
     tp = 1
     query = (f"http://api.worldweatheronline.com/premium/v1/past-weather.ashx?"
-             f"key=7886f8387f8c4c0484f83623210305&q={city}&format=json&date={year}-{month}-01&enddate={year}-{month}-{n_days}&tp={tp}")  # Request with a timeout for slow responses
+             f"key=798ccdae8e3b4238a72124749212610&q={city}&format=json&date={year}-{month}-01&enddate={year}-{month}-{n_days}&tp={tp}")  # Request with a timeout for slow responses
     r = get(query, timeout=60)
     # Only get the json response in case of 200 or 201
 
@@ -1627,17 +1699,48 @@ def get_weather(city, year, month):
     hweather['precipMM'] = hweather['precipMM'].astype(float)
 
     hweather['time_dt'] = pd.to_datetime(
-        str(year) + str(month) + hweather['day'] + hweather['hour'],
+        str(year) + f'{month:02n}' + hweather['day'] + hweather['hour'],
         format='%Y%m%d%H')
 
     hweather['day'] = hweather['day'].astype(int)
     hweather['hour'] = hweather['hour'].astype(int)
+    hweather['month'] = month
     hweather['desc'] = pd.DataFrame(hweather['weatherDesc'].explode().tolist())
 
-    rain = hweather[['day', 'hour', 'time_dt',
+    rain = hweather[['month', 'day', 'hour', 'time_dt',
                      'precipMM', 'tempC', 'windspeedKmph', 'desc']]
 
     return request, rain
+
+
+def get_weather_year(city, year):
+    """
+    Get weather data for the given city, year and month.
+
+    Parameters
+    ----------
+    city : str
+        The identification of the city. For a list of supported cities, see
+        the documentation for the Data class.
+    year : int
+        The year of interest in YYYY format.
+    month : int
+        The month of interest in MM format.
+
+    Returns
+    -------
+    request : str
+        DESCRIPTION.
+    rain :
+        DESCRIPTION.
+
+    """
+
+    rain = []
+    for month in range(1, 13):
+        rain.append(get_weather(city, year, month)[1])
+    
+    return pd.concat(rain)
 
 
 def TotalVariation(adj, cutoff):
@@ -4035,6 +4138,6 @@ class Classifier:
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('boston', 2019, 9)
+    a = get_weather_year('madrid', 2019)
     print(time.time() - pre)
     #data.pickle_daily_traffic(804, plot=True)
