@@ -727,7 +727,7 @@ def get_data_month(city, year, month, blacklist=None):
             else:
                 _, stations = pd.read_json(
                     f"./data/Bicimad_Stations_{year:d}{month:02d}.json",
-                    lines=True).iloc[-1]
+                    lines=True, encoding = "ISO-8859-1").iloc[-1]
 
             stations = pd.DataFrame(stations)
 
@@ -900,7 +900,7 @@ def get_data_month(city, year, month, blacklist=None):
 
 def get_data_year(city, year, blacklist=None, day_index=True):
 
-    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki'
+    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki', 'mexico'
                         ]  # Remember to update this list
 
     if city not in supported_cities:
@@ -1184,7 +1184,8 @@ def get_data_year(city, year, blacklist=None, day_index=True):
     
         elif city == 'mexico':
             files = [file for file in os.listdir(
-                'data') if f'Divvy_Trips_{year:d}' in file]
+                'data') if 'mexico' in file]
+            files = [file for file in files if f'{year:d}' in file]
             files.sort()
             
             if len(files) < 12:
@@ -4138,6 +4139,6 @@ class Classifier:
 
 if __name__ == "__main__":
     pre = time.time()
-    a = get_weather_year('madrid', 2019)
+    a = get_data_year('mexico', 2019)
     print(time.time() - pre)
     #data.pickle_daily_traffic(804, plot=True)
