@@ -20,8 +20,8 @@ from sklearn_extra.cluster import KMedoids
 
 city = 'nyc'
 year = 2019
-month = 1
-period = 'b' # 'b' = business days or 'w' = weekends
+month = 12
+period = 'w' # 'b' = business days or 'w' = weekends
 
 # if city == 'nyc':
 #     gov_stations = [3254, 3182, 3479]
@@ -45,7 +45,7 @@ except FileNotFoundError:
 
 #%% k-test
 
-cluster_func = KMeans
+cluster_func = GaussianMixture
 
 k_test = bs.k_test(traffic_matrix, KMeans, plot=True)
 
