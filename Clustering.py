@@ -18,9 +18,9 @@ from sklearn_extra.cluster import KMedoids
 
 #%% Load data
 
-city = 'madrid'
+city = 'mexico'
 year = 2019
-month = 1
+month = 3
 period = 'b' # 'b' = business days or 'w' = weekends
 
 # if city == 'nyc':

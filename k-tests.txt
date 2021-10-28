@@ -1,89 +1,105 @@
 nyc 2019 best k's on business days:
-     KMeans  KMedoids  GMixture
-jan:  2-3      2-5       2-6
-feb:  2-3      2-3       2-3
-mar:  2-4      2-4       2-4
-apr:  2/4      2-4       2-4
-may:  2/4      2-4       2-4
-jun:  2-5      2-5       2-5
-jul:  2-5      2-5       2-5
-aug:  3-4      2-4       2-4
-sep:  2-4      2/4       2-4
-oct:  3-4      2-4       2-3
-nov:  2-4      2-4       2-4
-dec:  2-4      2-4       2-4
+     KMeans  KMedoids  GMixture  HCluster
+jan:  2-3      2-5       2-6       2-3
+feb:  2-3      2-3       2-3       2-3
+mar:  2-4      2-4       2-4       2-4
+apr:  2/4      2-4       2-4     2/4/6/8
+may:  2/4      2-4       2-4       2/4
+jun:  2-5      2-5       2-5       2/5
+jul:  2-5      2-5       2-5       2/5
+aug:  3-4      2-4       2-4       2-3
+sep:  2-4      2/4       2-4       2/4
+oct:  3-4      2-4       2-3       2-4
+nov:  2-4      2-4       2-4       2-4
+dec:  2-4      2-4       2-4       2-4
 
 nyc 2019 best k's on weekends:
-     KMeans  KMedoids  GMixture
-jan:   4        4         4
-feb:   6        6         6
-mar:   3        3         3
-apr:   3        3         3
-may:  2-3      2-4       2-4
-jun:   3        3         3
-jul:   3        3         3
-aug:   3        3         3
-sep:  2-3      2-3       2-3
-oct:  2-3      2-3       2-4
-nov:  2-3      2-3       2-4
-dec:  2/7      2/7       2/7
+     KMeans  KMedoids  GMixture  HCluster
+jan:   4        4         4        4/8
+feb:   6        6         6         6
+mar:   3        3         3         3
+apr:   3        3         3        3/5
+may:  2-3      2-4       2-4       2-4
+jun:   3        3         3        3/8
+jul:   3        3         3       3/6/8
+aug:   3        3         3        3/6
+sep:  2-3      2-3       2-3       2-3
+oct:  2-3      2-3       2-4       2-3
+nov:  2-3      2-3       2-4       2-3
+dec:  2/7      2/7       2/7       2/7
+
+chicago 2019 best k's on business days:
+
+     KMedoids   GMixture  Hcluster
+jan:    3          3         3
+feb:    3          3         3
+mar:    3          3        3/7
+apr:    3	   3         3
+may:    3	   3         3
+jun:    3	   3         3
+jul:    3	   3         3
+aug:    3	   3         3
+sep:    3	   3         3
+oct:    3	   3         3
+nov:    3	   3         3
+dec:    3	   3         3
+
+chicago 2019 best k's on weekends:
+
+     KMedoids  GMixture  HCluster
+jan:   6/9      4/6/9      6/9
+feb:  2/5/8     2/5/8     2/5/8
+mar:  2/5/9      2/9       2/9
+apr:   2-3       2-3       2-3
+may:   2/5       2/5       2/5
+jun:   2/4       2/4       2/4
+jul:   2-3       2-3       2-3
+aug:   2/9       2/9       2/9
+sep:   2-3       2-3       2-3
+oct:   2-3       2-3       2-3
+nov:   2/7       2/7       2/7
+dec:    2        2/7       2/7
 
 
+washington DC 2019 best k's on business days:
 
+     HCluster  KMedoids
+jan:   2-3       2-3
+feb:  2/3/5      2/5
+mar:   2-4       2-4
+apr:  2/3/5     2/3/5
+may:   2-3       2-3
+jun:   2-3       2-3
+jul:   2-3       2-3
+aug:  2/3/5     2/3/5
+sep:  2/3/6     2/3/6
+oct:   2-3       2-3
+nov:  2-4/9     2-4/9
+dec:   2-5       2-5
 
+washington DC 2019 best k's on weekends:
 
-
-chicago 2019 best k's:
-
-jan:
-feb: 
-mar:
-apr:
-may:
-jun:
-jul:
-aug:
-sep:
-oct:
-nov:
-dec:
-
-washington DC 2019 best k's:
-
-jan:
-feb: 
-mar:
-apr:
-may:
-jun:
-jul:
-aug:
-sep:
-oct:
-nov:
-dec:
+     KMedoids  HCluster
+jan:  2/5/8     2/5/8
+feb:   2/9        9
+mar: 3/5/7/9   3/5/7/9
+apr:    5         5
+may:   3/5      3/5/9
+jun:    5        3/5
+jul:   4/6       4/6
+aug:   4/7       4/7
+sep:   4/9       4/9
+oct:  3/6/8     3/6/8
+nov:  3/4/9     3/4/9
+dec:  2/5/8     2/5/8
 
 madrid 2019 best k's:
 
-jan:
-feb: 
-mar:
-apr:
-may:
-jun:
-jul:
-aug:
-sep:
-oct:
-nov:
-dec:
-
-nyc 2019 best k's:
-
-jan:
-feb: 
-mar:
-apr:
+     KMedoids
+jan:    3
+feb:   2/4
+mar:   2-4
+apr:   2/6
 may:
 jun:
 jul:
