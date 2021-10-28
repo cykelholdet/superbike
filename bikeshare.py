@@ -759,11 +759,17 @@ def get_data_month(city, year, month, blacklist=None):
                     'No trip data found. All relevant files can be found at https://www.ecobici.cdmx.gob.mx/en/informacion-del-servicio/open-data') from exc
 
             df.rename(columns=dataframe_key.get_key(city), inplace=True)
-
-            df['start_dt'] = pd.to_datetime(df['start_date'] + df['start_time'],
-                                            format='%d/%m/%Y%H:%M:%S')
-            df['end_dt'] = pd.to_datetime(df['end_date'] + df['end_time'],
-                                          format='%d/%m/%Y%H:%M:%S')
+            
+            if month == 3 and year == 2019:
+                df.drop(index=df.loc[df['end_date'] == '10'].index, inplace=True) # March 2019
+                df.drop(columns="Unnamed: 9", inplace=True)
+            if month == 4 and year == 2019:
+                df.drop(index=df.loc[df['start_time'] == '18::'].index, inplace=True) 
+            
+            df['start_dt'] = pd.to_datetime(df['start_date'] + ' ' + df['start_time'],
+                                            format='%d/%m/%Y %H:%M:%S')
+            df['end_dt'] = pd.to_datetime(df['end_date'] + ' ' + df['end_time'],
+                                          format='%d/%m/%Y %H:%M:%S')
             df.drop(['start_date', 'start_time', 'end_date',
                     'end_time'], axis=1, inplace=True)
             df['duration'] = (df['end_dt'] - df['start_dt']).dt.total_seconds()
@@ -1192,18 +1198,23 @@ def get_data_year(city, year, blacklist=None, day_index=True):
                 raise FileNotFoundError(
                     "Data not found the whole year. Please check that all monthly data is present. All relevant files can be found at https://www.lyft.com/bikes/bay-wheels/system-data")
     
-            df = pd.read_csv('data/' + files[0])
+            dfs = []
     
-            for file in files[1:]:
-                df_temp = pd.read_csv('data/' + file)
-                df = pd.concat([df, df_temp], sort=False)
+            for file in files:
+                dfs.append(pd.read_csv('data/' + file))
+            
+            if year == 2019:
+                dfs[2].drop(index=dfs[2].loc[dfs[2]['Fecha_Arribo'] == '10'].index, inplace=True) # Remove datapoint from march
+                dfs[2].drop(columns="Unnamed: 9", inplace=True)
+                dfs[3].drop(index=dfs[3].loc[dfs[3]['Hora_Retiro'] == '18::'].index, inplace=True) 
+            df = pd.concat(dfs)
             
             df.rename(columns=dataframe_key.get_key(city), inplace=True)
 
-            df['start_dt'] = pd.to_datetime(df['start_date'] + df['start_time'],
-                                            format='%d/%m/%Y%H:%M:%S')
-            df['end_dt'] = pd.to_datetime(df['end_date'] + df['end_time'],
-                                          format='%d/%m/%Y%H:%M:%S')
+            df['start_dt'] = pd.to_datetime(df['start_date'] + ' ' + df['start_time'],
+                                            format='%d/%m/%Y %H:%M:%S')
+            df['end_dt'] = pd.to_datetime(df['end_date'] + ' ' + df['end_time'],
+                                          format='%d/%m/%Y %H:%M:%S')
             df.drop(['start_date', 'start_time', 'end_date',
                     'end_time'], axis=1, inplace=True)
             df['duration'] = (df['end_dt'] - df['start_dt']).dt.total_seconds()

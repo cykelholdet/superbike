@@ -76,6 +76,7 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
     num_days = datetime.date(year, 12, 31).timetuple().tm_yday
     st_w = datetime.date(2019, 1, 1).weekday()
     
+    print('Setting up plot...')
     plt.style.use('seaborn-darkgrid')
     fig, ax = plt.subplots( num_days//7 + 1, 7,
                            sharex=True, sharey=True, figsize=(12, 100))
@@ -113,7 +114,7 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
     
     df['doy'] = df.start_dt.dt.day_of_year
     df['hour'] = df.start_dt.dt.hour
-
+    print('Plotting...')
     for day in df['doy'].unique():
         #ln = ax[(day+st_w)//7, (datetime.datetime(year, 1, 1)+datetime.timedelta(days=day-1)).weekday()].bar(
         #    hours, , label='rides', color='C1'
@@ -147,7 +148,7 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
         ax[-1, i].set_xticks([0, 6, 12, 18])
         ax[-1, i].set_xlabel("hour")
     
-    lines = [ln1.lines[0], ln2[0]]
+    lines = [ax[0, -1].get_lines(), ln2[0]]
     print(lines)
     labels = [line.get_label() for line in lines]
     ax[0, -1].legend(lines, labels, loc=0)
@@ -173,7 +174,7 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
 if __name__ == '__main__':
     import bikeshare as bs
 
-    city = 'helsinki'
+    city = 'mexico'
     year = 2019
     df_year = bs.get_data_year(city, year)[0]
     plot_trips_pr_hour_year(df_year, city, year, savefig=True)
