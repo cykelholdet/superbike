@@ -30,81 +30,158 @@ dec:  2/7      2/7       2/7       2/7
 
 chicago 2019 best k's on business days:
 
-     KMedoids   GMixture  Hcluster
-jan:    3          3         3
-feb:    3          3         3
-mar:    3          3        3/7
-apr:    3	   3         3
-may:    3	   3         3
-jun:    3	   3         3
-jul:    3	   3         3
-aug:    3	   3         3
-sep:    3	   3         3
-oct:    3	   3         3
-nov:    3	   3         3
-dec:    3	   3         3
+     KMeans  KMedoids   GMixture  Hcluster
+jan:    3	3          3         3
+feb:    3	3          3         3
+mar:    3	3          3        3/7
+apr:    3	3	   3         3
+may:    3	3	   3         3
+jun:    3	3	   3         3
+jul:   	3	3	   3         3
+aug:   	3 	3	   3         3
+sep:    3	3	   3         3
+oct:    3	3	   3         3
+nov:    3	3	   3         3
+dec:    3	3	   3         3
 
 chicago 2019 best k's on weekends:
 
-     KMedoids  GMixture  HCluster
-jan:   6/9      4/6/9      6/9
-feb:  2/5/8     2/5/8     2/5/8
-mar:  2/5/9      2/9       2/9
-apr:   2-3       2-3       2-3
-may:   2/5       2/5       2/5
-jun:   2/4       2/4       2/4
-jul:   2-3       2-3       2-3
-aug:   2/9       2/9       2/9
-sep:   2-3       2-3       2-3
-oct:   2-3       2-3       2-3
-nov:   2/7       2/7       2/7
-dec:    2        2/7       2/7
+     KMeans    KMedoids  GMixture  HCluster
+jan:  	6/9	 6/9      4/6/9      6/9
+feb:  2/3/5/8	2/5/8     2/5/8     2/5/8
+mar:  	2/9	2/5/9      2/9       2/9
+apr:   2/3/9	2-3       2-3       2-3
+may:   	2/5	2/5       2/5       2/5
+jun:   	2/4	2/4       2/4       2/4
+jul:   	2-3	2-3       2-3       2-3
+aug:   	2/9	2/9       2/9       2/9
+sep:   	2-3	2-3       2-3       2-3
+oct:   2/3/7	2-3       2-3       2-3
+nov:   	2/7	2/7       2/7       2/7
+dec:    2/7	2        2/7       2/7
 
 
 washington DC 2019 best k's on business days:
 
-     HCluster  KMedoids
-jan:   2-3       2-3
-feb:  2/3/5      2/5
-mar:   2-4       2-4
-apr:  2/3/5     2/3/5
-may:   2-3       2-3
-jun:   2-3       2-3
-jul:   2-3       2-3
-aug:  2/3/5     2/3/5
-sep:  2/3/6     2/3/6
-oct:   2-3       2-3
-nov:  2-4/9     2-4/9
-dec:   2-5       2-5
+     KMeans	HCluster  KMedoids  GMixture
+jan:   2-3	  2-3       2-3	      2-3
+feb:   2/5	 2/3/5      2/5	      2/5
+mar:   2-4	  2-4       2-4       2-4
+apr:  2/3/5	 2/3/5     2/3/5     2/3/5
+may:   2-3	  2-3       2-3       2-3
+jun:   2-3	  2-3       2-3       2-3
+jul:   2-3	  2-3       2-3       2-3
+aug:  2/3/5	 2/3/5     2/3/5     2/3/5
+sep:   2-3	 2/3/6     2/3/6      2-3
+oct:   2-3	  2-3       2-3       2-3
+nov:   2-4	 2-4/9     2-4/9      2-4
+dec:   2-5	  2-5       2-5       2/5
 
 washington DC 2019 best k's on weekends:
 
-     KMedoids  HCluster
-jan:  2/5/8     2/5/8
-feb:   2/9        9
-mar: 3/5/7/9   3/5/7/9
-apr:    5         5
-may:   3/5      3/5/9
-jun:    5        3/5
-jul:   4/6       4/6
-aug:   4/7       4/7
-sep:   4/9       4/9
-oct:  3/6/8     3/6/8
-nov:  3/4/9     3/4/9
-dec:  2/5/8     2/5/8
+       KMeans	KMedoids  HCluster  GMixture
+jan:   2/5/8	 2/5/8     2/5/8     2/5/8
+feb:    2/9	  2/9        9	      2/9
+mar:  3/5/7/9	3/5/7/9   3/5/7/9   3/5/7/9
+apr:   	 5	   5         5         5
+may:   	3/5	  3/5      3/5/9     3/5/9
+jun:   	 5	   5        3/5        5
+jul:   2/4/6	  4/6       4/6       4/6
+aug:   	4/7	  4/7       4/7       4/7
+sep:   	4/9	  4/9       4/9     4/6/7/9
+oct:   3/6/8	 3/6/8     3/6/8     3/6/8
+nov:   3/4/9	 3/4/9     3/4/9     3/7/9
+dec:   2/5/8	 2/5/8     2/5/8     2/5/8
 
-madrid 2019 best k's:
+madrid 2019 best k's on business days:
 
-     KMedoids
-jan:    3
-feb:   2/4
-mar:   2-4
-apr:   2/6
-may:
-jun:
-jul:
-aug:
-sep:
-oct:
-nov:
-dec:
+     KMeans  KMedoids  GMixture  HCluster
+jan:   2-3	2-3      2-3	    3
+feb:   2-4	2-4      2-4 	   2/4
+mar:   2/4	2-4      2/4 	   2-4
+apr:   	2	 2       2/6 	   2/6
+may:   2-3	2-3      2-3	   2-3
+jun:   2-3	2-3      2-3 	2-3
+jul:   2/9	2/9     2/6/9  	2/9
+aug:   2-3	2-3      2-3 	2-3
+sep:   2-3	2-3      2-3 	2-3
+oct:   	2	 2        2 	2
+nov:  2/5/8    2/5/8    2/5/8 	2/5/8
+dec:  2/3/9    2/3/9    2/3/9 	2/3/9
+
+
+madrid 2019 best k's on weekends:
+
+     KMeans  KMedoids  GMixture  HCluster
+jan:   5/8     5/8       5/8	    5
+feb:   4/8     4/8       4/8           4
+mar:    4	4         4	    4
+apr:   	10	10        10	    10
+may:    2	2         2	    2
+jun:    2	2         2	    2
+jul:   2-3     2-3       2-3	   2-3
+aug:    2	2         2	    2
+sep:   	5      5/8       5/8	   5/8
+oct:   4-5     4-5       4-5	   4-5
+nov:  2-4/9    4/9      3/4/9 	   4/9
+dec:   3-5     3-5       3-5	   3-5
+
+Helsinki 2019 best k's on business days:
+
+      KMeans  KMedoids  GMixture  HCluster
+apr:    2-3	2-3       2-3	    2-3
+may:    2-3	2-3       2-4	    2-3
+jun:   2/4/5 	2-4       2-5	    2-4
+jul:     2	 2         2	     2
+aug:    2-4	2-4       2-4 	     2
+sep:    2-4	2-4       2-4	    2-4 
+oct:    2-4	2-4       2-4	    2-4
+
+
+Helsinki 2019 best k's on weekends:
+
+      KMeans  KMedoids  GMixture  HCluster
+apr:    2-3 	 2         2-3		2
+may:   2/4/7   2/4/7      2/4/7	       4/7
+jun:    3/5	3/5         3		3
+jul:     3	 3          3		3
+aug:    5/8	 8         5/8	       5/8
+sep:   	2-3	 2          2		2
+oct:     5	4-5        4-5	       4-5
+
+mexico 2019 best k's on business days:
+
+     KMeans   KMedoids  GMixture  HCluster
+jan:   2-4 	2-4       2-4       2-4
+feb:   2-4 	2-3       2-4	    2-3
+mar:   2-3 	2-3       2-4       2-4
+apr:   2-3 	2-3       2-4	    2-3
+may:   2-4 	2-3       2-4	    2-3
+jun:   2-4 	2-3       2-4	    2-3
+jul:   2-4 	2-3       2-4	    2-3
+aug:   2-4 	2-3       2-4	    2-3
+sep:   2-4 	2-3       2-4	    2-3
+oct:   2-3 	2-3       2-3	    2-3
+nov:   2-4 	2-3       2-4	    2-3
+dec:   2-3 	2-4       2-4       2-4
+
+mexico 2019 best k's on weekends:
+
+     KMeans   KMedoids  GMixture  HCluster
+jan:  3/4/7 	3-4       3/7 	     7
+feb:   4/8	 8        4/8	    4/8
+mar:  4/5/7 	 7       4/5/7	   4/5/7
+apr:   	2	 2         2	     2
+may:  3/4/7 	3-4      3/4/7	   3/4/7
+jun:  	4/8	4/8       4/8	    4/8
+jul:   5/7	5/7       5/7	    5/7
+aug:   6/8	6/8        6	    6/8
+sep:   4/9	4/9       4/9 	    4/9
+oct:   	5	 5         5	    5/8
+nov:   4/5	 4        4-5	    4/5
+dec:   3/7	3/7       3/7	    3/7
+
+
+
+
+

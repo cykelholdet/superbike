@@ -20,8 +20,8 @@ from sklearn_extra.cluster import KMedoids
 
 city = 'mexico'
 year = 2019
-month = 3
-period = 'b' # 'b' = business days or 'w' = weekends
+month = 12
+period = 'w' # 'b' = business days or 'w' = weekends
 
 # if city == 'nyc':
 #     gov_stations = [3254, 3182, 3479]
@@ -30,13 +30,19 @@ period = 'b' # 'b' = business days or 'w' = weekends
 data = bs.Data(city,year,month)
 
 try:
-    with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}{data.month:02d}.pickle', 'rb') as file:
-            
-        if period == 'b':
-            traffic_matrix=pickle.load(file)[0]
-        elif period == 'w':
-            traffic_matrix=pickle.load(file)[1]
-
+    
+    if data.month:
+        with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}{data.month:02d}.pickle', 'rb') as file:
+            if period == 'b':
+                traffic_matrix=pickle.load(file)[0]
+            elif period == 'w':
+                traffic_matrix=pickle.load(file)[1]
+    else:
+        with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}.pickle', 'rb') as file:
+            if period == 'b':
+                traffic_matrix=pickle.load(file)[0]
+            elif period == 'w':
+                traffic_matrix=pickle.load(file)[1]
 except FileNotFoundError:
     if period == 'b':
         traffic_matrix = data.pickle_daily_traffic()[0]
@@ -45,7 +51,7 @@ except FileNotFoundError:
 
 #%% k-test
 
-cluster_func = AgglomerativeClustering
+cluster_func = GaussianMixture
 
 k_test = bs.k_test(traffic_matrix, KMeans, plot=True)
 

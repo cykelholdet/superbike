@@ -2260,73 +2260,32 @@ def silhouette_index(data_mat, labels, centroids, dist_func='norm', verbose=Fals
 def k_test(data_mat, cluster_func, k_max = 10, random_state = 42, 
            tests = 'full', plot = False):
     
-    test_dict = {'SSE' : 'SSE',
-                 'DB' : 'DB_index',
-                 'D' : 'D_index',
-                 'S' : 'S_index'}
-    
-    if tests == 'full':
-        tests = ['SSE', 'DB', 'D', 'S']
+    tests = ['SSE', 'DB', 'D', 'S']
     
     results = np.zeros(shape=(len(tests),k_max-1))
-
-    if type(tests) == str:
-        spacing = 20
-
-    else:
-        spacing = len(tests)*15+5
 
     # print(f'{f"Test result for {cluster_func}":^{spacing}}')
     # print('-'*spacing)
 
-    if tests == 'full' or len(tests) == 4:
-        print(f'{"k":5}{"SSE":15}{"DB_index":15}{"D_index":15}{"S_index":15}')
-    elif type(tests) == str:
-        print(f'{"k":5}{test_dict[tests]:15}')
-    elif len(tests) == 2:
-        print(f'{"k":5}{test_dict[tests[0]]:15}{test_dict[tests[1]]:15}')
-    elif len(tests) == 3:
-        print(f'{"k":5}{test_dict[tests[0]]:15}{test_dict[tests[1]]:15}{test_dict[tests[2]]:15}')
-    print('-'*spacing)
+    print(f'{"k":5}{"SSE":15}{"DB_index":15}{"D_index":15}{"S_index":15}')
+    print('-'*60)
 
     for i, k in enumerate(range(2, k_max+1)):
         clusters = cluster_func(k, random_state = random_state).fit(data_mat)
         labels = clusters.predict(data_mat)
         centroids = clusters.cluster_centers_
         
-        test_i = 0
+        results[0, i] = clusters.inertia_
+        results[1, i] = Davies_Bouldin_index(data_mat, labels, centroids)
+        results[2, i] = Dunn_index(data_mat, labels, centroids)
+        results[3, i] = silhouette_index(data_mat, labels, centroids)
         
-        if 'SSE' in tests:
-            results[test_i, i] = clusters.inertia_
-            test_i +=1
-            
-        if 'DB' in tests:
-            results[test_i, i] = Davies_Bouldin_index(data_mat, labels, centroids)
-            test_i +=1
-            
-        if 'D' in tests:
-            results[test_i, i] = Dunn_index(data_mat, labels, centroids)
-            test_i +=1
-        
-        if 'S' in tests:
-            results[test_i, i] = silhouette_index(data_mat, labels, centroids)
-            test_i +=1
-        
-        if tests == 'full' or len(tests) == 4:
-            print(
-               f'{k:<5,d}{results[0,i]:<15.8f}{results[1,i]:<15.8f}{results[2,i]:<15.8f}{results[3,i]:<15,.8f}')
-        elif type(tests) == str:
-            print(
-               f'{k:<5,d}{results[0,i]:<15.8f}')
-        elif len(tests) == 2:
-            print(
-               f'{k:<5,d}{results[0,i]:<15.8f}{results[1,i]:<15.8f}')
-        elif len(tests) == 3:
-            print(
-               f'{k:<5,d}{results[0,i]:<15.8f}{results[1,i]:<15.8f}{results[2,i]:<15.8f}')
+        print(
+           f'{k:<5,d}{results[0,i]:<15.8f}{results[1,i]:<15.8f}{results[2,i]:<15.8f}{results[3,i]:<15,.8f}')
+   
     
     res_df = pd.DataFrame(index = range(2,k_max+1),
-                          columns = ['SSE', 'DB', 'D', 'S'][:len(tests)])
+                          columns = ['SSE', 'DB', 'D', 'S'])
     res_df.index.rename('k', inplace=True)
     
     for test_i, test in enumerate(res_df.columns):
@@ -2334,25 +2293,30 @@ def k_test(data_mat, cluster_func, k_max = 10, random_state = 42,
     
     if plot:
         
-        if tests == 'full' or len(tests) == 4:
-            plt.subplot(211)
-
-        for test in res_df.columns:
-            plt.plot(range(2,k_max+1), res_df[test])
+        plt.subplot(221)
+        plt.plot(range(2,k_max+1), res_df['SSE'])
+        plt.xticks(range(2,k_max+1))
+        # plt.xlabel('$k$')
+        plt.legend(['SSE'])
+        
+        plt.subplot(222)
+        plt.plot(range(2,k_max+1), res_df['DB'], c='tab:orange')
+        plt.xticks(range(2,k_max+1))
+        # plt.xlabel('$k$')
+        plt.legend(['DB_index'])
+        
+        plt.subplot(223)
+        plt.plot(range(2,k_max+1), res_df['D'], c='tab:green')
         plt.xticks(range(2,k_max+1))
         plt.xlabel('$k$')
-        # plt.title(f'$k$-test for {cluster_func}')
-        plt.legend([test_dict[test] for test in tests])
+        plt.legend(['D_index'])
         
-        if tests == 'full' or len(tests) == 4:
-            plt.subplot(212)
-            plt.plot(range(2,k_max+1), res_df['D'], c='tab:green')
-            plt.plot(range(2,k_max+1), res_df['S'], c='tab:red')
-            plt.ylim(min(np.min(res_df['D']), np.min(res_df['S']))-0.1,
-                     max(np.max(res_df['D']), np.max(res_df['S']))+0.1)
-            plt.legend(['D_index', 'S_index'])
-            plt.xlabel('$k$')
-    
+        plt.subplot(224)
+        plt.plot(range(2,k_max+1), res_df['S'], c='tab:red')
+        plt.xticks(range(2,k_max+1))
+        plt.xlabel('$k$')
+        plt.legend(['S_index'])
+        
     return res_df
 
 class Stations:
@@ -3216,7 +3180,7 @@ class Data:
         df_count_start = pd.concat(
             [start_hour_mat[day] for day in days], axis=1, keys=days, names=['day', 'hour']).fillna(0)
 
-        # Take the rows where the start day is in days
+        # Take the rows where the end day is in days
         df = self.df[np.isin(self.df['end_dt'].dt.day, days)]
         #df_hours_start = [df[df['end_dt'].dt.hour == hour] for hour in range(24)]
         c_end = dict()
@@ -3552,12 +3516,21 @@ class Data:
 
         """
         if not overwrite:
-            try:
-                with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}.pickle', 'rb') as file:
-                    matrix_b, matrix_w = pickle.load(file)
-                return matrix_b, matrix_w
-            except FileNotFoundError:
-                print("File not found")
+            
+            if self.month:
+                try:
+                    with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}.pickle', 'rb') as file:
+                        matrix_b, matrix_w = pickle.load(file)
+                    return matrix_b, matrix_w
+                except FileNotFoundError:
+                    print("File not found")
+            else:
+                try:
+                    with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}.pickle', 'rb') as file:
+                        matrix_b, matrix_w = pickle.load(file)
+                    return matrix_b, matrix_w
+                except FileNotFoundError:
+                    print("File not found")
         print('Pickling average daily traffic for all stations... \nSit back and relax, this might take a while...')
         pre = time.time()
         departures_b, arrivals_b = self.daily_traffic_average_all(
@@ -3586,9 +3559,13 @@ class Data:
                 matrix_w[index, 24:] = arrivals_w.loc[id_]
             except KeyError:
                 print(f"Key {id_} not found in arrivals weekdays.")
-
-        with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}.pickle', 'wb') as file:
-            pickle.dump((matrix_b, matrix_w), file)
+        
+        if self.month:
+            with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{self.month:02d}.pickle', 'wb') as file:
+                pickle.dump((matrix_b, matrix_w), file)
+        else:
+            with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}.pickle', 'wb') as file:
+                pickle.dump((matrix_b, matrix_w), file)
 
         print(f'Pickling done. Time taken: {time.time()-pre}')
 
