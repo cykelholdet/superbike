@@ -600,22 +600,6 @@ def get_data_month(city, year, month, blacklist=None):
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
             df.drop(columns=['start_t', 'end_t'], inplace=True)
-        
-        elif city == "trondheim":
-
-            try:
-                df = pd.read_csv(f'./data/{year:d}{month:02d}-trondheim.csv')
-            except FileNotFoundError as exc:
-                raise FileNotFoundError(
-                    'No trip data found. All relevant files can be found at https://trondheimbysykkel.no/apne-data/historisk') from exc
-
-            df = df.rename(columns=dataframe_key.get_key(city))
-            df.dropna(inplace=True)
-            df.reset_index(inplace=True, drop=True)
-
-            df['start_dt'] = pd.to_datetime(df['start_t'])
-            df['end_dt'] = pd.to_datetime(df['end_t'])
-            df.drop(columns=['start_t', 'end_t'], inplace=True)
 
         elif city == "helsinki":
 
@@ -818,16 +802,10 @@ def get_data_month(city, year, month, blacklist=None):
         elif city == "taipei":
             colnames = ['start_t', 'start_stat_name_zh',
                         'end_t', 'end_stat_name_zh', 'duration', 'rent_date']
-            
-            
-                
+
             try:
-                if year == 2019 and (month in [1,2,3]):
-                    df = pd.read_csv(f"./data/{year:d}{month:02d}-taipei.csv",
-                                     usecols=range(5), names=colnames, skiprows=[0])
-                else: 
-                    df = pd.read_csv(f"./data/{year:d}{month:02d}-taipei.csv",
-                                     usecols=range(5), names=colnames)
+                df = pd.read_csv(f"./data/{year:d}{month:02d}-taipei.csv",
+                                 usecols=range(5), names=colnames)
             except FileNotFoundError as exc:
                 raise FileNotFoundError(
                     'No trip data found. All relevant data can be found at https://data.taipei/#/ and https://drive.google.com/drive/folders/1QsROgp8AcER6qkTJDxpuV8Mt1Dy6lGQO') from exc
@@ -928,7 +906,7 @@ def get_data_month(city, year, month, blacklist=None):
 
 def get_data_year(city, year, blacklist=None, day_index=True):
 
-    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki', 'mexico', 'taipei', 'oslo', 'bergen', 'trondheim'
+    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki', 'mexico'
                         ]  # Remember to update this list
 
     if city not in supported_cities:
@@ -1057,7 +1035,7 @@ def get_data_year(city, year, blacklist=None, day_index=True):
             df = pd.read_csv('data/' + files[0])
     
             for file in files[1:]:
-                if '2019_Q2' in file:
+                if file == 'Divvy_Trips_2019_Q2.csv':
                     col_dict = {'01 - Rental Details Rental ID': 'trip_id',
                                 '01 - Rental Details Local Start Time': 'start_time',
                                 '01 - Rental Details Local End Time': 'end_time',
@@ -1185,32 +1163,21 @@ def get_data_year(city, year, blacklist=None, day_index=True):
             stat_df = pd.read_csv('./data/london_stations.csv')
             stat_df.at[np.where(stat_df['station_id'] == 502)
                        [0][0], 'latitude'] = 51.53341
-            
-            long_dict = dict(
-                zip(stat_df['station_name'], stat_df['longitude'].astype(float)))
-            lat_dict = dict(
-                zip(stat_df['station_name'], stat_df['latitude'].astype(float)))
-            
-            df['start_stat_lat'] = df['start_stat_name'].map(lat_dict)
-            df['start_stat_long'] = df['start_stat_name'].map(long_dict)
-
-            df['end_stat_lat'] = df['end_stat_name'].map(lat_dict)
-            df['end_stat_long'] = df['end_stat_name'].map(long_dict)
-            
-            # df['start_stat_lat'] = ''
-            # df['start_stat_long'] = ''
-            # df['end_stat_lat'] = ''
-            # df['end_stat_long'] = ''
     
-            # for _, stat in stat_df.iterrows():
-            #     start_matches = np.where(
-            #         df['start_stat_name'] == stat['station_name'])
-            #     end_matches = np.where(df['end_stat_name'] == stat['station_name'])
+            df['start_stat_lat'] = ''
+            df['start_stat_long'] = ''
+            df['end_stat_lat'] = ''
+            df['end_stat_long'] = ''
     
-            #     df.at[start_matches[0], 'start_stat_lat'] = stat['latitude']
-            #     df.at[start_matches[0], 'start_stat_long'] = stat['longitude']
-            #     df.at[end_matches[0], 'end_stat_lat'] = stat['latitude']
-            #     df.at[end_matches[0], 'end_stat_long'] = stat['longitude']
+            for _, stat in stat_df.iterrows():
+                start_matches = np.where(
+                    df['start_stat_name'] == stat['station_name'])
+                end_matches = np.where(df['end_stat_name'] == stat['station_name'])
+    
+                df.at[start_matches[0], 'start_stat_lat'] = stat['latitude']
+                df.at[start_matches[0], 'start_stat_long'] = stat['longitude']
+                df.at[end_matches[0], 'end_stat_lat'] = stat['latitude']
+                df.at[end_matches[0], 'end_stat_long'] = stat['longitude']
     
             df.replace('', np.nan, inplace=True)
             df.dropna(inplace=True)
@@ -1227,7 +1194,7 @@ def get_data_year(city, year, blacklist=None, day_index=True):
             files = [file for file in files if f'{year:d}' in file]
             files.sort()
             
-            if len(files) != 12:
+            if len(files) < 12:
                 raise FileNotFoundError(
                     "Data not found the whole year. Please check that all monthly data is present. All relevant files can be found at https://www.lyft.com/bikes/bay-wheels/system-data")
     
@@ -1278,21 +1245,9 @@ def get_data_year(city, year, blacklist=None, day_index=True):
             df.reset_index(inplace=True, drop=True)
     
     
-        elif city in ['madrid', 'edinburgh', 'taipei', 'bergen']:
+        elif city in ['madrid', 'edinburgh']:
             dfs = []
             for month in range(1, 13):
-                dfs.append(get_data_month(city, year, month)[0] )
-            df = pd.concat(dfs)
-        
-        elif city == 'trondheim':
-            dfs = []
-            for month in range(4, 12):
-                dfs.append(get_data_month(city, year, month)[0] )
-            df = pd.concat(dfs)
-            
-        elif city == 'oslo' and year == 2019:
-            dfs = []
-            for month in range(4, 13):
                 dfs.append(get_data_month(city, year, month)[0] )
             df = pd.concat(dfs)
 
@@ -1793,11 +1748,11 @@ def get_weather_year(city, year):
 
     """
 
-    precips = []
+    rain = []
     for month in range(1, 13):
-        precips.append(get_weather(city, year, month)[1])
+        rain.append(get_weather(city, year, month)[1])
     
-    return pd.concat(precips)
+    return pd.concat(rain)
 
 
 def TotalVariation(adj, cutoff):
@@ -2305,73 +2260,32 @@ def silhouette_index(data_mat, labels, centroids, dist_func='norm', verbose=Fals
 def k_test(data_mat, cluster_func, k_max = 10, random_state = 42, 
            tests = 'full', plot = False):
     
-    test_dict = {'SSE' : 'SSE',
-                 'DB' : 'DB_index',
-                 'D' : 'D_index',
-                 'S' : 'S_index'}
-    
-    if tests == 'full':
-        tests = ['SSE', 'DB', 'D', 'S']
+    tests = ['SSE', 'DB', 'D', 'S']
     
     results = np.zeros(shape=(len(tests),k_max-1))
-
-    if type(tests) == str:
-        spacing = 20
-
-    else:
-        spacing = len(tests)*15+5
 
     # print(f'{f"Test result for {cluster_func}":^{spacing}}')
     # print('-'*spacing)
 
-    if tests == 'full' or len(tests) == 4:
-        print(f'{"k":5}{"SSE":15}{"DB_index":15}{"D_index":15}{"S_index":15}')
-    elif type(tests) == str:
-        print(f'{"k":5}{test_dict[tests]:15}')
-    elif len(tests) == 2:
-        print(f'{"k":5}{test_dict[tests[0]]:15}{test_dict[tests[1]]:15}')
-    elif len(tests) == 3:
-        print(f'{"k":5}{test_dict[tests[0]]:15}{test_dict[tests[1]]:15}{test_dict[tests[2]]:15}')
-    print('-'*spacing)
+    print(f'{"k":5}{"SSE":15}{"DB_index":15}{"D_index":15}{"S_index":15}')
+    print('-'*60)
 
     for i, k in enumerate(range(2, k_max+1)):
         clusters = cluster_func(k, random_state = random_state).fit(data_mat)
         labels = clusters.predict(data_mat)
         centroids = clusters.cluster_centers_
         
-        test_i = 0
+        results[0, i] = clusters.inertia_
+        results[1, i] = Davies_Bouldin_index(data_mat, labels, centroids)
+        results[2, i] = Dunn_index(data_mat, labels, centroids)
+        results[3, i] = silhouette_index(data_mat, labels, centroids)
         
-        if 'SSE' in tests:
-            results[test_i, i] = clusters.inertia_
-            test_i +=1
-            
-        if 'DB' in tests:
-            results[test_i, i] = Davies_Bouldin_index(data_mat, labels, centroids)
-            test_i +=1
-            
-        if 'D' in tests:
-            results[test_i, i] = Dunn_index(data_mat, labels, centroids)
-            test_i +=1
-        
-        if 'S' in tests:
-            results[test_i, i] = silhouette_index(data_mat, labels, centroids)
-            test_i +=1
-        
-        if tests == 'full' or len(tests) == 4:
-            print(
-               f'{k:<5,d}{results[0,i]:<15.8f}{results[1,i]:<15.8f}{results[2,i]:<15.8f}{results[3,i]:<15,.8f}')
-        elif type(tests) == str:
-            print(
-               f'{k:<5,d}{results[0,i]:<15.8f}')
-        elif len(tests) == 2:
-            print(
-               f'{k:<5,d}{results[0,i]:<15.8f}{results[1,i]:<15.8f}')
-        elif len(tests) == 3:
-            print(
-               f'{k:<5,d}{results[0,i]:<15.8f}{results[1,i]:<15.8f}{results[2,i]:<15.8f}')
+        print(
+           f'{k:<5,d}{results[0,i]:<15.8f}{results[1,i]:<15.8f}{results[2,i]:<15.8f}{results[3,i]:<15,.8f}')
+   
     
     res_df = pd.DataFrame(index = range(2,k_max+1),
-                          columns = ['SSE', 'DB', 'D', 'S'][:len(tests)])
+                          columns = ['SSE', 'DB', 'D', 'S'])
     res_df.index.rename('k', inplace=True)
     
     for test_i, test in enumerate(res_df.columns):
@@ -2379,25 +2293,30 @@ def k_test(data_mat, cluster_func, k_max = 10, random_state = 42,
     
     if plot:
         
-        if tests == 'full' or len(tests) == 4:
-            plt.subplot(211)
-
-        for test in res_df.columns:
-            plt.plot(range(2,k_max+1), res_df[test])
+        plt.subplot(221)
+        plt.plot(range(2,k_max+1), res_df['SSE'])
+        plt.xticks(range(2,k_max+1))
+        # plt.xlabel('$k$')
+        plt.legend(['SSE'])
+        
+        plt.subplot(222)
+        plt.plot(range(2,k_max+1), res_df['DB'], c='tab:orange')
+        plt.xticks(range(2,k_max+1))
+        # plt.xlabel('$k$')
+        plt.legend(['DB_index'])
+        
+        plt.subplot(223)
+        plt.plot(range(2,k_max+1), res_df['D'], c='tab:green')
         plt.xticks(range(2,k_max+1))
         plt.xlabel('$k$')
-        # plt.title(f'$k$-test for {cluster_func}')
-        plt.legend([test_dict[test] for test in tests])
+        plt.legend(['D_index'])
         
-        if tests == 'full' or len(tests) == 4:
-            plt.subplot(212)
-            plt.plot(range(2,k_max+1), res_df['D'], c='tab:green')
-            plt.plot(range(2,k_max+1), res_df['S'], c='tab:red')
-            plt.ylim(min(np.min(res_df['D']), np.min(res_df['S']))-0.1,
-                     max(np.max(res_df['D']), np.max(res_df['S']))+0.1)
-            plt.legend(['D_index', 'S_index'])
-            plt.xlabel('$k$')
-    
+        plt.subplot(224)
+        plt.plot(range(2,k_max+1), res_df['S'], c='tab:red')
+        plt.xticks(range(2,k_max+1))
+        plt.xlabel('$k$')
+        plt.legend(['S_index'])
+        
     return res_df
 
 class Stations:
@@ -3202,7 +3121,7 @@ class Data:
         else:
             return trips_departures_average, trips_arrivals_average
 
-    def daily_traffic_average_all(self, period='b', normalise=True, plot=False, return_all=False, banana=False):
+    def daily_traffic_average_all(self, period='b', normalise=True, plot=False, return_all=False):
         """
         Computes the average daily traffic of a station over either business
         days or weekends. Both average number of departures and arrivals are
@@ -3210,6 +3129,8 @@ class Data:
 
         Parameters
         ----------
+        stat_index : int
+            Station index.
         period : str, optional
             Period to average over. Either 'b' = business days or 'w' = weekends.
             The default is 'b'.
@@ -3383,6 +3304,7 @@ class Data:
                         f'Average hourly traffic for {self.stat.names[self.stat.id_index[station]]} \n {monstr} {self.year} on weekends')
 
                 plt.show()
+
         if return_all:
             return departures_mean, arrivals_mean, departures_std, arrivals_std
         else:

@@ -39,7 +39,7 @@ cmap = cm.get_cmap('Blues')
 # Load bikeshare data
 
 year = 2019
-month = 4
+month = 9
 data = bs.Data('nyc', year, month)
 df = data.df
 
@@ -277,6 +277,7 @@ tileview = hv.DynamicMap(plot_tiles)
 
 
 tooltips = [
+    ('ID', '@stat_id'),
     ('Name', '@name'),
     ('Cluster', '@color'),
     #('n_departures', '@n_departures'),
