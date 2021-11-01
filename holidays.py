@@ -32,6 +32,7 @@ cal_dict = {
     'oslo': Norway,
     'sfran': CaliforniaSanFrancisco,
     'taipei': Taiwan,
+    'trondheim': Norway,
     'washDC': DistrictOfColumbia}
 
 name_dict = {
@@ -49,6 +50,7 @@ name_dict = {
     'olso': 'Oslo',
     'sfran': 'San Francisco',
     'taipei': 'Taipei',
+    'trondheim': 'Trondheim',
     'washDC': 'Washington DC'}
 
 
@@ -69,9 +71,9 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
     weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
                 "Saturday", "Sunday"]
     
-    month_abbr = {1:'jan', 2:'feb', 3:'mar', 4:'apr', 5:'may', 6:'jun', 7:'jul', 8:'aug', 9:'sep', 10:'oct', 11:'nov', 12:'dec'}
+    month_abbr = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
     
-    precip = bs.get_weather_year('madrid', 2019)
+    precip = bs.get_weather_year(city, 2019)
     
     num_days = datetime.date(year, 12, 31).timetuple().tm_yday
     st_w = datetime.date(2019, 1, 1).weekday()
@@ -81,8 +83,8 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
     fig, ax = plt.subplots( num_days//7 + 1, 7,
                            sharex=True, sharey=True, figsize=(12, 100))
 
-    fig.subplots_adjust(hspace=0.05, wspace=0.05)
-    fig.subplots_adjust(top=0.93)
+    fig.subplots_adjust(hspace=0.05, wspace=0.0)
+    fig.subplots_adjust(top=0.97)
     
     twinax = dict()
     twinax_list = list()
@@ -101,6 +103,7 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
             twinax[row, column].yaxis.tick_right()
             twinax[row, column].yaxis.set_label_position('right')
             twinax[row, column].yaxis.set_offset_position('right')
+            
 
             twinax[row, column].set_autoscalex_on(ax[row, column].get_autoscalex_on())
             ax[row, column].yaxis.tick_left()
@@ -111,6 +114,7 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
                 a = 0
 
                 twinax[row, column].yaxis.set_tick_params(labelright=False)
+    
     
     df['doy'] = df.start_dt.dt.day_of_year
     df['hour'] = df.start_dt.dt.hour
@@ -139,6 +143,8 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
             d_ax.set_facecolor('#d4f0d3')
             text_box = AnchoredText(f"{month_abbr[day_dt.month]}{day_dt.day}\n{holidays[holidays['day'] == day_dt.date()]['name'].iloc[0]}", frameon=False, loc='upper left', pad=0.3)        
             d_ax.add_artist(text_box)
+        elif day_dt.weekday() == 6 and day < 8:
+            pass
         else:
             text_box = AnchoredText(f"{month_abbr[day_dt.month]}{day_dt.day}", frameon=False, loc='upper left', pad=0.3)        
             d_ax.add_artist(text_box)
@@ -148,8 +154,7 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
         ax[-1, i].set_xticks([0, 6, 12, 18])
         ax[-1, i].set_xlabel("hour")
     
-    lines = [ax[0, -1].get_lines(), ln2[0]]
-    print(lines)
+    lines = [ax[13, -1].patches[0], ln2[0]]
     labels = [line.get_label() for line in lines]
     ax[0, -1].legend(lines, labels, loc=0)
 
@@ -173,8 +178,8 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
 
 if __name__ == '__main__':
     import bikeshare as bs
-
-    city = 'mexico'
-    year = 2019
-    df_year = bs.get_data_year(city, year)[0]
-    plot_trips_pr_hour_year(df_year, city, year, savefig=True)
+    
+    for city in ['madrid']:
+        year = 2019
+        df_year = bs.get_data_year(city, year)[0]
+        plot_trips_pr_hour_year(df_year, city, year, savefig=True)
