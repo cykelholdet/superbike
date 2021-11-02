@@ -671,16 +671,34 @@ def get_data_month(city, year, month, blacklist=None):
         elif city == "buenos_aires":
 
             try:
-                df_year = pd.read_csv(
+                df = pd.read_csv(
                     f"./data/recorridos-realizados-{year:d}.csv")
             except FileNotFoundError as exc:
                 raise FileNotFoundError(
                     'No trip data found. All relevant files can be found at https://data.buenosaires.gob.ar/dataset/bicicletas-publicas') from exc
 
-            df_year = df_year.rename(columns=dataframe_key.get_key(city))
+            df = df.rename(columns=dataframe_key.get_key(city))
             #df_year['month'] = pd.to_datetime(df_year['fecha_origen_recorrido']).dt.month
-            df_year['month'] = pd.to_datetime(df_year['start_t']).dt.month
-            df = df_year.loc[df_year.month == month]
+            df['month'] = pd.to_datetime(df['start_t']).dt.month
+            df = df[df.month == month]
+            mask = df['start_stat_id'] == "159_0"
+            df.loc[mask, 'start_stat_id'] = 159
+            df.loc[mask, 'start_stat_lat'] = -34.584953
+            df.loc[mask, 'start_stat_long'] = -58.437340
+            df.loc[mask, 'start_stat_desc'] = ""
+            
+            mask = df['end_stat_id'] == "159_0"
+            df.loc[mask, 'end_stat_id'] = 159
+            df.loc[mask, 'end_stat_lat'] = -34.584953
+            df.loc[mask, 'end_stat_long'] = -58.437340
+            df.loc[mask, 'end_stat_desc'] = ""
+            
+            df['gender'].fillna(0, inplace=True)
+            
+            df.dropna(inplace=True)
+            df['start_stat_id'] = df['start_stat_id'].astype(int)
+            df['end_stat_id'] = df['end_stat_id'].astype(int)
+            
             df.sort_values(by=['start_t'], inplace=True)
             df.reset_index(inplace=True, drop=True)
 
@@ -1015,7 +1033,7 @@ def get_data_month(city, year, month, blacklist=None):
 
 def get_data_year(city, year, blacklist=None, day_index=True):
 
-    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki', 'mexico', 'taipei', 'oslo', 'bergen', 'trondheim', 'boston', 'minn', 'guadalajara', 'montreal'
+    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki', 'mexico', 'taipei', 'oslo', 'bergen', 'trondheim', 'boston', 'minn', 'guadalajara', 'montreal', 'buenos_aires'
                         ]  # Remember to update this list
 
     if city not in supported_cities:
@@ -1352,6 +1370,43 @@ def get_data_year(city, year, blacklist=None, day_index=True):
             #df = df[df.start_dt.dt.month == month]
             df.sort_values(by=['start_dt'], inplace=True)
             df.reset_index(inplace=True, drop=True)
+        
+        elif city == "buenos_aires":
+
+            try:
+                df = pd.read_csv(
+                    f"./data/recorridos-realizados-{year:d}.csv")
+            except FileNotFoundError as exc:
+                raise FileNotFoundError(
+                    'No trip data found. All relevant files can be found at https://data.buenosaires.gob.ar/dataset/bicicletas-publicas') from exc
+
+            df = df.rename(columns=dataframe_key.get_key(city))
+            #df_year['month'] = pd.to_datetime(df_year['fecha_origen_recorrido']).dt.month
+
+            mask = df['start_stat_id'] == "159_0"
+            df.loc[mask, 'start_stat_id'] = 159
+            df.loc[mask, 'start_stat_lat'] = -34.584953
+            df.loc[mask, 'start_stat_long'] = -58.437340
+            df.loc[mask, 'start_stat_desc'] = ""
+            
+            mask = df['end_stat_id'] == "159_0"
+            df.loc[mask, 'end_stat_id'] = 159
+            df.loc[mask, 'end_stat_lat'] = -34.584953
+            df.loc[mask, 'end_stat_long'] = -58.437340
+            df.loc[mask, 'end_stat_desc'] = ""
+            
+            df['gender'].fillna(0, inplace=True)
+            
+            df.dropna(inplace=True)
+            df['start_stat_id'] = df['start_stat_id'].astype(int)
+            df['end_stat_id'] = df['end_stat_id'].astype(int)
+            
+            df.sort_values(by=['start_t'], inplace=True)
+            df.reset_index(inplace=True, drop=True)
+
+            df['start_dt'] = pd.to_datetime(df['start_t'])
+            df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
     
         elif city in ['madrid', 'edinburgh', 'taipei', 'bergen', 'boston', 'guadalajara']:
             dfs = []
@@ -4118,7 +4173,7 @@ name_dict = {
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('nyc', 2019, 2)
+    data = Data('buenos_aires', 2019)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)
