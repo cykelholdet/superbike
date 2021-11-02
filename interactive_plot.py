@@ -173,7 +173,7 @@ class BikeParameters2(param.Parameterized):
         return plot
     
 
-    @param.depends('day_type', 'clustering', 'k', 'plot_all_clusters', watch=False)
+    @param.depends('day_type', 'clustering', 'k', 'plot_all_clusters', 'min_trips', watch=False)
     def plot_centroid(self, index):
         if self.clustering == 'none':
             return "No clustering"
@@ -346,7 +346,8 @@ def minpercent(min_trips):
 
 linecol = pn.Column(plot_daily_traffic, plotterino)
 
-params.layout.insert(8, 'hello')
+params.layout.insert(8, 'Plot all clusters:')
+params.layout.insert(3, 'Clustering method:')
 
 param_column = pn.Column(params.layout, minpercent)
 
