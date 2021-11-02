@@ -24,7 +24,7 @@ import dataframe_key
 from workalendar.europe import CommunityofMadrid, Finland, UnitedKingdom, Norway, Edinburgh
 from workalendar.usa import NewYork, Massachusetts, ChicagoIllinois, DistrictOfColumbia, Minnesota, CaliforniaSanFrancisco
 from workalendar.asia import Taiwan
-from workalendar.america import Mexico, Argentina
+from workalendar.america import Mexico, Argentina, Quebec
 
 cal_dict = {
     'bergen': Norway,
@@ -32,11 +32,13 @@ cal_dict = {
     'boston': Massachusetts,
     'chic': ChicagoIllinois,
     'edinburgh': Edinburgh,
+    'guadalajara': Mexico,
     'helsinki': Finland,
     'london': UnitedKingdom,
     'madrid': CommunityofMadrid,
     'mexico': Mexico,
     'minn': Minnesota,
+    'montreal': Quebec,
     'nyc': NewYork,
     'oslo': Norway,
     'sfran': CaliforniaSanFrancisco,
@@ -244,7 +246,7 @@ def get_data_month(city, year, month, blacklist=None):
                         'oslo', 'edinburgh', 'bergen',
                         'trondheim', 'buenos_aires', 'madrid',
                         'mexico', 'taipei', 'helsinki',
-                        'minn', 'boston']  # Remember to update this list
+                        'minn', 'boston', 'guadalajara', 'montreal']  # Remember to update this list
 
     if city not in supported_cities:
         raise ValueError(
@@ -350,8 +352,12 @@ def get_data_month(city, year, month, blacklist=None):
 
         elif city == 'minn':
             try:
-                df = pd.read_csv(
-                    f'./data/{year:d}{month:02d}-niceride-tripdata.csv')
+                if year == 2019 and month == 6:
+                    df = pd.read_csv(
+                        f'./data/20019{month:02d}-niceride-tripdata.csv')
+                else:
+                    df = pd.read_csv(
+                        f'./data/{year:d}{month:02d}-niceride-tripdata.csv')
 
             except FileNotFoundError as exc:
                 raise FileNotFoundError(
@@ -821,6 +827,86 @@ def get_data_month(city, year, month, blacklist=None):
             df = df[df.start_dt.dt.month == month]
             df.sort_values(by=['start_dt'], inplace=True)
             df.reset_index(inplace=True, drop=True)
+        
+        elif city == "guadalajara":
+
+            try:
+                df = pd.read_csv(
+                    f"./data/datos_abiertos_{year:d}_{month:02d}.csv")
+            except FileNotFoundError as exc:
+                raise FileNotFoundError(
+                    'No trip data found. All relevant files can be found at https://www.mibici.net/en/open-data/') from exc
+
+            df = df.rename(columns=dataframe_key.get_key(city))
+
+            df.dropna(inplace=True)
+            df.reset_index(inplace=True, drop=True)
+            
+            files = [file for file in os.listdir(
+                'data') if 'nomenclatura' in file]
+            try:
+                stations = pd.read_csv(f"data/{files[0]}", encoding = "ISO-8859-1")
+            except FileNotFoundError as exc:
+                raise FileNotFoundError(
+                    'No trip data found. All relevant files can be found at https://www.mibici.net/en/open-data/') from exc
+            
+            name_dict = dict(zip(stations['id'], stations['name']))
+            long_dict = dict(zip(stations['id'], stations['longitude']))
+            lat_dict = dict(zip(stations['id'], stations['latitude']))
+
+            df['start_stat_name'] = df['start_stat_id'].map(name_dict)
+            df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
+            df['start_stat_long'] = df['start_stat_id'].map(long_dict)
+            
+            df['end_stat_name'] = df['end_stat_id'].map(name_dict)
+            df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
+            df['end_stat_long'] = df['end_stat_id'].map(long_dict)
+
+            df['start_dt'] = pd.to_datetime(df['start_t'])
+            df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
+            
+            df['duration'] = (df['end_dt'] - df['start_dt']).dt.total_seconds()
+        
+        elif city == "montreal":
+            try:
+                df = pd.read_csv(
+                    f"./data/OD_{year:d}-{month:02d}.csv")
+            except FileNotFoundError as exc:
+                raise FileNotFoundError(
+                    'No trip data found. All relevant files can be found at https://bixi.com/en/open-data') from exc
+
+            df = df.rename(columns=dataframe_key.get_key(city))
+
+            df.dropna(inplace=True)
+            df.reset_index(inplace=True, drop=True)
+            
+            try:
+                stations = pd.read_csv(f"data/Stations_{year}.csv")
+            except FileNotFoundError as exc:
+                raise FileNotFoundError(
+                    'No trip data found. All relevant files can be found at https://bixi.com/en/open-data') from exc
+            
+            name_dict = dict(zip(stations['Code'], stations['name']))
+            long_dict = dict(zip(stations['Code'], stations['longitude']))
+            lat_dict = dict(zip(stations['Code'], stations['latitude']))
+
+            df['start_stat_name'] = df['start_stat_id'].map(name_dict)
+            df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
+            df['start_stat_long'] = df['start_stat_id'].map(long_dict)
+            
+            df['end_stat_name'] = df['end_stat_id'].map(name_dict)
+            df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
+            df['end_stat_long'] = df['end_stat_id'].map(long_dict)
+
+            df['start_dt'] = pd.to_datetime(df['start_t'])
+            df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
+            
+            df.dropna(inplace=True)
+            df.reset_index(inplace=True, drop=True)
+            df['start_stat_id'] = df['start_stat_id'].astype(int)
+            df['end_stat_id'] = df['end_stat_id'].astype(int)
 
         elif city == "taipei":
             colnames = ['start_t', 'start_stat_name_zh',
@@ -929,7 +1015,7 @@ def get_data_month(city, year, month, blacklist=None):
 
 def get_data_year(city, year, blacklist=None, day_index=True):
 
-    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki', 'mexico'
+    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki', 'mexico', 'taipei', 'oslo', 'bergen', 'trondheim', 'boston', 'minn', 'guadalajara', 'montreal'
                         ]  # Remember to update this list
 
     if city not in supported_cities:
@@ -1267,14 +1353,25 @@ def get_data_year(city, year, blacklist=None, day_index=True):
             df.sort_values(by=['start_dt'], inplace=True)
             df.reset_index(inplace=True, drop=True)
     
-    
-        elif city in ['madrid', 'edinburgh']:
+        elif city in ['madrid', 'edinburgh', 'taipei', 'bergen', 'boston', 'guadalajara']:
             dfs = []
-            for month in range(1, 13):
+            for month in range(1, 12+1):
                 dfs.append(get_data_month(city, year, month)[0] )
             df = pd.concat(dfs)
 
-        elif city in ['helsinki']:
+        elif city in ['trondheim', 'minn']:
+            dfs = []
+            for month in range(4, 11+1):
+                dfs.append(get_data_month(city, year, month)[0] )
+            df = pd.concat(dfs)
+            
+        elif city == 'oslo' and year == 2019:
+            dfs = []
+            for month in range(4, 12+1):
+                dfs.append(get_data_month(city, year, month)[0] )
+            df = pd.concat(dfs)
+            
+        elif city in ['helsinki', 'montreal']:
             dfs = []
             for month in range(4, 10+1):
                 dfs.append(get_data_month(city, year, month)[0] )
@@ -3199,20 +3296,25 @@ class Data:
             if holidays:
                 holiday_year = pd.DataFrame(
                     cal_dict[self.city]().holidays(self.year), columns=['day', 'name'])
+                holiday_list = holiday_year['day'].tolist()
+                df = df[~df['start_dt'].dt.date.isin(holiday_list)] # Rows which are not in holiday list
+            else:
+                holiday_list = []
                 
             weekmask = '1111100'
         elif period == 'w':
             df = self.df[['start_stat_id', 'start_dt']][self.df['start_dt'].dt.weekday > 4]
+            holiday_list = []
             weekmask = '0000011'
         
         if self.month == None:
-            n_days = np.busday_count(datetime.date(self.year, 1, 1), datetime.date(self.year+1, 1, 1), weekmask=weekmask)
+            n_days = np.busday_count(datetime.date(self.year, 1, 1), datetime.date(self.year+1, 1, 1), weekmask=weekmask, holidays=holiday_list)
         
         else:
             if self.month != 12:
-                n_days = np.busday_count(datetime.date(self.year, self.month, 1), datetime.date(self.year, self.month+1, 1), weekmask=weekmask)
+                n_days = np.busday_count(datetime.date(self.year, self.month, 1), datetime.date(self.year, self.month+1, 1), weekmask=weekmask, holidays=holiday_list)
             else: 
-                n_days = np.busday_count(datetime.date(self.year, self.month, 1), datetime.date(self.year+1, 1, 1), weekmask=weekmask)
+                n_days = np.busday_count(datetime.date(self.year, self.month, 1), datetime.date(self.year+1, 1, 1), weekmask=weekmask, holidays=holiday_list)
     
             
         print(f'Departures {period}...')
@@ -3243,6 +3345,7 @@ class Data:
     
         if period == 'b':
             df = self.df[['end_stat_id', 'end_dt']][self.df['end_dt'].dt.weekday <= 4]
+            df = df[~df['end_dt'].dt.date.isin(holiday_list)]
         elif period == 'w':
             df = self.df[['end_stat_id', 'end_dt']][self.df['end_dt'].dt.weekday > 4]
         
@@ -3364,7 +3467,7 @@ class Data:
             return departures_mean, arrivals_mean
 
 
-    def pickle_daily_traffic(self, normalise=True, plot=False, overwrite=False):
+    def pickle_daily_traffic(self, normalise=True, plot=False, overwrite=False, holidays=False):
         """
         Pickles matrices containing the average number of departures and
         arrivals to and from each station for every hour. One matrix
@@ -3385,6 +3488,8 @@ class Data:
             monstr = ""
         else:
             monstr = f"{self.month:02d}"
+        if holidays:
+            monstr = monstr + "_no_holidays"
         if not overwrite:
             try:
                 with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}.pickle', 'rb') as file:
@@ -3395,10 +3500,17 @@ class Data:
         print('Pickling average daily traffic for all stations... \nSit back and relax, this might take a while...')
         pre = time.time()
         departures_b, arrivals_b = self.daily_traffic_average_all(
-            'b', normalise=normalise, plot=plot)
+            'b', normalise=normalise, plot=plot, holidays=holidays)
         print("Hang in there, we're halfway...")
         departures_w, arrivals_w = self.daily_traffic_average_all(
-            'w', normalise=normalise, plot=plot)
+            'w', normalise=normalise, plot=plot, holidays=holidays)
+        
+        zeroseries = pd.Series(np.zeros((24,)))
+        departures_b = departures_b.add(zeroseries).fillna(0)
+        arrivals_b = arrivals_b.add(zeroseries).fillna(0)
+        
+        departures_w = departures_b.add(zeroseries).fillna(0)
+        arrivals_w = arrivals_b.add(zeroseries).fillna(0)
 
         id_index = self.stat.id_index
         matrix_b = np.zeros((len(id_index.keys()), 48))
@@ -3996,6 +4108,7 @@ name_dict = {
     'madrid': 'Madrid',
     'mexico': 'Mexico City',
     'minn': 'Minneapolis',
+    'montreal': 'Montreal',
     'nyc': 'New York City',
     'oslo': 'Oslo',
     'sfran': 'San Francisco',
@@ -4005,8 +4118,8 @@ name_dict = {
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('washDC', 2019)
+    data = Data('nyc', 2019, 2)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)
-    traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True)
+    traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=True)
