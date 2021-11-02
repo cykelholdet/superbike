@@ -96,11 +96,11 @@ class BikeParameters2(param.Parameterized):
     clustering = param.Selector(objects=['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture', 'none', 'zoning'], doc="Which clustering to perform")
     k = param.Integer(default=3, bounds=(1, 10))
     cnorm = param.Selector(objects=['linear', 'log'])
-    min_trips = param.Integer(default=data.num_days*2, bounds=(0, 800))
     day = param.Integer(default=1, bounds=(1, data.num_days))
     dist_func = param.Selector(objects=['norm'])
     plot_all_clusters = param.Selector(objects=['False', 'True'])
     random_state = param.Integer(default=42, bounds=(0, 10000))
+    min_trips = param.Integer(default=data.num_days*2, bounds=(0, 800))
     
     def __init__(self, index, **kwargs):
         super().__init__(**kwargs)
@@ -333,12 +333,18 @@ def show_widgets(clustering):
     else:
         params.widgets['k'].visible = False
 
+@pn.depends(min_trips=bike_params.param.min_trips)
+def minpercent(min_trips):
+    n_retained = (station_df.n_trips > min_trips).sum()
+    n_removed = len(station_df) - n_retained
+    return f"Removed {n_removed:d} stations, which is {(n_removed/len(station_df))*100:.2f}%"
+
 
 linecol = pn.Column(plot_daily_traffic, plotterino)
 
-param_column = pn.Column(params.widgets)
+param_column = pn.Column(params, minpercent)
 
-panel_param = pn.Row(params, tileview*paraview, linecol)
+panel_param = pn.Row(param_column, tileview*paraview, linecol)
 text = '#Bikesharing Clustering Analysis'
 panel_column = pn.Column(text, panel_param, indicator)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
