@@ -21,6 +21,29 @@ import simpledtw as dtw
 from requests import get
 import dataframe_key
 
+from workalendar.europe import CommunityofMadrid, Finland, UnitedKingdom, Norway, Edinburgh
+from workalendar.usa import NewYork, Massachusetts, ChicagoIllinois, DistrictOfColumbia, Minnesota, CaliforniaSanFrancisco
+from workalendar.asia import Taiwan
+from workalendar.america import Mexico, Argentina
+
+cal_dict = {
+    'bergen': Norway,
+    'buenos_aires': Argentina,
+    'boston': Massachusetts,
+    'chic': ChicagoIllinois,
+    'edinburgh': Edinburgh,
+    'helsinki': Finland,
+    'london': UnitedKingdom,
+    'madrid': CommunityofMadrid,
+    'mexico': Mexico,
+    'minn': Minnesota,
+    'nyc': NewYork,
+    'oslo': Norway,
+    'sfran': CaliforniaSanFrancisco,
+    'taipei': Taiwan,
+    'trondheim': Norway,
+    'washDC': DistrictOfColumbia}
+
 
 def compile_chicago_stations():
     """
@@ -3121,7 +3144,7 @@ class Data:
         else:
             return trips_departures_average, trips_arrivals_average
 
-    def daily_traffic_average_all(self, period='b', normalise=True, plot=False, return_all=False):
+    def daily_traffic_average_all(self, period='b', normalise=True, plot=False, return_all=False, holidays=False):
         """
         Computes the average daily traffic of a station over either business
         days or weekends. Both average number of departures and arrivals are
@@ -3157,6 +3180,10 @@ class Data:
         
         if period == 'b':
             df = self.df[['start_stat_id', 'start_dt']][self.df['start_dt'].dt.weekday <= 4]
+            if holidays:
+                holiday_year = pd.DataFrame(
+                    cal_dict[self.city]().holidays(self.year), columns=['day', 'name'])
+                
             weekmask = '1111100'
         elif period == 'w':
             df = self.df[['start_stat_id', 'start_dt']][self.df['start_dt'].dt.weekday > 4]
@@ -3367,6 +3394,9 @@ class Data:
                 matrix_w[index, 24:] = arrivals_w.loc[id_]
             except KeyError:
                 print(f"Key {id_} not found in arrivals weekdays.")
+        
+        matrix_b = np.nan_to_num(matrix_b, copy=False, nan=0.0)
+        matrix_w = np.nan_to_num(matrix_w, copy=False, nan=0.0)
 
         with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}.pickle', 'wb') as file:
             pickle.dump((matrix_b, matrix_w), file)
@@ -3949,7 +3979,7 @@ name_dict = {
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('nyc', 2019)
+    data = Data('washDC', 2019)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)
