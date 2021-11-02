@@ -173,7 +173,7 @@ class BikeParameters2(param.Parameterized):
         return plot
     
 
-    @param.depends('day_type', 'clustering', 'k', 'plot_all_clusters', watch=False)
+    @param.depends('day_type', 'clustering', 'k', 'plot_all_clusters', 'min_trips', watch=False)
     def plot_centroid(self, index):
         if self.clustering == 'none':
             return "No clustering"
@@ -220,6 +220,9 @@ class BikeParameters2(param.Parameterized):
                 return pn.Column(cc_plot, f"Station index {i} belongs to cluster \n\n {''.join(textlist)}")
         else:
             if self.plot_all_clusters == 'True':
+                if self.clusters == None:
+                    return "Please select Clustering"
+                    
                 cc_plot_list = list()
                 for j in range(self.k):
                     ccs = self.clusters.cluster_centers_[j]
@@ -242,6 +245,7 @@ params = pn.Param(bike_params.param, widgets={
     'clustering': pn.widgets.RadioBoxGroup,
     'trip_type': {'widget_type': pn.widgets.RadioButtonGroup, 'button_type': 'success'},
     'day_type': pn.widgets.RadioButtonGroup,
+    'plot_all_clusters': {'widget_type': pn.widgets.RadioButtonGroup, 'title': 'Hello'},
     'day': pn.widgets.IntSlider,
     'random_state': pn.widgets.IntInput,
     'k': pn.widgets.IntSlider,
@@ -342,7 +346,10 @@ def minpercent(min_trips):
 
 linecol = pn.Column(plot_daily_traffic, plotterino)
 
-param_column = pn.Column(params, minpercent)
+params.layout.insert(8, 'Plot all clusters:')
+params.layout.insert(3, 'Clustering method:')
+
+param_column = pn.Column(params.layout, minpercent)
 
 panel_param = pn.Row(param_column, tileview*paraview, linecol)
 text = '#Bikesharing Clustering Analysis'
