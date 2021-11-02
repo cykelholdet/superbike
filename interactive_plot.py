@@ -75,7 +75,7 @@ day_type_dict = {'weekend': 'w', 'business_days': 'b'}
 
 color_dict = {0 : 'blue', 1 : 'red', 2 : 'yellow', 3 : 'green', #tab:
               4 : 'purple', 5 : 'brown', 6: 'pink',
-              7 : 'gray', 8 : 'olive', 9 : 'cyan'}
+              7 : 'cyan', 8 : 'olive', 9 : 'magenta'}
 
 mpl_color_dict = {i: mpl_colors.to_rgb(color_dict[i]) for i in range(10)}
 lab_color_dict = {i: skcolor.rgb2lab(mpl_color_dict[i]) for i in range(10)}
