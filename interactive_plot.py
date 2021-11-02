@@ -98,7 +98,7 @@ class BikeParameters2(param.Parameterized):
     cnorm = param.Selector(objects=['linear', 'log'])
     day = param.Integer(default=1, bounds=(1, data.num_days))
     dist_func = param.Selector(objects=['norm'])
-    plot_all_clusters = param.Selector(objects=['True', 'False'])
+    plot_all_clusters = param.Selector(objects=['False', 'True'])
     random_state = param.Integer(default=42, bounds=(0, 10000))
     min_trips = param.Integer(default=data.num_days*2, bounds=(0, 800))
     
@@ -245,6 +245,7 @@ params = pn.Param(bike_params.param, widgets={
     'clustering': pn.widgets.RadioBoxGroup,
     'trip_type': {'widget_type': pn.widgets.RadioButtonGroup, 'button_type': 'success'},
     'day_type': pn.widgets.RadioButtonGroup,
+    'plot_all_clusters': {'widget_type': pn.widgets.RadioButtonGroup, 'title': 'Hello'},
     'day': pn.widgets.IntSlider,
     'random_state': pn.widgets.IntInput,
     'k': pn.widgets.IntSlider,
@@ -345,7 +346,9 @@ def minpercent(min_trips):
 
 linecol = pn.Column(plot_daily_traffic, plotterino)
 
-param_column = pn.Column(params, minpercent)
+params.layout.insert(8, 'hello')
+
+param_column = pn.Column(params.layout, minpercent)
 
 panel_param = pn.Row(param_column, tileview*paraview, linecol)
 text = '#Bikesharing Clustering Analysis'
