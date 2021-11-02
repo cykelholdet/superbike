@@ -85,24 +85,25 @@ The data should be organised as follows. Please create directories `data`, `pyth
 # Data Sources
 Trip data can be accessed at the following locations
 
-| City             | Link                                                                                   |
-|------------------|----------------------------------------------------------------------------------------|
-| Bergen           | https://bergenbysykkel.no/en/open-data/historical                                      |
-| Boston           | https://www.bluebikes.com/system-data                                                  |
-| Buenos Aires     | https://data.buenosaires.gob.ar/dataset/bicicletas-publicas                            |
-| Chicago          | https://www.divvybikes.com/system-data                                                 |
-|                  | https://data.cityofchicago.org/Transportation/Divvy-Bicycle-Stations-All-Map/bk89-9dk7 |
-| Edinburgh        | https://edinburghcyclehire.com/open-data/historical                                    |
-| Helsinki         | https://hri.fi/data/en_GB/dataset/helsingin-ja-espoon-kaupunkipyorilla-ajatut-matkat   |
-| London           | https://cycling.data.tfl.gov.uk/                                                       |
-| Los Angeles      | https://bikeshare.metro.net/about/data/                                                |
-| Madrid           | https://opendata.emtmadrid.es/Datos-estaticos/Datos-generales-(1)                      |
-| Mexico City      | https://www.ecobici.cdmx.gob.mx/en/informacion-del-servicio/open-data                  |
-| Montreal         | https://bixi.com/en/open-data                                                          |
-| New York City    | https://www.citibikenyc.com/system-data                                                |
-| Oslo             | https://oslobysykkel.no/en/open-data/historical                                        |
-| San Francisco    | https://www.lyft.com/bikes/bay-wheels/system-data                                      |
-| Taipei           | https://drive.google.com/drive/folders/1QsROgp8AcER6qkTJDxpuV8Mt1Dy6lGQO               |
-| Trondheim        | https://trondheimbysykkel.no/en/open-data/historical                                   |
-| Washington, D.C. | https://www.capitalbikeshare.com/system-data                                           |
+| City             | System name         | # stations 2019 | # trips 2019 | link                                                                                 | Comment                                                       |
+|------------------|---------------------|-------------------:|----------------:|--------------------------------------------------------------------------------------|---------------------------------------------------------------|
+| Bergen           | Bergen Bysykkel     |                 90 |         898.276 | https://bergenbysykkel.no/en/open-data/historical                                    |                                                               |
+| Boston           | Bluebikes           |                341 |       2.522.771 | https://www.bluebikes.com/system-data                                                |                                                               |
+| Buenos Aires     | EcoBici             |                417 |       5.238.643 | https://data.buenosaires.gob.ar/dataset/bicicletas-publicas                          |                                                               |
+| Chicago          | Divvy               |                593 |       3.614.078 | https://www.divvybikes.com/system-data                                               |                                                               |
+| Edinburgh        | Just Eat Cycles     |                163 |         123.684 | https://edinburghcyclehire.com/open-data/historical                                  | Discontinued September 2021                                   |
+| Guadalajara      | MiBici              |                275 |       4.625.130 | https://www.mibici.net/en/open-data/                                                 |                                                               |
+| Helsinki         | Helsinki City Bikes |                348 |       3.784.877 | https://hri.fi/data/en_GB/dataset/helsingin-ja-espoon-kaupunkipyorilla-ajatut-matkat | Encompasses Helsinki & Espoo. Only open from April to October |
+| London           | Santander Cycles    |                753 |       8.829.104 | https://cycling.data.tfl.gov.uk/                                                     |                                                               |
+| Los Angeles      | Metro Bike Share    |                    |                 | https://bikeshare.metro.net/about/data/                                              |                                                               |
+| Madrid           | BiciMad             |                214 |       3.956.099 | https://opendata.emtmadrid.es/Datos-estaticos/Datos-generales-(1)                    |                                                               |
+| Mexico City      | EcoBici             |                480 |       8.349.075 | https://www.ecobici.cdmx.gob.mx/en/informacion-del-servicio/open-data                |                                                               |
+| Minneapolis      | Nice Ride           |                179 |         263.169 | https://www.niceridemn.com/system-data                                               | Only open from April to November                              |
+| Montreal         | Bixi                |                619 |       5.442.288 | https://bixi.com/en/open-data                                                        | Only open from April to October                               |
+| New York City    | Citi Bike           |                938 |      20.551.396 | https://www.citibikenyc.com/system-data                                              |                                                               |
+| Oslo             | Oslo Bysykkel       |                254 |       2.237.092 | https://oslobysykkel.no/en/open-data/historical                                      | 2019 missing data from January to March                       |
+| San Francisco    | Bay Wheels          |                351 |       2.296.199 | https://www.lyft.com/bikes/bay-wheels/system-data                                    | Split in three main parts by the San Francisco Bay             |
+| Taipei           | YouBike             |                399 |      26.484.903 | https://drive.google.com/drive/folders/1QsROgp8AcER6qkTJDxpuV8Mt1Dy6lGQO             | Transitioning to partly dockless YouBike 2.0 since 2020       |
+| Trondheim        | Trondheim Bysykkel  |                 56 |         356.189 | https://trondheimbysykkel.no/en/open-data/historical                                 | Only open from April to November                              |
+| Washington, D.C. | Capital Bikeshare   |                429 |       3.281.231 | https://www.capitalbikeshare.com/system-data                                         |                                                               |
 
