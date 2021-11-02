@@ -1,6 +1,5 @@
 FPase-bikesharing/data/
 FPase-bikesharing/plots/
-data/*
 figures/*
 .spyproject/
 __pycache__/

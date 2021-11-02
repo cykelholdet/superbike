@@ -96,7 +96,7 @@ class BikeParameters2(param.Parameterized):
     clustering = param.Selector(objects=['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture', 'none', 'zoning'], doc="Which clustering to perform")
     k = param.Integer(default=3, bounds=(1, 10))
     cnorm = param.Selector(objects=['linear', 'log'])
-    min_trips = param.Integer(default=0, bounds=(0, 600))
+    min_trips = param.Integer(default=data.num_days*2, bounds=(0, 800))
     day = param.Integer(default=1, bounds=(1, data.num_days))
     dist_func = param.Selector(objects=['norm'])
     plot_all_clusters = param.Selector(objects=['False', 'True'])
@@ -114,21 +114,27 @@ class BikeParameters2(param.Parameterized):
             traffic_matrix = data.pickle_daily_traffic()[0]
         elif self.day_type == "weekend":
             traffic_matrix = data.pickle_daily_traffic()[1]
-    
+        
+        mask = station_df.n_trips > self.min_trips
+        traffic_matrix = traffic_matrix[mask]
+        
         if self.clustering == 'k_means':
             self.clusters = KMeans(self.k, random_state=self.random_state).fit(traffic_matrix)
             self.labels = self.clusters.predict(traffic_matrix)
-            station_df['color'] = [color_dict[label] for label in self.labels]
+            station_df['color'].loc[mask] = [color_dict[label] for label in self.labels]
+            station_df['color'].loc[~mask] = 'gray'
     
         elif self.clustering == 'k_medoids':
             self.clusters = KMedoids(self.k, random_state=self.random_state).fit(traffic_matrix)
             self.labels = self.clusters.predict(traffic_matrix)
-            station_df['color'] = [color_dict[label] for label in self.labels]
+            station_df['color'].loc[mask] = [color_dict[label] for label in self.labels]
+            station_df['color'].loc[~mask] = 'gray'
             
         elif self.clustering == 'h_clustering':
             self.clusters = None
             self.labels = AgglomerativeClustering(self.k).fit_predict(traffic_matrix)
-            station_df['color'] = [color_dict[label] for label in self.labels]
+            station_df['color'].loc[mask] = [color_dict[label] for label in self.labels]
+            station_df['color'].loc[~mask] = 'gray'
         
         elif self.clustering == 'gaussian_mixture':
             self.clusters = GaussianMixture(self.k, n_init=10, random_state=self.random_state).fit(traffic_matrix)
@@ -136,8 +142,9 @@ class BikeParameters2(param.Parameterized):
             lab_mat = np.array(lab_color_list[:self.k]).T
             lab_cols = [np.sum(self.labels[i] * lab_mat, axis=1) for i in range(len(traffic_matrix))]
             labels_rgb = skcolor.lab2rgb(lab_cols)
-            station_df['color'] = ['#%02x%02x%02x' % tuple(label.astype(int)) for label in labels_rgb*255]
-        
+            station_df['color'].loc[mask] = ['#%02x%02x%02x' % tuple(label.astype(int)) for label in labels_rgb*255]
+            station_df['color'].loc[~mask] = 'gray'
+            
         elif self.clustering == 'none':
             self.clusters = None
             self.labels = None
@@ -336,7 +343,7 @@ text = '#Bikesharing Clustering Analysis'
 panel_column = pn.Column(text, panel_param, indicator)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-# bokeh_server = panel_column.show(port=12345)
+bokeh_server = panel_column.show(port=12345)
 
 #%%
-# bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
+bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload

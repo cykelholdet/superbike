@@ -3256,6 +3256,14 @@ class Data:
         arrivals_mean = pd.concat(end_mean, axis=1).fillna(0)
         arrivals_std = pd.concat(end_std, axis=1).fillna(0)
             
+        n_dep_mean = departures_mean.sum(axis=0)
+        n_arr_mean = arrivals_mean.sum(axis=0)
+        
+        departures_mean = departures_mean.T.loc[n_dep_mean > 1].T # Remove with less than 1 trip per day on average
+        arrivals_mean = arrivals_mean.T.loc[n_arr_mean > 1].T
+        departures_std = departures_std.T.loc[n_dep_mean > 1].T # Remove with less than 1 trip per day on average
+        arrivals_std = arrivals_std.T.loc[n_arr_mean > 1].T
+        
             
         if normalise:
             divisor = arrivals_mean.sum(axis=0).add(departures_mean.sum(axis=0), fill_value=0)
