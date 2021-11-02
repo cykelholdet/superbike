@@ -200,6 +200,8 @@ def make_station_df(data):
     df['coords'] = list(zip(df['long'], df['lat']))
     df['coords'] = df['coords'].apply(Point)
     
+    df['color'] = "gray"
+    
     if data.city == 'nyc':
     
         zoning_df = gpd.read_file('./data/other_data/nyc_zoning_data.json')
