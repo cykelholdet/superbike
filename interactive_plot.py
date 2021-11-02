@@ -98,7 +98,7 @@ class BikeParameters2(param.Parameterized):
     cnorm = param.Selector(objects=['linear', 'log'])
     day = param.Integer(default=1, bounds=(1, data.num_days))
     dist_func = param.Selector(objects=['norm'])
-    plot_all_clusters = param.Selector(objects=['False', 'True'])
+    plot_all_clusters = param.Selector(objects=['True', 'False'])
     random_state = param.Integer(default=42, bounds=(0, 10000))
     min_trips = param.Integer(default=data.num_days*2, bounds=(0, 800))
     
@@ -220,6 +220,9 @@ class BikeParameters2(param.Parameterized):
                 return pn.Column(cc_plot, f"Station index {i} belongs to cluster \n\n {''.join(textlist)}")
         else:
             if self.plot_all_clusters == 'True':
+                if self.clusters == None:
+                    return "Please select Clustering"
+                    
                 cc_plot_list = list()
                 for j in range(self.k):
                     ccs = self.clusters.cluster_centers_[j]
