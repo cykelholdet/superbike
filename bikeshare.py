@@ -1978,6 +1978,22 @@ def purge_pickles(city, year, month):
 
     print('Purging done')
 
+def nuke_pickles(city):
+    lookfor = f'{city}'
+
+    print("Nuking in 'python_variables'...")
+
+    for file in os.listdir('python_variables'):
+        if lookfor in file:
+            os.remove('python_variables/' + file)
+
+    print("Nuking in 'python_variables/big_data'...")
+    for file in os.listdir('python_variables/big_data'):
+        if lookfor in file:
+            os.remove('python_variables/big_data/' + file)
+
+    print('Nuke succesful. What have we done...')
+
 
 def df_subset(df, weekdays=None, days='all', hours='all', minutes='all', activity_type='departures'):
     """
