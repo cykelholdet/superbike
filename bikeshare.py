@@ -3549,8 +3549,8 @@ class Data:
         departures_b = departures_b.add(zeroseries).fillna(0)
         arrivals_b = arrivals_b.add(zeroseries).fillna(0)
 
-        departures_w = departures_b.add(zeroseries).fillna(0)
-        arrivals_w = arrivals_b.add(zeroseries).fillna(0)
+        departures_w = departures_w.add(zeroseries).fillna(0)
+        arrivals_w = arrivals_w.add(zeroseries).fillna(0)
 
         id_index = self.stat.id_index
         matrix_b = np.zeros((len(id_index.keys()), 48))

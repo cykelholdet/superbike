@@ -180,9 +180,9 @@ class BikeParameters2(param.Parameterized):
         elif self.clustering == 'h_clustering':
             if self.plot_all_clusters == 'True':
                 if self.day_type == 'business_days':
-                    traffic_matrix = data.pickle_daily_traffic()[0]
+                    traffic_matrix = data.pickle_daily_traffic(holidays=True)[0]
                 elif self.day_type == "weekend":
-                    traffic_matrix = data.pickle_daily_traffic()[1]
+                    traffic_matrix = data.pickle_daily_traffic(holidays=True)[1]
                 cc_plot_list = list()
                 for j in range(self.k):
                     mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
@@ -194,9 +194,9 @@ class BikeParameters2(param.Parameterized):
             else:
                 i = index[0]
                 if self.day_type == 'business_days':
-                    traffic_matrix = data.pickle_daily_traffic()[0]
+                    traffic_matrix = data.pickle_daily_traffic(holidays=True)[0]
                 elif self.day_type == "weekend":
-                    traffic_matrix = data.pickle_daily_traffic()[1]
+                    traffic_matrix = data.pickle_daily_traffic(holidays=True)[1]
                 j = self.labels[i]
                 mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
                 cc_plot = plot_lines(self.labels, j, mean_vector)
