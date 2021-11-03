@@ -211,5 +211,23 @@ def get_key(city):
                'Ciclo_Estacion_Arribo': 'end_stat_id',
                'Fecha_Arribo': 'end_date',
                'Hora_Arribo': 'end_time'}
+        
+    elif city == "guadalajara":
+        key = {'Genero': 'gender',
+               'Año_de_nacimiento': 'birth_year',
+               'Viaje_Id': 'bike_id',
+               'Usuario_Id': 'user_id',
+               'Origen_Id': 'start_stat_id',
+               'Inicio_del_viaje': 'start_t',
+               'Destino_Id': 'end_stat_id',
+               'Fin_del_viaje': 'end_t'}
+    
+    elif city == "montreal":
+        key = {'is_member': 'user_type',
+               'start_station_code': 'start_stat_id',
+               'start_date': 'start_t',
+               'end_station_code': 'end_stat_id',
+               'end_date': 'end_t',
+               'duration_sec': 'duration'}
 
     return key

@@ -111,9 +111,9 @@ class BikeParameters2(param.Parameterized):
     @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', watch=False)
     def plot_clusters_full(self):
         if self.day_type == 'business_days':
-            traffic_matrix = data.pickle_daily_traffic()[0]
+            traffic_matrix = data.pickle_daily_traffic(holidays=True)[0]
         elif self.day_type == "weekend":
-            traffic_matrix = data.pickle_daily_traffic()[1]
+            traffic_matrix = data.pickle_daily_traffic(holidays=True)[1]
         
         mask = station_df.n_trips > self.min_trips
         traffic_matrix = traffic_matrix[mask]
@@ -320,8 +320,9 @@ def plot_daily_traffic(index, day_type):
 @pn.depends(index=selection_stream.param.index,
             plot_all_clusters=bike_params.param.plot_all_clusters,
             clustering=bike_params.param.clustering,
-            k=bike_params.param.k,)
-def plotterino(index, plot_all_clusters, clustering, k):
+            k=bike_params.param.k,
+            min_trips=bike_params.param.min_trips)
+def plotterino(index, plot_all_clusters, clustering, k, min_trips):
     return bike_params.plot_centroid(index)
     
 

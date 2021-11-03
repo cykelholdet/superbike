@@ -12,48 +12,6 @@ import numpy as np
 import pandas as pd
 from matplotlib.offsetbox import AnchoredText
 
-from workalendar.europe import CommunityofMadrid, Finland, UnitedKingdom, Norway, Edinburgh
-from workalendar.usa import NewYork, Massachusetts, ChicagoIllinois, DistrictOfColumbia, Minnesota, CaliforniaSanFrancisco
-from workalendar.asia import Taiwan
-from workalendar.america import Mexico, Argentina
-
-cal_dict = {
-    'bergen': Norway,
-    'buenos_aires': Argentina,
-    'boston': Massachusetts,
-    'chic': ChicagoIllinois,
-    'edinburgh': Edinburgh,
-    'helsinki': Finland,
-    'london': UnitedKingdom,
-    'madrid': CommunityofMadrid,
-    'mexico': Mexico,
-    'minn': Minnesota,
-    'nyc': NewYork,
-    'oslo': Norway,
-    'sfran': CaliforniaSanFrancisco,
-    'taipei': Taiwan,
-    'trondheim': Norway,
-    'washDC': DistrictOfColumbia}
-
-name_dict = {
-    'bergen': 'Bergen',
-    'buenos_aires': 'Buenos Aires',
-    'boston': 'Boston',
-    'chic': 'Chicago',
-    'edinburgh': 'Edinburgh',
-    'helsinki': 'Helsinki',
-    'london': 'London',
-    'madrid': 'Madrid',
-    'mexico': 'Mexico City',
-    'minn': 'Minnesota',
-    'nyc': 'New York City',
-    'olso': 'Oslo',
-    'sfran': 'San Francisco',
-    'taipei': 'Taipei',
-    'trondheim': 'Trondheim',
-    'washDC': 'Washington DC'}
-
-
 def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
     """
     Plot a month calendar with the data. It looks like a calendar okay.
@@ -64,7 +22,7 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
     """
     hours = np.arange(0, 24)
     
-    cal = cal_dict[city]()
+    cal = bs.cal_dict[city]()
     holidays = cal.holidays(year)
     holidays = pd.DataFrame(holidays, columns=['day', 'name'])
 
@@ -80,6 +38,7 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
     
     print('Setting up plot...')
     plt.style.use('seaborn-darkgrid')
+    plt.ioff()
     fig, ax = plt.subplots( num_days//7 + 1, 7,
                            sharex=True, sharey=True, figsize=(12, 100))
 
@@ -115,6 +74,7 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
 
                 twinax[row, column].yaxis.set_tick_params(labelright=False)
     
+    bins = np.linspace(0, 23, n_bins)
     
     df['doy'] = df.start_dt.dt.day_of_year
     df['hour'] = df.start_dt.dt.hour
@@ -126,7 +86,7 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
         day_dt = datetime.datetime(year, 1, 1)+datetime.timedelta(days=int(day-1))
         d_ax = ax[(day+st_w-1)//7, day_dt.weekday()]
         d_twinax = twinax[(day+st_w-1)//7, day_dt.weekday()]
-        ln1 = df.loc[df['doy'] == day]['hour'].hist(bins=n_bins, ax=d_ax, width=0.9, label='rides', color='C1')
+        df.loc[df['doy'] == day]['hour'].hist(bins=bins, ax=d_ax, width=0.9, label='rides', color='C1')
         ln2 = d_twinax.plot(
                 precip[precip['time_dt'].dt.date == day_dt.date()].reset_index()['precipMM'],
                 label='precipitation'
@@ -154,7 +114,7 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
         ax[-1, i].set_xticks([0, 6, 12, 18])
         ax[-1, i].set_xlabel("hour")
     
-    lines = [ax[13, -1].patches[0], ln2[0]]
+    lines = [ax[17, -1].patches[0], ln2[0]]
     labels = [line.get_label() for line in lines]
     ax[0, -1].legend(lines, labels, loc=0)
 
@@ -166,20 +126,20 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
     #     twinax[0, 0].set_ylim(top=19)
     twinax[0, 0].set_ylim(top=11.9)
     
-    fig.suptitle(f'Number of rides by day in {name_dict[city]} {year:d}',  fontsize=20)
+    fig.suptitle(f'Number of rides by day in {bs.name_dict[city]} {year:d}',  fontsize=20)
 
     if savefig:
         plt.savefig(f"./figures/trips_pr_year-{city}{year:d}.pdf",
                     bbox_inches='tight', pad_inches=0
                     )
-
-    plt.show()
+    print(f"{bs.name_dict[city]} saved.")
+    plt.clf()
 
 
 if __name__ == '__main__':
     import bikeshare as bs
-    
-    for city in ['madrid']:
+
+    for city in bs.name_dict.keys():
         year = 2019
         df_year = bs.get_data_year(city, year)[0]
         plot_trips_pr_hour_year(df_year, city, year, savefig=True)
