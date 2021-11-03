@@ -3,48 +3,28 @@ Created on Mon Feb 22 15:52:51 2021
 
 @author: Mattek Group 3
 """
-
+import os
+import time
+import pickle
+import calendar
+import warnings
+import datetime
 
 import pandas as pd
 import numpy as np
-import os
-import pickle
-import calendar
-import datetime
-import time
-import warnings
-from pyproj import Transformer
 import networkx as nx
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import simpledtw as dtw
+from pyproj import Transformer
 from requests import get
+
 import dataframe_key
 
 from workalendar.europe import CommunityofMadrid, Finland, UnitedKingdom, Norway, Edinburgh
 from workalendar.usa import NewYork, Massachusetts, ChicagoIllinois, DistrictOfColumbia, Minnesota, CaliforniaSanFrancisco
 from workalendar.asia import Taiwan
 from workalendar.america import Mexico, Argentina, Quebec
-
-cal_dict = {
-    'bergen': Norway,
-    'buenos_aires': Argentina,
-    'boston': Massachusetts,
-    'chic': ChicagoIllinois,
-    'edinburgh': Edinburgh,
-    'guadalajara': Mexico,
-    'helsinki': Finland,
-    'london': UnitedKingdom,
-    'madrid': CommunityofMadrid,
-    'mexico': Mexico,
-    'minn': Minnesota,
-    'montreal': Quebec,
-    'nyc': NewYork,
-    'oslo': Norway,
-    'sfran': CaliforniaSanFrancisco,
-    'taipei': Taiwan,
-    'trondheim': Norway,
-    'washDC': DistrictOfColumbia}
 
 
 def compile_chicago_stations():
@@ -4170,6 +4150,26 @@ name_dict = {
     'taipei': 'Taipei',
     'trondheim': 'Trondheim',
     'washDC': 'Washington DC'}
+
+cal_dict = {
+    'bergen': Norway,
+    'boston': Massachusetts,
+    'buenos_aires': Argentina,
+    'chic': ChicagoIllinois,
+    'edinburgh': Edinburgh,
+    'guadalajara': Mexico,
+    'helsinki': Finland,
+    'london': UnitedKingdom,
+    'madrid': CommunityofMadrid,
+    'mexico': Mexico,
+    'minn': Minnesota,
+    'montreal': Quebec,
+    'nyc': NewYork,
+    'oslo': Norway,
+    'sfran': CaliforniaSanFrancisco,
+    'taipei': Taiwan,
+    'trondheim': Norway,
+    'washDC': DistrictOfColumbia}
 
 if __name__ == "__main__":
     pre = time.time()

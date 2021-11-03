@@ -1,6 +1,3 @@
-FPase-bikesharing/data/
-FPase-bikesharing/plots/
-figures/*
 .spyproject/
 __pycache__/
 python_variables/big_data/
