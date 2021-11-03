@@ -800,6 +800,8 @@ def get_data_month(city, year, month, blacklist=None):
             df.drop(['start_date', 'start_time', 'end_date',
                     'end_time'], axis=1, inplace=True)
             df['duration'] = (df['end_dt'] - df['start_dt']).dt.total_seconds()
+            
+            df = df[(df['start_dt'].dt.year == year) & (df['start_dt'].dt.month == month)]
 
             stations = pd.DataFrame(pd.read_json("./data/stations_mexico.json",
                                                  lines=True)['stations'][0])
@@ -1325,7 +1327,10 @@ def get_data_year(city, year, blacklist=None, day_index=True):
             df.drop(['start_date', 'start_time', 'end_date',
                     'end_time'], axis=1, inplace=True)
             df['duration'] = (df['end_dt'] - df['start_dt']).dt.total_seconds()
-
+            
+            # purged = df[~(df['start_dt'].dt.year == year)] # Look at this for some good 818 day long trips :)
+            df = df[df['start_dt'].dt.year == year]
+            
             stations = pd.DataFrame(pd.read_json("./data/stations_mexico.json",
                                                  lines=True)['stations'][0])
 
@@ -3330,7 +3335,7 @@ class Data:
             df = self.df[['start_stat_id', 'start_dt']][self.df['start_dt'].dt.weekday <= 4]
             if holidays:
                 holiday_year = pd.DataFrame(
-                    cal_dict[self.city]().holidays(self.year), columns=['day', 'name'])
+                    get_cal(self.city).get_calendar_holidays(self.year), columns=['day', 'name'])
                 holiday_list = holiday_year['day'].tolist()
                 df = df[~df['start_dt'].dt.date.isin(holiday_list)] # Rows which are not in holiday list
             else:
@@ -4131,6 +4136,51 @@ class Classifier:
             print(
                 f'{result[0]:<5,d}{result[1]:<15.8f}{result[2]:<15.8f}{result[3]:<15,.8f}')
 
+def get_cal(city):
+    if city == 'bergen':
+        cal = Norway()
+    elif city == 'boston':
+        cal = Massachusetts()
+    elif city == 'buenos_aires':
+        cal = Argentina()
+    elif city == 'chic':
+        cal = ChicagoIllinois()
+    elif city == 'edinburgh':
+        cal = Edinburgh()
+    elif city == 'guadalajara':
+        cal = Mexico()
+        cal.include_holy_thursday = True
+        cal.include_good_friday = True
+    elif city == 'helsinki':
+        cal = Finland()
+    elif city == 'london':
+        cal = UnitedKingdom()
+    elif city == 'madrid':
+        cal = CommunityofMadrid()
+    elif city == 'mexico':
+        cal = Mexico()
+        cal.include_holy_thursday = True
+        cal.include_good_friday = True
+    elif city == 'minn':
+        cal = Minnesota()
+    elif city == 'montreal':
+        cal = Quebec()
+    elif city == 'nyc':
+        cal = NewYork()
+    elif city == 'oslo':
+        cal = Norway()
+    elif city == 'sfran':
+        cal = CaliforniaSanFrancisco()
+    elif city == 'taipei':
+        cal = Taiwan()
+    elif city == 'trondheim':
+        cal = Norway()
+    elif city == 'washDC':
+        cal = DistrictOfColumbia()
+    else:
+        raise KeyError('Calendar key not found')
+    return cal
+
 name_dict = {
     'bergen': 'Bergen',
     'boston': 'Boston',
@@ -4151,29 +4201,11 @@ name_dict = {
     'trondheim': 'Trondheim',
     'washDC': 'Washington DC'}
 
-cal_dict = {
-    'bergen': Norway,
-    'boston': Massachusetts,
-    'buenos_aires': Argentina,
-    'chic': ChicagoIllinois,
-    'edinburgh': Edinburgh,
-    'guadalajara': Mexico,
-    'helsinki': Finland,
-    'london': UnitedKingdom,
-    'madrid': CommunityofMadrid,
-    'mexico': Mexico,
-    'minn': Minnesota,
-    'montreal': Quebec,
-    'nyc': NewYork,
-    'oslo': Norway,
-    'sfran': CaliforniaSanFrancisco,
-    'taipei': Taiwan,
-    'trondheim': Norway,
-    'washDC': DistrictOfColumbia}
+
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('buenos_aires', 2019)
+    data = Data('mexico', 2019)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)

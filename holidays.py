@@ -22,7 +22,7 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
     """
     hours = np.arange(0, 24)
     
-    cal = bs.cal_dict[city]()
+    cal = bs.get_cal(city)
     holidays = cal.holidays(year)
     holidays = pd.DataFrame(holidays, columns=['day', 'name'])
 
@@ -138,8 +138,12 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
 
 if __name__ == '__main__':
     import bikeshare as bs
-
-    for city in bs.name_dict.keys():
+    
+    cities = bs.name_dict.keys()
+    
+    cities = ['guadalajara', 'mexico']
+    
+    for city in cities:
         year = 2019
         df_year = bs.get_data_year(city, year)[0]
         plot_trips_pr_hour_year(df_year, city, year, savefig=True)
