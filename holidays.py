@@ -141,7 +141,7 @@ if __name__ == '__main__':
     
     cities = bs.name_dict.keys()
     
-    cities = ['guadalajara', 'mexico']
+    cities = ['la']
     
     for city in cities:
         year = 2019
