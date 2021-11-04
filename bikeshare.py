@@ -22,7 +22,7 @@ from requests import get
 import dataframe_key
 
 from workalendar.europe import CommunityofMadrid, Finland, UnitedKingdom, Norway, Edinburgh
-from workalendar.usa import NewYork, Massachusetts, ChicagoIllinois, DistrictOfColumbia, Minnesota, CaliforniaSanFrancisco
+from workalendar.usa import NewYork, Massachusetts, ChicagoIllinois, DistrictOfColumbia, Minnesota, CaliforniaSanFrancisco, California
 from workalendar.asia import Taiwan
 from workalendar.america import Mexico, Argentina, Quebec
 
@@ -226,7 +226,7 @@ def get_data_month(city, year, month, blacklist=None):
                         'oslo', 'edinburgh', 'bergen',
                         'trondheim', 'buenos_aires', 'madrid',
                         'mexico', 'taipei', 'helsinki',
-                        'minn', 'boston', 'guadalajara', 'montreal']  # Remember to update this list
+                        'minn', 'boston', 'guadalajara', 'montreal', 'la']  # Remember to update this list
 
     if city not in supported_cities:
         raise ValueError(
@@ -437,6 +437,41 @@ def get_data_month(city, year, month, blacklist=None):
             df['duration'] = df['duration'].str.replace(',', '').astype(float)
             df.drop(columns=['start_t', 'end_t'], inplace=True)
 
+        elif city == "la":
+            q = int(np.ceil(month/3))
+
+            try:
+                df = pd.read_csv(f'./data/metro-bike-share-trips-{year:d}-q{q}.csv')
+
+            except FileNotFoundError as exc:
+                raise FileNotFoundError(
+                    'No trip data found. All relevant files can be found at https://bikeshare.metro.net/about/data/') from exc
+            
+            df = df.rename(columns=dataframe_key.get_key(city))
+            df['start_dt'] = pd.to_datetime(df['start_t'])
+            df['end_dt'] = pd.to_datetime(df['end_t'])
+            
+            df = df[df['start_dt'].dt.month == month]
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
+            df.dropna(inplace=True) # Removes stations 3000	Virtual Station, 4285 Metro Bike Share Free Bikes, 4286 Metro Bike Share Out of Service Area Smart Bike
+
+            files = [file for file in os.listdir(
+                'data') if 'metro-bike-share-stations' in file]
+            try:
+                stations = pd.read_csv(f"data/{files[0]}", names=['stat_id', 'stat_name', 'date', 'authority', 'status'])
+            except FileNotFoundError as exc:
+                raise FileNotFoundError(
+                    'No station data found. All relevant files can be found at https://bikeshare.metro.net/about/data/') from exc
+
+            name_dict = dict(zip(stations['stat_id'], stations['stat_name']))
+            df['start_stat_name'] = df['start_stat_id'].map(name_dict)
+            df['end_stat_name'] = df['end_stat_id'].map(name_dict)
+            
+            df['duration'] = df['duration']*60
+            
+            df.reset_index(inplace=True, drop=True)
+            
+        
         elif city == "sfran":
 
             try:
@@ -1015,7 +1050,7 @@ def get_data_month(city, year, month, blacklist=None):
 
 def get_data_year(city, year, blacklist=None, day_index=True):
 
-    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki', 'mexico', 'taipei', 'oslo', 'bergen', 'trondheim', 'boston', 'minn', 'guadalajara', 'montreal', 'buenos_aires'
+    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki', 'mexico', 'taipei', 'oslo', 'bergen', 'trondheim', 'boston', 'minn', 'guadalajara', 'montreal', 'buenos_aires', 'la'
                         ]  # Remember to update this list
 
     if city not in supported_cities:
@@ -1197,7 +1232,43 @@ def get_data_year(city, year, blacklist=None, day_index=True):
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
             df['duration'] = df['duration'].str.replace(',', '').astype(float)
+            
+        elif city == "la":
+            
+            df = []
+            for q in range(1, 4+1):
+                try:
+                    df.append(pd.read_csv(f'./data/metro-bike-share-trips-{year:d}-q{q}.csv'))
+    
+                except FileNotFoundError as exc:
+                    raise FileNotFoundError(
+                        f'No trip data found for q{q}. All relevant files can be found at https://bikeshare.metro.net/about/data/') from exc
+            df = pd.concat(df)
+            
+            df = df.rename(columns=dataframe_key.get_key(city))
+            df['start_dt'] = pd.to_datetime(df['start_t'])
+            df['end_dt'] = pd.to_datetime(df['end_t'])
+            
+            df = df[df['start_dt'].dt.year == year]
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
+            df.dropna(inplace=True) # Removes stations 3000	Virtual Station, 4285 Metro Bike Share Free Bikes, 4286 Metro Bike Share Out of Service Area Smart Bike
 
+            files = [file for file in os.listdir(
+                'data') if 'metro-bike-share-stations' in file]
+            try:
+                stations = pd.read_csv(f"data/{files[0]}", names=['stat_id', 'stat_name', 'date', 'authority', 'status'])
+            except FileNotFoundError as exc:
+                raise FileNotFoundError(
+                    'No station data found. All relevant files can be found at https://bikeshare.metro.net/about/data/') from exc
+
+            name_dict = dict(zip(stations['stat_id'], stations['stat_name']))
+            df['start_stat_name'] = df['start_stat_id'].map(name_dict)
+            df['end_stat_name'] = df['end_stat_id'].map(name_dict)
+            
+            df['duration'] = df['duration']*60
+            
+            df.reset_index(inplace=True, drop=True)
+            
         elif city == "sfran":
 
             col_list = ['duration_sec', 'start_time', 'end_time', 'start_station_id',
@@ -4153,6 +4224,8 @@ def get_cal(city):
         cal.include_good_friday = True
     elif city == 'helsinki':
         cal = Finland()
+    elif city == 'la':
+        cal = California()
     elif city == 'london':
         cal = UnitedKingdom()
     elif city == 'madrid':
@@ -4190,6 +4263,7 @@ name_dict = {
     'guadalajara': 'Guadalajara',
     'helsinki': 'Helsinki',
     'london': 'London',
+    'la': 'Los Angeles',
     'madrid': 'Madrid',
     'mexico': 'Mexico City',
     'minn': 'Minneapolis',
@@ -4205,7 +4279,7 @@ name_dict = {
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('mexico', 2019)
+    data = Data('la', 2019)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)

@@ -229,5 +229,21 @@ def get_key(city):
                'end_station_code': 'end_stat_id',
                'end_date': 'end_t',
                'duration_sec': 'duration'}
-
+    
+    elif city == "la":
+        key = {"trip_id": "trip_id",
+               'duration': 'duration',
+               'start_time': 'start_t',
+               'end_time': 'end_t',
+               'start_station': 'start_stat_id',
+               'start_lat': 'start_stat_lat',
+               'start_lon': 'start_stat_long',
+               'end_station': 'end_stat_id',
+               'end_lat': 'end_stat_lat',
+               'end_lon': 'end_stat_long',
+               'bike_id': 'bike_id',
+               'plan_duration': 'plan_duration',
+               'passholder_type': 'passholder_type',
+               'bike_type': 'bike_type'}
+        
     return key
