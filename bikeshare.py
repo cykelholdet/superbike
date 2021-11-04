@@ -3297,7 +3297,7 @@ class Data:
         else:
             return trips_departures_average, trips_arrivals_average
 
-    def daily_traffic_average_all(self, period='b', normalise=True, plot=False, return_all=False, holidays=False):
+    def daily_traffic_average_all(self, period='b', normalise=True, plot=False, return_all=False, holidays=True):
         """
         Computes the average daily traffic of a station over either business
         days or weekends. Both average number of departures and arrivals are
@@ -3333,7 +3333,7 @@ class Data:
 
         if period == 'b':
             df = self.df[['start_stat_id', 'start_dt']][self.df['start_dt'].dt.weekday <= 4]
-            if holidays:
+            if not holidays:
                 holiday_year = pd.DataFrame(
                     get_cal(self.city).get_calendar_holidays(self.year), columns=['day', 'name'])
                 holiday_list = holiday_year['day'].tolist()
@@ -3507,7 +3507,7 @@ class Data:
             return departures_mean, arrivals_mean
 
 
-    def pickle_daily_traffic(self, normalise=True, plot=False, overwrite=False, holidays=False):
+    def pickle_daily_traffic(self, normalise=True, plot=False, overwrite=False, holidays=True):
         """
         Pickles matrices containing the average number of departures and
         arrivals to and from each station for every hour. One matrix
@@ -3528,7 +3528,7 @@ class Data:
             monstr = ""
         else:
             monstr = f"{self.month:02d}"
-        if holidays:
+        if not holidays:
             monstr = monstr + "_no_holidays"
         if not overwrite:
             try:
