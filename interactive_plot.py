@@ -39,11 +39,11 @@ cmap = cm.get_cmap('Blues')
 # Load bikeshare data
 
 year = 2019
-month = 2
+month = 11
 data = bs.Data('nyc', year, month)
 df = data.df
 
-station_df = ipu.make_station_df(data)
+station_df = ipu.make_station_df(data, holidays=False)
 #station_df.dropna(inplace=True)
 #%%
 
