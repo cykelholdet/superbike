@@ -16,6 +16,8 @@ from shapely.geometry import Point
 # from shapely.ops import nearest_points
 from geopy.distance import great_circle
 
+import bikeshare as bs
+
 def df_key(city):
     
     if city == 'nyc':
@@ -183,7 +185,7 @@ def zone_dist_transform(city, zone_dist):
     return zone_type
     
 
-def make_station_df(data):
+def make_station_df(data, holidays=True):
 
     df = pd.DataFrame(data.stat.locations).T.rename(columns={0: 'long', 1: 'lat'})
     
@@ -197,9 +199,35 @@ def make_station_df(data):
 
     df['n_trips'] = df['n_arrivals'] + df['n_departures']
     
+    
+    
+    df_s = data.df[['start_stat_id', 'start_dt']][data.df['start_dt'].dt.weekday <= 4]
+    if holidays:
+        holiday_year = pd.DataFrame(
+            bs.get_cal(data.city).get_calendar_holidays(data.year), columns=['day', 'name'])
+        holiday_list = holiday_year['day'].tolist()
+        df_s = df_s[~df_s['start_dt'].dt.date.isin(holiday_list)] # Rows which are not in holiday list
+    df['b_departures'] = df['stat_id'].map(df_s['start_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
+    
+    df_s = data.df[['start_stat_id', 'start_dt']][data.df['start_dt'].dt.weekday > 4]
+    df['w_departures'] = df['stat_id'].map(df_s['start_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
+
+    df_s = data.df[['end_stat_id', 'end_dt']][data.df['end_dt'].dt.weekday <= 4]
+    if holidays:
+        df_s = df_s[~df_s['end_dt'].dt.date.isin(holiday_list)] # Rows which are not in holiday list
+    df['b_arrivals'] = df['stat_id'].map(df_s['end_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
+    
+    df_s = data.df[['end_stat_id', 'end_dt']][data.df['end_dt'].dt.weekday > 4]
+    df['w_arrivals'] = df['stat_id'].map(df_s['end_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
+    
+    df['b_trips'] = df['b_arrivals'] + df['b_departures']
+    df['w_trips'] = df['w_arrivals'] + df['w_departures']
+
+    
     df['coords'] = list(zip(df['long'], df['lat']))
     df['coords'] = df['coords'].apply(Point)
     
+    df['label'] = np.nan
     df['color'] = "gray"
     
     if data.city == 'nyc':
