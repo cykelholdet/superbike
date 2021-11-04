@@ -39,7 +39,7 @@ cmap = cm.get_cmap('Blues')
 # Load bikeshare data
 
 year = 2019
-month = 3
+month = 2
 data = bs.Data('nyc', year, month)
 df = data.df
 
@@ -374,9 +374,14 @@ def show_widgets(clustering):
     else:
         params.widgets['k'].visible = False
 
-@pn.depends(min_trips=bike_params.param.min_trips)
-def minpercent(min_trips):
-    n_retained = (station_df.n_trips > min_trips).sum()
+@pn.depends(min_trips=bike_params.param.min_trips,
+            day_type=bike_params.param.day_type)
+def minpercent(min_trips, day_type):
+    if day_type == 'business_days':
+        n_retained = (station_df.b_trips > min_trips).sum()
+    else:
+        n_retained = (station_df.w_trips > min_trips).sum()
+    
     n_removed = len(station_df) - n_retained
     return f"Removed {n_removed:d} stations, which is {(n_removed/len(station_df))*100:.2f}%"
 

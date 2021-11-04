@@ -36,7 +36,7 @@ month_abbr = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'
 # 'zone_names' : list of zone types in alphabetical order
 nyc_clust_dict={
     (1,0) : (2,173), (1,1) : (3,129), (1,2) : (0,152), (1,3) : (4,49), (1,4) : (1,249), (1,5) : None,
-    (2,0) : (1,206), (2,1) : (0,153), (2,2) : (4,97), (2,3) : (2,68), (2,4) : (3,228), (2,5) : None,
+    (2,0) : (0,192), (2,1) : (2,148), (2,2) : (1,151), (2,3) : (4,49), (2,4) : (3,213), (2,5) : None,
     (3,0) : (0,206), (3,1) : (3,106), (3,2) : (1,167), (3,3) : (4,59), (3,4) : (2,228), (3,5) : None,
     (4,0) : (3,212), (4,1) : (2,140), (4,2) : (4,156), (4,3) : (1,49), (4,4) : (0,220), (4,5) : None,
     (5,0) : (1,152), (5,1) : (3,164), (5,2) : (2,155), (5,3) : (4,37), (5,4) : (0,232), (5,5) : (5,47),
@@ -45,7 +45,7 @@ nyc_clust_dict={
     (8,0) : (4,195), (8,1) : (0,147), (8,2) : (1,146), (8,3) : (5,29), (8,4) : (3,243), (8,5) : (2,33),
     (9,0) : (2,204), (9,1) : (1,154), (9,2) : (4,151), (9,3) : (3,40), (9,4) : (0,245), (9,5) : None,
     (10,0) : (1,151), (10,1) : (2,192), (10,2) : (0,168), (10,3) : (4,49), (10,4) : (3,258), (10,5) : None,
-    (11,0) : (0,293), (11,1) : (1,222), (11,2) : (3,231), (11,3) : (2,79), (11,4) : None, (11,5) : None,
+    (11,0) : (0,296), (11,1) : (2,224), (11,2) : (3,234), (11,3) : (1,79), (11,4) : None, (11,5) : None,
     (12,0) : (2,249), (12,1) : (0,203), (12,2) : (3,191), (12,3) : (1,75), (12,4) : None, (12,5) : (4,97),
     'cluster_types' : ['Mild morning source', 'High morning source',
                        'Mild morning sink', 'High morning sink',
@@ -124,7 +124,8 @@ for row in range(12):
             month_box = AnchoredText(f'{month_abbr[row+1]}', frameon=False, loc='upper left', pad=0.3)        
             ax[row,col].add_artist(month_box)
 plt.tight_layout()
-plt.savefig(f'./figures/zone_distributions/{city}{year}_zone_distributions.pdf')
+# plt.savefig(f'./figures/zone_distributions/{city}{year}_zone_distributions.pdf')
+plt.savefig(f'./figures/zone_distributions/test.pdf')
 plt.close()
 
 
