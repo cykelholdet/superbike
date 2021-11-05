@@ -409,7 +409,11 @@ def make_station_df(data, holidays=True):
         df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
         df['nearest_subway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]).meters, axis=1)
     
-    
+    else:
+        
+        df['population'] = 0
+        df['pop_density'] = 0
+        df['zone_type'] = 0
     
     df.rename(mapper=df_key(data.city), axis=1, inplace=True)    
     

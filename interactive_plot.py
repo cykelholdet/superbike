@@ -40,7 +40,7 @@ cmap = cm.get_cmap('Blues')
 
 year = 2019
 month = 10
-data = bs.Data('nyc', year, month)
+data = bs.Data('la', year, month)
 df = data.df
 
 station_df = ipu.make_station_df(data)
@@ -52,21 +52,6 @@ extremes = [station_df['easting'].max(), station_df['easting'].min(), station_df
 
 month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
               7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
-name_dict = {'chic': 'Chicago',
-              'london': 'London',
-              'madrid': 'Madrid',
-              'mexico': 'Mexico City',
-              'nyc': 'New York City',
-              'sfran': 'San Francisco',
-              'taipei': 'Taipei',
-              'washDC': 'Washington DC',
-              'oslo': 'Oslo',
-              'bergen': 'Bergen',
-              'trondheim': 'Trondheim',
-              'edinburgh': 'Edinburgh',
-              'helsinki': 'Helsinki',
-              'minn' : 'Minneapolis',
-              'boston' : 'Boston'}
 
 
 
@@ -171,9 +156,9 @@ class BikeParameters2(param.Parameterized):
             station_df['label'] = np.nan
             station_df['color'] = None
         if self.clustering == 'none':
-            title = f'Number of trips per station in {month_dict[data.month]} {data.year} in {name_dict[data.city]}'
+            title = f'Number of trips per station in {month_dict[data.month]} {data.year} in {bs.name_dict[data.city]}'
         else:
-            title = f"{self.clustering} clustering in {month_dict[data.month]} {data.year} in {name_dict[data.city]}"
+            title = f"{self.clustering} clustering in {month_dict[data.month]} {data.year} in {bs.name_dict[data.city]}"
         #plot = station_df.hvplot(kind='points', x='easting', y='northing', c='color', s=100, hover_cols=['name', 'n_trips', 'n_departures', 'n_arrivals', 'zone_type'], title=title,  line_color='black', colorbar=False)
         #plot.opts(apply_ranges=False)
         #ds = gv.Dataset(station_df, kdims=['stat_id'], vdims=['long', 'lat', 'color'],)
