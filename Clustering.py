@@ -37,25 +37,31 @@ try:
     if data.month:
         with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}{data.month:02d}.pickle', 'rb') as file:
             if period == 'b':
+                x_trips = 'b_trips'
                 traffic_matrix=pickle.load(file)[0]
             elif period == 'w':
+                x_trips = 'w_trips'
                 traffic_matrix=pickle.load(file)[1]
     else:
         with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}.pickle', 'rb') as file:
             if period == 'b':
+                x_trips = 'b_trips'
                 traffic_matrix=pickle.load(file)[0]
             elif period == 'w':
+                x_trips = 'w_trips'
                 traffic_matrix=pickle.load(file)[1]
 except FileNotFoundError:
     if period == 'b':
-        traffic_matrix = data.pickle_daily_traffic()[0]
+        x_trips = 'b_trips'
+        traffic_matrix = data.pickle_daily_traffic(holidays=True)[0]
     elif period == 'w':
-        traffic_matrix = data.pickle_daily_traffic()[1]
+        x_trips = 'w_trips'
+        traffic_matrix = data.pickle_daily_traffic(holidays=True)[1]
 
 min_trips = 100
 
 station_df = ipu.make_station_df(data)
-mask = station_df.n_trips > min_trips
+mask = station_df[x_trips] > min_trips
 station_df = station_df[mask]
 traffic_matrix = traffic_matrix[mask]
 
@@ -159,25 +165,31 @@ for row in range(12):
         if data.month:
             with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}{data.month:02d}.pickle', 'rb') as file:
                 if period == 'b':
+                    x_trips = 'b_trips'
                     traffic_matrix=pickle.load(file)[0]
                 elif period == 'w':
+                    x_trips = 'w_trips'
                     traffic_matrix=pickle.load(file)[1]
         else:
             with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}.pickle', 'rb') as file:
                 if period == 'b':
+                    x_trips = 'b_trips'
                     traffic_matrix=pickle.load(file)[0]
                 elif period == 'w':
+                    x_trips = 'w_trips'
                     traffic_matrix=pickle.load(file)[1]
     except FileNotFoundError:
         if period == 'b':
-            traffic_matrix = data.pickle_daily_traffic()[0]
+            x_trips = 'b_trips'
+            traffic_matrix = data.pickle_daily_traffic(holidays=False)[0]
         elif period == 'w':
-            traffic_matrix = data.pickle_daily_traffic()[1]
+            x_trips = 'w_trips'
+            traffic_matrix = data.pickle_daily_traffic(holidays=False)[1]
     
     min_trips = 100
     
     station_df = ipu.make_station_df(data)
-    mask = station_df.n_trips > min_trips
+    mask = station_df[x_trips] > min_trips
     station_df = station_df[mask]
     traffic_matrix = traffic_matrix[mask]
 
@@ -216,8 +228,9 @@ for row in range(12):
         
         if col == 0:
             ax[row,col].set_ylabel('%')
-            text_box = AnchoredText(f'{month_abbr[row+1]}', frameon=False, loc='upper left', pad=0.3)        
-            ax[row,col].add_artist(text_box)
+            month_box = AnchoredText(f'{month_abbr[row+1]}', frameon=False, loc='upper left', pad=0.3)        
+            count_box = AnchoredText(f'')
+            ax[row,col].add_artist(month_box)
 plt.tight_layout()
 plt.savefig(f'./figures/zone_distributions/{city}{year}_zone_distributions.pdf')
 plt.close()

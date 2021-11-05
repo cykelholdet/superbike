@@ -39,11 +39,11 @@ cmap = cm.get_cmap('Blues')
 # Load bikeshare data
 
 year = 2019
-month = 10
-data = bs.Data('la', year, month)
+month = 11
+data = bs.Data('nyc', year, month)
 df = data.df
 
-station_df = ipu.make_station_df(data)
+station_df = ipu.make_station_df(data, holidays=False)
 #station_df.dropna(inplace=True)
 #%%
 
@@ -96,10 +96,10 @@ class BikeParameters2(param.Parameterized):
     @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', watch=False)
     def plot_clusters_full(self):
         if self.day_type == 'business_days':
-            traffic_matrix = data.pickle_daily_traffic(holidays=True)[0]
+            traffic_matrix = data.pickle_daily_traffic(holidays=False)[0]
             x_trips = 'b_trips'
         elif self.day_type == "weekend":
-            traffic_matrix = data.pickle_daily_traffic(holidays=True)[1]
+            traffic_matrix = data.pickle_daily_traffic(holidays=False)[1]
             x_trips = 'w_trips'
         
         mask = station_df[x_trips] > self.min_trips
@@ -176,10 +176,10 @@ class BikeParameters2(param.Parameterized):
         elif self.clustering == 'h_clustering':
             if self.plot_all_clusters == 'True':
                 if self.day_type == 'business_days':
-                    traffic_matrix = data.pickle_daily_traffic(holidays=True)[0]
+                    traffic_matrix = data.pickle_daily_traffic(holidays=False)[0]
                     x_trips = 'b_trips'
                 elif self.day_type == "weekend":
-                    traffic_matrix = data.pickle_daily_traffic(holidays=True)[1]
+                    traffic_matrix = data.pickle_daily_traffic(holidays=False)[1]
                     x_trips = 'w_trips'
                 mask = station_df[x_trips] > self.min_trips
                 traffic_matrix = traffic_matrix[mask]
@@ -194,10 +194,10 @@ class BikeParameters2(param.Parameterized):
             else:
                 i = index[0]
                 if self.day_type == 'business_days':
-                    traffic_matrix = data.pickle_daily_traffic(holidays=True)[0]
+                    traffic_matrix = data.pickle_daily_traffic(holidays=False)[0]
                     x_trips = 'b_trips'
                 elif self.day_type == "weekend":
-                    traffic_matrix = data.pickle_daily_traffic(holidays=True)[1]
+                    traffic_matrix = data.pickle_daily_traffic(holidays=False)[1]
                     x_trips = 'w_trips'
                 mask = station_df[x_trips] > self.min_trips
                 traffic_matrix = traffic_matrix[mask]
@@ -359,9 +359,14 @@ def show_widgets(clustering):
     else:
         params.widgets['k'].visible = False
 
-@pn.depends(min_trips=bike_params.param.min_trips)
-def minpercent(min_trips):
-    n_retained = (station_df.n_trips > min_trips).sum()
+@pn.depends(min_trips=bike_params.param.min_trips,
+            day_type=bike_params.param.day_type)
+def minpercent(min_trips, day_type):
+    if day_type == 'business_days':
+        n_retained = (station_df.b_trips > min_trips).sum()
+    else:
+        n_retained = (station_df.w_trips > min_trips).sum()
+    
     n_removed = len(station_df) - n_retained
     return f"Removed {n_removed:d} stations, which is {(n_removed/len(station_df))*100:.2f}%"
 
@@ -378,7 +383,7 @@ text = '#Bikesharing Clustering Analysis'
 panel_column = pn.Column(text, panel_param, indicator)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-bokeh_server = panel_column.show(port=12345)
+# bokeh_server = panel_column.show(port=12345)
 
 #%%
-bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
+# bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload

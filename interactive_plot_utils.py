@@ -202,7 +202,7 @@ def make_station_df(data, holidays=True):
     
     
     df_s = data.df[['start_stat_id', 'start_dt']][data.df['start_dt'].dt.weekday <= 4]
-    if holidays:
+    if not holidays:
         holiday_year = pd.DataFrame(
             bs.get_cal(data.city).get_calendar_holidays(data.year), columns=['day', 'name'])
         holiday_list = holiday_year['day'].tolist()
@@ -213,7 +213,7 @@ def make_station_df(data, holidays=True):
     df['w_departures'] = df['stat_id'].map(df_s['start_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
 
     df_s = data.df[['end_stat_id', 'end_dt']][data.df['end_dt'].dt.weekday <= 4]
-    if holidays:
+    if not holidays:
         df_s = df_s[~df_s['end_dt'].dt.date.isin(holiday_list)] # Rows which are not in holiday list
     df['b_arrivals'] = df['stat_id'].map(df_s['end_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
     
