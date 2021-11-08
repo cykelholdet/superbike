@@ -39,8 +39,8 @@ cmap = cm.get_cmap('Blues')
 # Load bikeshare data
 
 year = 2019
-month = 11
-data = bs.Data('nyc', year, month)
+month = 4
+data = bs.Data('helsinki', year, month)
 df = data.df
 
 station_df = ipu.make_station_df(data, holidays=False)
@@ -74,8 +74,8 @@ activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'e
 day_type_dict = {'weekend': 'w', 'business_days': 'b'}
 
 color_dict = {0 : 'blue', 1 : 'red', 2 : 'yellow', 3 : 'green', #tab:
-              4 : 'purple', 5 : 'brown', 6: 'pink',
-              7 : 'cyan', 8 : 'olive', 9 : 'magenta', np.nan: 'gray'}
+              4 : 'purple', 5 : 'cyan', 6: 'pink',
+              7 : 'brown', 8 : 'olive', 9 : 'magenta', np.nan: 'gray'}
 
 mpl_color_dict = {i: mpl_colors.to_rgb(color_dict[i]) for i in range(10)}
 lab_color_dict = {i: skcolor.rgb2lab(mpl_color_dict[i]) for i in range(10)}
