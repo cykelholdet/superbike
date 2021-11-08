@@ -10,28 +10,23 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
+import matplotlib.colors as mpl_colors
+import skimage.color as skcolor
+from matplotlib import cm
 
 import holoviews as hv
 import hvplot.pandas
 hv.extension('bokeh', logo=False)
 import panel as pn
 import param
-from bokeh.models import HoverTool
 import geoviews as gv
-import cartopy.crs as ccrs
-
-import simpledtw as dtw
-
-import bikeshare as bs
-import interactive_plot_utils as ipu
-
+from bokeh.models import HoverTool
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.mixture import GaussianMixture
 from sklearn_extra.cluster import KMedoids
 
-import skimage.color as skcolor
-import matplotlib.colors as mpl_colors
-from matplotlib import cm
+import bikeshare as bs
+import interactive_plot_utils as ipu
 
 
 cmap = cm.get_cmap('Blues')
@@ -43,44 +38,10 @@ month = 4
 data = bs.Data('helsinki', year, month)
 df = data.df
 
-station_df = ipu.make_station_df(data, holidays=False)
+#station_df = ipu.make_station_df(data, holidays=False)
+station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
 #station_df.dropna(inplace=True)
 #%%
-
-extremes = [station_df['easting'].max(), station_df['easting'].min(), station_df['northing'].max(), station_df['northing'].min()]
-
-
-month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
-              7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
-name_dict = {'chic': 'Chicago',
-              'london': 'London',
-              'madrid': 'Madrid',
-              'mexico': 'Mexico City',
-              'nyc': 'New York City',
-              'sfran': 'San Francisco',
-              'taipei': 'Taipei',
-              'washDC': 'Washington DC',
-              'oslo': 'Oslo',
-              'bergen': 'Bergen',
-              'trondheim': 'Trondheim',
-              'edinburgh': 'Edinburgh',
-              'helsinki': 'Helsinki',
-              'minn' : 'Minneapolis',
-              'boston' : 'Boston'}
-
-
-
-activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'end', 'start': 'start', 'end': 'end'}
-day_type_dict = {'weekend': 'w', 'business_days': 'b'}
-
-color_dict = {0 : 'blue', 1 : 'red', 2 : 'yellow', 3 : 'green', #tab:
-              4 : 'purple', 5 : 'cyan', 6: 'pink',
-              7 : 'brown', 8 : 'olive', 9 : 'magenta', np.nan: 'gray'}
-
-mpl_color_dict = {i: mpl_colors.to_rgb(color_dict[i]) for i in range(10)}
-lab_color_dict = {i: skcolor.rgb2lab(mpl_color_dict[i]) for i in range(10)}
-lab_color_list = [lab_color_dict[i] for i in range(10)]
-
 
 def plot_lines(labels, j, c_centers, title_pre="Mean"):
     cc_df = pd.DataFrame([c_centers[:24], c_centers[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
@@ -88,6 +49,20 @@ def plot_lines(labels, j, c_centers, title_pre="Mean"):
     n = np.sum(labels == j)
     cc_plot.opts(title=f"{title_pre} of cluster {j} ({color_dict[j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage')
     return cc_plot
+
+
+def line_callback_both(index, day_type):
+    print(f"{index=}")
+    a = data.daily_traffic_average(index, period=day_type_dict[day_type], return_std=True)
+    means = pd.DataFrame(a[:2]).T.rename(columns={0:'departures', 1:'arrivals'})
+    stds = pd.DataFrame(a[2:]).T.rename(columns={0:'departures', 1:'arrivals'})
+    varea = pd.DataFrame()
+    varea['dep_low'] = means['departures'] - stds['departures']
+    varea['dep_high'] = means['departures'] + stds['departures']
+    varea['arr_low'] = means['arrivals'] - stds['arrivals']
+    varea['arr_high'] = means['arrivals'] + stds['arrivals']
+    varea['hour'] = np.arange(0,24)
+    return varea.hvplot.area(x='hour', y='dep_low', y2='dep_high', alpha=0.5, line_width=0) * varea.hvplot.area(x='hour', y='arr_low', y2='arr_high', alpha=0.5, line_width=0) * means['departures'].hvplot() * means['arrivals'].hvplot()
 
 
 class BikeParameters2(param.Parameterized):
@@ -99,8 +74,10 @@ class BikeParameters2(param.Parameterized):
     day = param.Integer(default=1, bounds=(1, data.num_days))
     dist_func = param.Selector(objects=['norm'])
     plot_all_clusters = param.Selector(objects=['False', 'True'])
+    show_land_use = param.Selector(objects=['False', 'True'])
     random_state = param.Integer(default=42, bounds=(0, 10000))
     min_trips = param.Integer(default=data.num_days*2, bounds=(0, 800))
+    
     
     def __init__(self, index, **kwargs):
         super().__init__(**kwargs)
@@ -171,9 +148,9 @@ class BikeParameters2(param.Parameterized):
             station_df['label'] = np.nan
             station_df['color'] = None
         if self.clustering == 'none':
-            title = f'Number of trips per station in {month_dict[data.month]} {data.year} in {name_dict[data.city]}'
+            title = f'Number of trips per station in {month_dict[data.month]} {data.year} in {bs.name_dict[data.city]}'
         else:
-            title = f"{self.clustering} clustering in {month_dict[data.month]} {data.year} in {name_dict[data.city]}"
+            title = f"{self.clustering} clustering in {month_dict[data.month]} {data.year} in {bs.name_dict[data.city]}"
         #plot = station_df.hvplot(kind='points', x='easting', y='northing', c='color', s=100, hover_cols=['name', 'n_trips', 'n_departures', 'n_arrivals', 'zone_type'], title=title,  line_color='black', colorbar=False)
         #plot.opts(apply_ranges=False)
         #ds = gv.Dataset(station_df, kdims=['stat_id'], vdims=['long', 'lat', 'color'],)
@@ -266,7 +243,27 @@ class BikeParameters2(param.Parameterized):
                 else:
                     return f"Station index {i} is not in a cluster due to min_trips."
 
-    
+
+
+extremes = [station_df['easting'].max(), station_df['easting'].min(), station_df['northing'].max(), station_df['northing'].min()]
+
+
+month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
+              7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+
+
+
+activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'end', 'start': 'start', 'end': 'end'}
+day_type_dict = {'weekend': 'w', 'business_days': 'b'}
+
+color_dict = {0 : 'blue', 1 : 'red', 2 : 'yellow', 3 : 'green', #tab:
+              4 : 'purple', 5 : 'cyan', 6: 'pink',
+              7 : 'brown', 8 : 'olive', 9 : 'magenta', np.nan: 'gray'}
+
+mpl_color_dict = {i: mpl_colors.to_rgb(color_dict[i]) for i in range(10)}
+lab_color_dict = {i: skcolor.rgb2lab(mpl_color_dict[i]) for i in range(10)}
+lab_color_list = [lab_color_dict[i] for i in range(10)]
+
 bike_params = BikeParameters2(None)
 
 params = pn.Param(bike_params.param, widgets={
@@ -278,29 +275,12 @@ params = pn.Param(bike_params.param, widgets={
     'random_state': pn.widgets.IntInput,
     'min_trips': pn.widgets.IntInput,
     'k': pn.widgets.IntSlider,
+    'show_land_use': pn.widgets.RadioButtonGroup,
     },
     name="Bikeshare Parameters"
     )
 
 paraview = hv.DynamicMap(bike_params.plot_clusters_full)
-
-
-def line_callback_both(index, day_type):
-    print(f"{index=}")
-    a = data.daily_traffic_average(index, period=day_type_dict[day_type], return_std=True)
-    means = pd.DataFrame(a[:2]).T.rename(columns={0:'departures', 1:'arrivals'})
-    stds = pd.DataFrame(a[2:]).T.rename(columns={0:'departures', 1:'arrivals'})
-    varea = pd.DataFrame()
-    varea['dep_low'] = means['departures'] - stds['departures']
-    varea['dep_high'] = means['departures'] + stds['departures']
-    varea['arr_low'] = means['arrivals'] - stds['arrivals']
-    varea['arr_high'] = means['arrivals'] + stds['arrivals']
-    varea['hour'] = np.arange(0,24)
-    return varea.hvplot.area(x='hour', y='dep_low', y2='dep_high', alpha=0.5, line_width=0) * varea.hvplot.area(x='hour', y='arr_low', y2='arr_high', alpha=0.5, line_width=0) * means['departures'].hvplot() * means['arrivals'].hvplot()
-
-
-
-#extreme_view = extremes.hvplot.points(x='easting', y='northing')
 
 
 @pn.depends(clustering=bike_params.param.clustering)
@@ -313,7 +293,6 @@ def plot_tiles(clustering):
 
 
 tileview = hv.DynamicMap(plot_tiles)
-
 
 
 tooltips = [
@@ -364,7 +343,7 @@ def plotterino(index, plot_all_clusters, clustering, k, min_trips):
 
 @pn.depends(pn.state.param.busy)
 def indicator(busy):
-    return "I'm busy" if busy else "I'm idle"
+    return gif_pane if busy else ""
 
 
 @pn.depends(clustering=bike_params.param.clustering, watch=True)
@@ -385,20 +364,41 @@ def minpercent(min_trips, day_type):
     n_removed = len(station_df) - n_retained
     return f"Removed {n_removed:d} stations, which is {(n_removed/len(station_df))*100:.2f}%"
 
+@pn.depends(show_land_use=bike_params.param.show_land_use)
+def land_use_plot(show_land_use):
+    if show_land_use == "True":
+        return gv.Polygons(land_use, vdims=['zone_type', 'color']).opts(color='color')
+    else:
+        return gv.Polygons([])
+
+gif_pane = pn.pane.GIF('https://upload.wikimedia.org/wikipedia/commons/2/2a/Loading_Key.gif')
+
+zoneview = hv.DynamicMap(land_use_plot)
+zoneview.opts(alpha=0.5, apply_ranges=False)
+
+tooltips_zone = [
+    ('Zone Type', '@zone_type'),
+]
+hover_zone = HoverTool(tooltips=tooltips_zone)
+zoneview.opts(tools=[hover_zone])
 
 linecol = pn.Column(plot_daily_traffic, plotterino)
 
+params.layout.insert(9, 'Show land use:')
 params.layout.insert(8, 'Plot all clusters:')
 params.layout.insert(3, 'Clustering method:')
 
 param_column = pn.Column(params.layout, minpercent)
+param_column[1].width=300
 
-panel_param = pn.Row(param_column, tileview*paraview, linecol)
+panel_param = pn.Row(param_column, tileview*zoneview*paraview, linecol)
 text = '#Bikesharing Clustering Analysis'
-panel_column = pn.Column(text, panel_param, indicator)
+title_row = pn.Row(text, indicator)
+title_row[0].width=400
+panel_column = pn.Column(title_row, panel_param)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-# bokeh_server = panel_column.show(port=12345)
+bokeh_server = panel_column.show(port=12345)
 
 #%%
-# bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
+bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload

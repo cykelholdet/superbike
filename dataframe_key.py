@@ -247,3 +247,22 @@ def get_key(city):
                'bike_type': 'bike_type'}
         
     return key
+
+
+def get_land_use_key(city):
+    if city == 'nyc':
+        key = {'ZONEDIST': 'zone_type',
+               'geometry': 'geometry',}
+    elif city == 'chic':
+        key = {'zone_class': 'zone_type',
+               'geometry': 'geometry',}
+    elif city == 'boston':
+        key = {'ZONE_': 'zone_type',
+               'geometry': 'geometry',}
+    elif city == 'minn':
+        key = {'ZONE_CODE': 'zone_type',
+               'geometry': 'geometry'}
+    elif city == 'washDC':
+        key = {'ZONING_LABEL': 'zone_type',
+               'geometry': 'geometry',}
+    return key
