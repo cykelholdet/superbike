@@ -15,6 +15,7 @@ import shapely.ops
 from shapely.geometry import Point
 # from shapely.ops import nearest_points
 from geopy.distance import great_circle
+import matplotlib.colors as mpl_colors
 
 import bikeshare as bs
 import dataframe_key
@@ -236,6 +237,10 @@ def make_station_df(data, holidays=True, return_land_use=False):
         zoning_df = gpd.read_file('./data/other_data/nyc_zoning_data.json')
         zoning_df = zoning_df[['ZONEDIST', 'geometry']]
         
+        land_use = zoning_df[['ZONEDIST', 'geometry']]
+        land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
+        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
+        
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
@@ -245,8 +250,6 @@ def make_station_df(data, holidays=True, return_land_use=False):
         
         CTracts_df = gpd.read_file('./data/other_data/nyc_CT_data.json')
         
-        land_use = CTracts_df[['BoroCT2020', 'geometry', 'Shape__Area', 'NTAName']]
-        land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         
         CTracts_df = CTracts_df[['BoroCT2020', 'geometry', 'Shape__Area']]
         # CTracts_df.rename({'Shape__Area':'CT_area'}, axis=1, inplace=True)
@@ -284,6 +287,10 @@ def make_station_df(data, holidays=True, return_land_use=False):
         
         zoning_df = gpd.read_file('./data/other_data/chic_zoning_data.geojson')
         zoning_df = zoning_df[['zone_class', 'geometry']]
+        
+        land_use = zoning_df[['zone_class', 'geometry']]
+        land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
+        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
     
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
@@ -297,9 +304,6 @@ def make_station_df(data, holidays=True, return_land_use=False):
         CBlocks_df_cart = CBlocks_df.copy()
         CBlocks_df_cart = CBlocks_df_cart.to_crs({'proj': 'cea'})
         CBlocks_df['CB_area'] = CBlocks_df_cart['geometry'].area
-        
-        land_use = CBlocks_df[['geoid10', 'geometry', 'CB_area']]
-        land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         
         df = gpd.tools.sjoin(df, CBlocks_df, op='within', how='left')
         df['geoid10'] = df['geoid10'].apply(lambda x: int(x) if pd.notnull(x) else x)
@@ -323,6 +327,10 @@ def make_station_df(data, holidays=True, return_land_use=False):
         
         zoning_df = gpd.read_file('./data/other_data/washDC_zoning_data.geojson')
         zoning_df = zoning_df[['ZONING_LABEL', 'geometry']]
+        
+        land_use = zoning_df[['ZONING_LABEL', 'geometry']]
+        land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
+        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
             
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
@@ -338,9 +346,6 @@ def make_station_df(data, holidays=True, return_land_use=False):
         census_df['CT_area'] = census_df_cart['geometry'].area
         
         census_df = census_df[['GEOID', 'CT_area', 'P0010001', 'geometry']]
-        
-        land_use = census_df[['GEOID', 'CT_area', 'P0010001', 'geometry']]
-        land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         
         df = gpd.tools.sjoin(df, census_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
@@ -358,6 +363,10 @@ def make_station_df(data, holidays=True, return_land_use=False):
         zoning_df = gpd.read_file('./data/other_data/minn_zoning_data.geojson')
         zoning_df = zoning_df[['ZONE_CODE', 'geometry']]
         
+        land_use = zoning_df[['ZONE_CODE', 'geometry']]
+        land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
+        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
+        
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
@@ -367,9 +376,6 @@ def make_station_df(data, holidays=True, return_land_use=False):
         CTracts_df = gpd.read_file('./data/other_data/minn_CT_data.shp')
         CTracts_df.to_crs(crs = zoning_df.crs, inplace=True)
         CTracts_df = CTracts_df[['GEOID20', 'ALAND20', 'geometry']]
-        
-        land_use = CTracts_df[['GEOID20', 'ALAND20', 'geometry']]
-        land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         
         df = gpd.tools.sjoin(df, CTracts_df, op='within', how='left')
         df['GEOID20'] = df['GEOID20'].apply(lambda x: int(x) if pd.notnull(x) else x)
@@ -394,6 +400,10 @@ def make_station_df(data, holidays=True, return_land_use=False):
         zoning_df = gpd.read_file('./data/other_data/boston_zoning_data.geojson')
         zoning_df = zoning_df[['ZONE_', 'SUBDISTRIC', 'geometry']]
         
+        land_use = zoning_df[['ZONE_',  'SUBDISTRIC', 'geometry']]
+        land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
+        #land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
+        
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
@@ -403,9 +413,6 @@ def make_station_df(data, holidays=True, return_land_use=False):
         CTracts_df = gpd.read_file('./data/other_data/boston_CT_data.shp')
         CTracts_df = CTracts_df.to_crs(epsg=4326)
         CTracts_df = CTracts_df[['GEOID20', 'ALAND20', 'geometry']]
-        
-        land_use = CTracts_df[['GEOID20', 'ALAND20', 'geometry']]
-        land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         
         df = gpd.tools.sjoin(df, CTracts_df, op='within', how='left')
         df['GEOID20'] = df['GEOID20'].apply(lambda x: int(x) if pd.notnull(x) else x)
@@ -434,11 +441,35 @@ def make_station_df(data, holidays=True, return_land_use=False):
     
     df.rename(mapper=df_key(data.city), axis=1, inplace=True)    
     
+    #land_use = land_use.to_crs(epsg=3857)
+    land_use['color'] = land_use['zone_type'].map(color_dict)
+    
     if return_land_use:
         return df, land_use
     else:
         return df
-    
+
+
+color_dict = {
+    'residential': mpl_colors.to_hex('tab:purple'), # 4
+    'commercial': mpl_colors.to_hex('tab:orange'),  # 1
+    'recreational': mpl_colors.to_hex('tab:green'),  # 2
+    'manufacturing': mpl_colors.to_hex('tab:red'), # 3
+    'mixed': mpl_colors.to_hex('tab:blue'), # 0
+    'educational': mpl_colors.to_hex('tab:brown'), # 5
+    'UNKNOWN': mpl_colors.to_hex('gray') # 7
+    }
+
+color_num_dict = {
+    'residential': 4, # 4
+    'commercial': 1,  # 1
+    'recreational': 2,  # 2
+    'manufacturing': 3, # 3
+    'mixed': 0, # 0
+    'educational': 5, # 5
+    'UNKNOWN': 7 # 7
+    }
+
     
 if __name__ == "__main__":
     import bikeshare as bs

@@ -251,25 +251,18 @@ def get_key(city):
 
 def get_land_use_key(city):
     if city == 'nyc':
-        key = {'BoroCT2020': 'zone_id',
-               'geometry': 'geometry',
-               'Shape__Area': 'area',
-               'NTAName': 'name'}
+        key = {'ZONEDIST': 'zone_type',
+               'geometry': 'geometry',}
     elif city == 'chic':
-        key = {'geoid10': 'zone_id',
-               'geometry': 'geometry',
-               'CB_area': 'area'}
+        key = {'zone_class': 'zone_type',
+               'geometry': 'geometry',}
     elif city == 'boston':
-        key = {'GEOID20': 'zone_id',
-               'geometry': 'geometry',
-               'ALAND20': 'area'}
+        key = {'ZONE_': 'zone_type',
+               'geometry': 'geometry',}
     elif city == 'minn':
-        key = {'GEOID20': 'zone_id',
-               'geometry': 'geometry',
-               'ALAND20': 'area'}
+        key = {'ZONE_CODE': 'zone_type',
+               'geometry': 'geometry'}
     elif city == 'washDC':
-        key = {'GEOID': 'zone_id',
-               'geometry': 'geometry',
-               'CT_area': 'area',
-               'P0010001': 'population'}
+        key = {'ZONING_LABEL': 'zone_type',
+               'geometry': 'geometry',}
     return key
