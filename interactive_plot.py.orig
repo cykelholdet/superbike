@@ -43,6 +43,44 @@ station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use
 #station_df.dropna(inplace=True)
 #%%
 
+<<<<<<< HEAD
+extremes = [station_df['easting'].max(), station_df['easting'].min(), station_df['northing'].max(), station_df['northing'].min()]
+
+
+month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
+              7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+name_dict = {'chic': 'Chicago',
+              'london': 'London',
+              'madrid': 'Madrid',
+              'mexico': 'Mexico City',
+              'nyc': 'New York City',
+              'sfran': 'San Francisco',
+              'taipei': 'Taipei',
+              'washDC': 'Washington DC',
+              'oslo': 'Oslo',
+              'bergen': 'Bergen',
+              'trondheim': 'Trondheim',
+              'edinburgh': 'Edinburgh',
+              'helsinki': 'Helsinki',
+              'minn' : 'Minneapolis',
+              'boston' : 'Boston'}
+
+
+
+activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'end', 'start': 'start', 'end': 'end'}
+day_type_dict = {'weekend': 'w', 'business_days': 'b'}
+
+color_dict = {0 : 'blue', 1 : 'red', 2 : 'yellow', 3 : 'green', #tab:
+              4 : 'purple', 5 : 'cyan', 6: 'pink',
+              7 : 'brown', 8 : 'olive', 9 : 'magenta', np.nan: 'gray'}
+
+mpl_color_dict = {i: mpl_colors.to_rgb(color_dict[i]) for i in range(10)}
+lab_color_dict = {i: skcolor.rgb2lab(mpl_color_dict[i]) for i in range(10)}
+lab_color_list = [lab_color_dict[i] for i in range(10)]
+
+
+=======
+>>>>>>> b04e710cdd69e0fa3f2cdfdd3fe02585db46aa00
 def plot_lines(labels, j, c_centers, title_pre="Mean"):
     cc_df = pd.DataFrame([c_centers[:24], c_centers[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
     cc_plot = cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
@@ -257,8 +295,8 @@ activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'e
 day_type_dict = {'weekend': 'w', 'business_days': 'b'}
 
 color_dict = {0 : 'blue', 1 : 'red', 2 : 'yellow', 3 : 'green', #tab:
-              4 : 'purple', 5 : 'cyan', 6: 'pink',
-              7 : 'brown', 8 : 'olive', 9 : 'magenta', np.nan: 'gray'}
+              4 : 'purple', 5 : 'brown', 6: 'pink',
+              7 : 'cyan', 8 : 'olive', 9 : 'magenta', np.nan: 'gray'}
 
 mpl_color_dict = {i: mpl_colors.to_rgb(color_dict[i]) for i in range(10)}
 lab_color_dict = {i: skcolor.rgb2lab(mpl_color_dict[i]) for i in range(10)}
@@ -316,7 +354,7 @@ selection_stream = hv.streams.Selection1D(source=paraview)
 
 @pn.depends(index=selection_stream.param.index,
             day_type=bike_params.param.day_type)
-def plot_daily_traffic(index, day_type): 
+def plot_daily_traffic(index, day_type):
     if not index:
         return "Select a station to see station traffic"
     else:
@@ -398,7 +436,7 @@ title_row[0].width=400
 panel_column = pn.Column(title_row, panel_param)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-#bokeh_server = panel_column.show(port=12345)
+bokeh_server = panel_column.show(port=12345)
 
 #%%
-#bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
+bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload

@@ -282,6 +282,9 @@ def make_station_df(data, holidays=True, return_land_use=False):
         
         df['zone_type'] = df['code_2018'].apply(lambda x: zone_dist_transform(data.city, x))
 
+        land_use = land_use_df[['class_2018', 'geometry']]
+        land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
+        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
     
     elif data.city == 'chic':
         
@@ -438,13 +441,14 @@ def make_station_df(data, holidays=True, return_land_use=False):
         df['population'] = 0
         df['pop_density'] = 0
         df['zone_type'] = 0
-    
+        land_use = pd.DataFrame([])
+        land_use['zone_type'] = 'UNKNOWN'
+        
     df.rename(mapper=df_key(data.city), axis=1, inplace=True)    
     
-    #land_use = land_use.to_crs(epsg=3857)
-    land_use['color'] = land_use['zone_type'].map(color_dict)
     
     if return_land_use:
+        land_use['color'] = land_use['zone_type'].map(color_dict)
         return df, land_use
     else:
         return df
