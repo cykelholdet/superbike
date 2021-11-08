@@ -43,7 +43,8 @@ month = 11
 data = bs.Data('nyc', year, month)
 df = data.df
 
-station_df = ipu.make_station_df(data, holidays=False)
+#station_df = ipu.make_station_df(data, holidays=False)
+station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
 #station_df.dropna(inplace=True)
 #%%
 
@@ -383,7 +384,7 @@ text = '#Bikesharing Clustering Analysis'
 panel_column = pn.Column(text, panel_param, indicator)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-# bokeh_server = panel_column.show(port=12345)
+bokeh_server = panel_column.show(port=12345)
 
 #%%
-# bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
+bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload

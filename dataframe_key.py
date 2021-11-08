@@ -247,3 +247,29 @@ def get_key(city):
                'bike_type': 'bike_type'}
         
     return key
+
+
+def get_land_use_key(city):
+    if city == 'nyc':
+        key = {'BoroCT2020': 'zone_id',
+               'geometry': 'geometry',
+               'Shape__Area': 'area',
+               'NTAName': 'name'}
+    elif city == 'chic':
+        key = {'geoid10': 'zone_id',
+               'geometry': 'geometry',
+               'CB_area': 'area'}
+    elif city == 'boston':
+        key = {'GEOID20': 'zone_id',
+               'geometry': 'geometry',
+               'ALAND20': 'area'}
+    elif city == 'minn':
+        key = {'GEOID20': 'zone_id',
+               'geometry': 'geometry',
+               'ALAND20': 'area'}
+    elif city == 'washDC':
+        key = {'GEOID': 'zone_id',
+               'geometry': 'geometry',
+               'CT_area': 'area',
+               'P0010001': 'population'}
+    return key
