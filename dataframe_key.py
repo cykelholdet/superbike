@@ -266,6 +266,6 @@ def get_land_use_key(city):
         key = {'ZONING_LABEL': 'zone_type',
                'geometry': 'geometry',}
     elif city == 'helsinki':
-        key = {'class_2018': 'zone_type',
+        key = {'code_2018': 'zone_type',
                'geometry': 'geometry',}
     return key

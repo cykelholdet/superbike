@@ -88,7 +88,7 @@ def zone_dist_transform(city, zone_dist):
             elif zone_dist in ['12300']: # Port areas
                 zone_type = 'port'
             elif zone_dist in ['13100', 'Construction sites']: # Mineral extraction and dump sites
-                zone_type = 'industrial'
+                zone_type = 'manufacturing'
             else:
                 zone_type = 'UNKNOWN'
         
@@ -282,7 +282,7 @@ def make_station_df(data, holidays=True, return_land_use=False):
         
         df['zone_type'] = df['code_2018'].apply(lambda x: zone_dist_transform(data.city, x))
 
-        land_use = land_use_df[['class_2018', 'geometry']]
+        land_use = land_use_df[['code_2018', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
     
@@ -461,7 +461,10 @@ color_dict = {
     'manufacturing': mpl_colors.to_hex('tab:red'), # 3
     'mixed': mpl_colors.to_hex('tab:blue'), # 0
     'educational': mpl_colors.to_hex('tab:brown'), # 5
-    'UNKNOWN': mpl_colors.to_hex('gray') # 7
+    'UNKNOWN': mpl_colors.to_hex('gray'), # 7
+    'road': mpl_colors.to_hex('tab:pink'),
+    'port': mpl_colors.to_hex('tab:olive'),
+    'transport': mpl_colors.to_hex('tab:olive'),
     }
 
 color_num_dict = {
@@ -479,7 +482,7 @@ if __name__ == "__main__":
     import bikeshare as bs
     import time
     
-    data = bs.Data('nyc', 2019, 9)
+    data = bs.Data('helsinki', 2019, 9)
     pre = time.time()
     station_df, land_use = make_station_df(data, return_land_use=True)
     print(f'station_df took {time.time() - pre:.2f} seconds')
