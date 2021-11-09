@@ -232,6 +232,9 @@ def make_station_df(data, holidays=True, return_land_use=False):
     df['label'] = np.nan
     df['color'] = "gray"
     
+    extent = {'lat': [df['lat'].min(), df['lat'].max()], 
+              'long': [df['long'].min(), df['long'].max()]}
+    
     if data.city == 'nyc':
     
         zoning_df = gpd.read_file('./data/other_data/nyc_zoning_data.json')
@@ -283,6 +286,7 @@ def make_station_df(data, holidays=True, return_land_use=False):
         df['zone_type'] = df['code_2018'].apply(lambda x: zone_dist_transform(data.city, x))
 
         land_use = land_use_df[['code_2018', 'geometry']]
+        land_use = land_use.cx[extent['long'][0]:extent['long'][1], extent['lat'][0]:extent['lat'][1]]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
     
