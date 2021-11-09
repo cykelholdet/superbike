@@ -398,7 +398,7 @@ title_row[0].width=400
 panel_column = pn.Column(title_row, panel_param)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-bokeh_server = panel_column.show(port=12345)
+#bokeh_server = panel_column.show(port=12345)
 
 #%%
-bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
+#bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
