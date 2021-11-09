@@ -77,11 +77,11 @@ def zone_dist_transform(city, zone_dist):
             
             if zone_dist in ['11100', '11210', '11220', '11230']: # Continuous urban fabric (S.L. : > 80%), Discontinuous dense urban fabric (S.L. : 50% -  80%), Discontinuous medium density urban fabric (S.L. : 30% - 50%), Discontinuous low density urban fabric (S.L. : 10% - 30%)
                 zone_type = 'residential' 
-            elif zone_dist in ['12220']: # Other roads and associated land
+            elif zone_dist in ['12220', '12210']: # Other roads and associated land, Fast transit roads and associated land
                 zone_type = 'road'
             elif zone_dist in ['12100']: # Industrial, commercial, public, military and private units
                 zone_type = 'commercial'
-            elif zone_dist in ['14100', '14200', '31000']: # Green urban areas, Sports and leisure facilities, Forests
+            elif zone_dist in ['14100', '14200', '31000', '32000']: # Green urban areas, Sports and leisure facilities, Forests, Herbaceous vegetation associations (natural grassland, moors...)
                 zone_type = 'recreational'
             elif zone_dist in ['12230']: # Railways and associated land
                 zone_type = 'transport'
@@ -89,6 +89,8 @@ def zone_dist_transform(city, zone_dist):
                 zone_type = 'port'
             elif zone_dist in ['13100', 'Construction sites']: # Mineral extraction and dump sites
                 zone_type = 'manufacturing'
+            elif zone_dist in ['50000']:
+                zone_type = 'water'
             else:
                 zone_type = 'UNKNOWN'
         
@@ -289,6 +291,8 @@ def make_station_df(data, holidays=True, return_land_use=False):
         land_use = land_use.cx[extent['long'][0]:extent['long'][1], extent['lat'][0]:extent['lat'][1]]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
+        land_use = land_use[land_use['zone_type'] != 'road']
+        land_use = land_use[land_use['zone_type'] != 'water']
     
     elif data.city == 'chic':
         
