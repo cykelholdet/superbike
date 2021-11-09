@@ -371,7 +371,7 @@ def land_use_plot(show_land_use):
     else:
         return gv.Polygons([])
 
-gif_pane = pn.pane.GIF('https://upload.wikimedia.org/wikipedia/commons/2/2a/Loading_Key.gif')
+gif_pane = pn.pane.GIF('Loading_Key.gif')
 
 zoneview = hv.DynamicMap(land_use_plot)
 zoneview.opts(alpha=0.5, apply_ranges=False)
@@ -398,7 +398,7 @@ title_row[0].width=400
 panel_column = pn.Column(title_row, panel_param)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-#bokeh_server = panel_column.show(port=12345)
+bokeh_server = panel_column.show(port=12345)
 
 #%%
-#bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
+bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
