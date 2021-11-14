@@ -810,6 +810,7 @@ def get_data_month(city, year, month, blacklist=None):
             df['end_stat_long'] = df['end_stat_id'].map(long_dict)
             df['end_stat_desc'] = df['end_stat_id'].map(addr_dict)
 
+            df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
 
         elif city == "mexico":
@@ -4279,7 +4280,7 @@ name_dict = {
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('la', 2019)
+    data = Data('nyc', 2019)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)

@@ -4,7 +4,9 @@ Created on Tue Oct 19 21:22:19 2021
 
 @author: nweinr
 """
-import fiona
+import pickle
+
+#import fiona
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -189,8 +191,21 @@ def zone_dist_transform(city, zone_dist):
     return zone_type
     
 
-def make_station_df(data, holidays=True, return_land_use=False):
-
+def make_station_df(data, holidays=True, return_land_use=False, overwrite=False):
+    postfix = "" if data.month == None else f"{data.month:02d}"
+    postfix = postfix + "" if holidays else postfix + "_no_holidays"
+    
+    if not overwrite:
+        try:
+            with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'rb') as file:
+                df, land_use = pickle.load(file)
+            if return_land_use:
+                return df, land_use
+            else:
+                return df
+        except FileNotFoundError:
+            print("Pickle does not exist. Pickling station_df...")
+    
     df = pd.DataFrame(data.stat.locations).T.rename(columns={0: 'long', 1: 'lat'})
     
     df['stat_id'] = df.index.map(data.stat.inverse)
@@ -452,11 +467,14 @@ def make_station_df(data, holidays=True, return_land_use=False):
         land_use = pd.DataFrame([])
         land_use['zone_type'] = 'UNKNOWN'
         
-    df.rename(mapper=df_key(data.city), axis=1, inplace=True)    
+    df.rename(mapper=df_key(data.city), axis=1, inplace=True)  
     
+    land_use['color'] = land_use['zone_type'].map(color_dict).fillna("pink")
+    
+    with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'wb') as file:
+        pickle.dump([df, land_use], file)
     
     if return_land_use:
-        land_use['color'] = land_use['zone_type'].map(color_dict).fillna("pink")
         return df, land_use
     else:
         return df

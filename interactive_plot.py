@@ -33,25 +33,96 @@ cmap = cm.get_cmap('Blues')
 
 # Load bikeshare data
 
-year = 2019
-month = 4
-data = bs.Data('helsinki', year, month)
-df = data.df
+YEAR = 2019
+MONTH = None
+CITY = 'nyc'
 
 #station_df = ipu.make_station_df(data, holidays=False)
-station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
+#station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
 #station_df.dropna(inplace=True)
-#%%
 
-def plot_lines(labels, j, c_centers, title_pre="Mean"):
-    cc_df = pd.DataFrame([c_centers[:24], c_centers[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
+def mask_traffic_matrix(traffic_matrices, station_df, day_type, min_trips, holidays=False, return_mask=False):
+    """
+    Applies a mask to the daily traffic matrix based on the minimum number of 
+    trips to include.
+
+    Parameters
+    ----------
+    day_type : str
+        'business_days' or 'weekend'.
+    min_trips : int
+        the minimum number of trips for a station. If the station has fewer
+        trips than this, exclude it.
+    holidays : bool, optional
+        Whether to include holidays in business days (True) or remove them from
+        the business days (False). The default is False.
+
+    Returns
+    -------
+    np array
+        masked traffic matrix, that is, the number of 48-dimensional vectors 
+        which constitute the rows of the traffic matrix is reduced.
+
+    """
+    if day_type == 'business_days':
+        traffic_matrix = traffic_matrices[0]
+        x_trips = 'b_trips'
+    elif day_type == "weekend":
+        traffic_matrix = traffic_matrices[1]
+        x_trips = 'w_trips'
+    mask = station_df[x_trips] > min_trips
+    if return_mask:
+        return traffic_matrix[mask], mask, x_trips
+    else:
+        return traffic_matrix[mask]
+    
+
+def plot_center(labels, cluster_j, c_center, title_pre="Mean"):
+    """
+    Plot a 48-dimensional cluster center vector as two lines in a hvplot entity
+
+    Parameters
+    ----------
+    labels : np array of int
+        the labels of all the vectors.
+    cluster_j : int
+        the cluster which this center is a member of.
+    c_center : 48 dimensional np array
+        The cluster center to plot.
+    title_pre : str, optional
+        The preface in the title. Because medoids are medoids for example. The
+        default is "Mean".
+
+    Returns
+    -------
+    cc_plot : hvplot
+        a plot.
+
+    """
+    cc_df = pd.DataFrame([c_center[:24], c_center[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
     cc_plot = cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
-    n = np.sum(labels == j)
-    cc_plot.opts(title=f"{title_pre} of cluster {j} ({color_dict[j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage')
+    n = np.sum(labels == cluster_j)
+    cc_plot.opts(title=f"{title_pre} of cluster {cluster_j} ({color_dict[cluster_j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage')
     return cc_plot
 
 
-def line_callback_both(index, day_type):
+def plot_dta_with_std(data, index, day_type):
+    """
+    Plot daily traffic average of station including standard deviation bounds.
+
+    Parameters
+    ----------
+    index : int
+        The index of the station.
+    day_type : str
+        'weekend' or 'business_days'.
+
+    Returns
+    -------
+    hvplot
+        a plot.
+
+    """
     print(f"{index=}")
     a = data.daily_traffic_average(index, period=day_type_dict[day_type], return_std=True)
     means = pd.DataFrame(a[:2]).T.rename(columns={0:'departures', 1:'arrivals'})
@@ -65,161 +136,199 @@ def line_callback_both(index, day_type):
     return varea.hvplot.area(x='hour', y='dep_low', y2='dep_high', alpha=0.5, line_width=0) * varea.hvplot.area(x='hour', y='arr_low', y2='arr_high', alpha=0.5, line_width=0) * means['departures'].hvplot() * means['arrivals'].hvplot()
 
 
-class BikeParameters2(param.Parameterized):
+def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, k, random_state):
+    """
+    From a station dataframe and associated variables, return the updated 
+    station df and clustering and labels
+
+    Parameters
+    ----------
+    station_df : pandas dataframe
+        has each station as a row.
+    day_type : str
+        'weekend' or 'business_days'.
+    min_trips : int
+        minimum number of trips.
+    clustering : str
+        clustering type.
+    k : int
+        number of clusters.
+    random_state : int
+        the seed for the random generator.
+
+    Returns
+    -------
+    station_df : pandas dataframe
+        has each station as a row and color and label columns populated.
+    clusters : sklearn.clustering cluster
+        can be used for stuff later.
+    labels : np array
+        the labels of the masked traffic matrix.
+
+    """
+    traffic_matrix, mask, x_trips = mask_traffic_matrix(
+        traffic_matrices, station_df, day_type, min_trips, holidays=False, return_mask=True)
+    
+    if clustering == 'k_means':
+        clusters = KMeans(k, random_state=random_state).fit(traffic_matrix)
+        labels = clusters.predict(traffic_matrix)
+        station_df['label'].loc[mask] = labels
+        station_df['label'].loc[~mask] = np.nan
+        station_df['color'] = station_df['label'].map(color_dict)
+
+    elif clustering == 'k_medoids':
+        clusters = KMedoids(k, random_state=random_state).fit(traffic_matrix)
+        labels = clusters.predict(traffic_matrix)
+        station_df['label'].loc[mask] = labels
+        station_df['label'].loc[~mask] = np.nan
+        station_df['color'] = station_df['label'].map(color_dict)
+        
+    elif clustering == 'h_clustering':
+        clusters = None
+        labels = AgglomerativeClustering(k).fit_predict(traffic_matrix)
+        station_df['label'].loc[mask] = labels
+        station_df['label'].loc[~mask] = np.nan
+        station_df['color'] = station_df['label'].map(color_dict)
+    
+    elif clustering == 'gaussian_mixture':
+        clusters = GaussianMixture(k, n_init=10, random_state=random_state).fit(traffic_matrix)
+        labels = clusters.predict_proba(traffic_matrix)
+        lab_mat = np.array(lab_color_list[:k]).T
+        lab_cols = [np.sum(labels[i] * lab_mat, axis=1) for i in range(len(traffic_matrix))]
+        labels_rgb = skcolor.lab2rgb(lab_cols)
+        station_df['label'].loc[mask] = pd.Series(list(labels), index=mask[mask].index)
+        station_df['label'].loc[~mask] = np.nan
+        station_df['color'].loc[mask] = ['#%02x%02x%02x' % tuple(label.astype(int)) for label in labels_rgb*255]
+        station_df['color'].loc[~mask] = 'gray'
+        
+    elif clustering == 'none':
+        clusters = None
+        labels = None
+        station_df['label'] = np.nan
+        station_df['color'] = station_df[x_trips].tolist()
+    
+    elif clustering == 'zoning':
+        clusters = None
+        labels = None
+        station_df['label'] = np.nan
+        station_df['color'] = [color_dict[zone] for zone in pd.factorize(station_df['zone_type'])[0]]
+        
+    else:
+        clusters = None
+        labels = None
+        station_df['label'] = np.nan
+        station_df['color'] = None
+    
+    return station_df, clusters, labels
+
+class BikeDash(param.Parameterized):
+    """
+    Class containing everything for the bikeshare dashboard.
+    
+    Variables for the dashboard are introduced as param objects with their
+    possible values. In addition, the plotting functions are defined.
+    """
+    city = param.Selector(default=CITY, objects=['nyc', 'chic', 'helsinki', 'madrid', 'edinburgh'])
+    if MONTH == None:
+        month = param.Selector(default=MONTH, objects=[None, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+    else:
+        month = param.Integer(default=MONTH, bounds=(1, 12))
     trip_type = param.Selector(objects=['departures', 'arrivals', 'all'])
     day_type = param.Selector(objects=['business_days', 'weekend', 'day'])
     clustering = param.Selector(objects=['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture', 'none', 'zoning'], doc="Which clustering to perform")
     k = param.Integer(default=3, bounds=(1, 10))
     cnorm = param.Selector(objects=['linear', 'log'])
-    day = param.Integer(default=1, bounds=(1, data.num_days))
+    day = param.Integer(default=1, bounds=(1, 31))
     dist_func = param.Selector(objects=['norm'])
     plot_all_clusters = param.Selector(objects=['False', 'True'])
     show_land_use = param.Selector(objects=['False', 'True'])
     random_state = param.Integer(default=42, bounds=(0, 10000))
-    min_trips = param.Integer(default=data.num_days*2, bounds=(0, 800))
+    min_trips = param.Integer(default=100, bounds=(0, 800))
+    
+    
+    boolean_ = param.Boolean(True)
     
     
     def __init__(self, index, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(**kwargs)  # Runs init for the superclass param.Parameterized
         self.clusters = None
         self.labels = None
         self.index = index
+        self.data = bs.Data(self.city, YEAR, self.month)
+        self.station_df, self.land_use = ipu.make_station_df(self.data, holidays=False, return_land_use=True)
+        self.traffic_matrices = self.data.pickle_daily_traffic(holidays=False)
+        
+    @param.depends('month', 'city', watch=True)
+    def get_data(self):
+        print(f'getting {self.month}')
+        self.data = bs.Data(self.city, YEAR, self.month)
+        self.station_df, self.land_use = ipu.make_station_df(self.data, holidays=False, return_land_use=True)
+        self.traffic_matrices = self.data.pickle_daily_traffic(holidays=False)
+        print(len(self.station_df))
+        self.boolean_ = not self.boolean_
     
-    @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', watch=False)
+    
+    @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 'boolean_', watch=False)
     def plot_clusters_full(self):
-        if self.day_type == 'business_days':
-            traffic_matrix = data.pickle_daily_traffic(holidays=False)[0]
-            x_trips = 'b_trips'
-        elif self.day_type == "weekend":
-            traffic_matrix = data.pickle_daily_traffic(holidays=False)[1]
-            x_trips = 'w_trips'
+        self.station_df, self.clusters, self.labels = get_clusters(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, self.clustering, self.k, self.random_state)
         
-        mask = station_df[x_trips] > self.min_trips
-        traffic_matrix = traffic_matrix[mask]
-        
-        
-        if self.clustering == 'k_means':
-            self.clusters = KMeans(self.k, random_state=self.random_state).fit(traffic_matrix)
-            self.labels = self.clusters.predict(traffic_matrix)
-            station_df['label'].loc[mask] = self.labels
-            station_df['label'].loc[~mask] = np.nan
-            station_df['color'] = station_df['label'].map(color_dict)
-    
-        elif self.clustering == 'k_medoids':
-            self.clusters = KMedoids(self.k, random_state=self.random_state).fit(traffic_matrix)
-            self.labels = self.clusters.predict(traffic_matrix)
-            station_df['label'].loc[mask] = self.labels
-            station_df['label'].loc[~mask] = np.nan
-            station_df['color'] = station_df['label'].map(color_dict)
-            
-        elif self.clustering == 'h_clustering':
-            self.clusters = None
-            self.labels = AgglomerativeClustering(self.k).fit_predict(traffic_matrix)
-            station_df['label'].loc[mask] = self.labels
-            station_df['label'].loc[~mask] = np.nan
-            station_df['color'] = station_df['label'].map(color_dict)
-        
-        elif self.clustering == 'gaussian_mixture':
-            self.clusters = GaussianMixture(self.k, n_init=10, random_state=self.random_state).fit(traffic_matrix)
-            self.labels = self.clusters.predict_proba(traffic_matrix)
-            lab_mat = np.array(lab_color_list[:self.k]).T
-            lab_cols = [np.sum(self.labels[i] * lab_mat, axis=1) for i in range(len(traffic_matrix))]
-            labels_rgb = skcolor.lab2rgb(lab_cols)
-            station_df['label'].loc[mask] = pd.Series(list(self.labels), index=mask[mask].index)
-            station_df['label'].loc[~mask] = np.nan
-            station_df['color'].loc[mask] = ['#%02x%02x%02x' % tuple(label.astype(int)) for label in labels_rgb*255]
-            station_df['color'].loc[~mask] = 'gray'
-            
-        elif self.clustering == 'none':
-            self.clusters = None
-            self.labels = None
-            station_df['label'] = np.nan
-            station_df['color'] = station_df[x_trips].tolist()
-        
-        elif self.clustering == 'zoning':
-            self.clusters = None
-            self.labels = None
-            station_df['label'] = np.nan
-            station_df['color'] = [color_dict[zone] for zone in pd.factorize(station_df['zone_type'])[0]]
-            
-        else:
-            self.clusters = None
-            self.labels = None
-            station_df['label'] = np.nan
-            station_df['color'] = None
         if self.clustering == 'none':
-            title = f'Number of trips per station in {month_dict[data.month]} {data.year} in {bs.name_dict[data.city]}'
+            title = f'Number of trips per station in {month_dict[self.month]} {YEAR} in {bs.name_dict[self.city]}'
         else:
-            title = f"{self.clustering} clustering in {month_dict[data.month]} {data.year} in {bs.name_dict[data.city]}"
-        #plot = station_df.hvplot(kind='points', x='easting', y='northing', c='color', s=100, hover_cols=['name', 'n_trips', 'n_departures', 'n_arrivals', 'zone_type'], title=title,  line_color='black', colorbar=False)
-        #plot.opts(apply_ranges=False)
-        #ds = gv.Dataset(station_df, kdims=['stat_id'], vdims=['long', 'lat', 'color'],)
-        #plot = ds.to(gv.Points, ['long', 'lat'], ['stat_id'])
-        plot = gv.Points(station_df, kdims=['long', 'lat'], vdims=['stat_id', 'color', 'n_trips', 'b_trips', 'w_trips', 'zone_type', 'name', ])
+            title = f"{self.clustering} clustering in {month_dict[self.month]} {YEAR} in {bs.name_dict[self.city]}"
+
+        plot = gv.Points(self.station_df, kdims=['long', 'lat'], vdims=['stat_id', 'color', 'n_trips', 'b_trips', 'w_trips', 'zone_type', 'name', ])
         plot.opts(gv.opts.Points(fill_color='color', size=10, line_color='black'))
-        #plot = gv.Points(station_df, ["easting", "northing"])#.opts(projection=ccrs.GOOGLE_MERCATOR, global_extent=True)
         return plot
     
 
-    @param.depends('day_type', 'clustering', 'k', 'plot_all_clusters', 'min_trips', watch=False)
+    @param.depends('day_type', 'clustering', 'k', 'plot_all_clusters', 'min_trips', 'boolean_', watch=False)
     def plot_centroid(self, index):
         if self.clustering == 'none':
             return "No clustering"
         elif self.clustering == 'h_clustering':
             if self.plot_all_clusters == 'True':
-                if self.day_type == 'business_days':
-                    traffic_matrix = data.pickle_daily_traffic(holidays=False)[0]
-                    x_trips = 'b_trips'
-                elif self.day_type == "weekend":
-                    traffic_matrix = data.pickle_daily_traffic(holidays=False)[1]
-                    x_trips = 'w_trips'
-                mask = station_df[x_trips] > self.min_trips
-                traffic_matrix = traffic_matrix[mask]
+                traffic_matrix = mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
                 cc_plot_list = list()
                 for j in range(self.k):
                     mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
-                    cc_plot = plot_lines(self.labels, j, mean_vector)
+                    cc_plot = plot_center(self.labels, j, mean_vector)
                     cc_plot_list.append(cc_plot)
                 return pn.Column(*cc_plot_list)
             if not index:
                 return "Select a station to get cluster info"
             else:
                 i = index[0]
-                if self.day_type == 'business_days':
-                    traffic_matrix = data.pickle_daily_traffic(holidays=False)[0]
-                    x_trips = 'b_trips'
-                elif self.day_type == "weekend":
-                    traffic_matrix = data.pickle_daily_traffic(holidays=False)[1]
-                    x_trips = 'w_trips'
-                mask = station_df[x_trips] > self.min_trips
-                traffic_matrix = traffic_matrix[mask]
-                if ~np.isnan(station_df['label'][i]):
-                    j = int(station_df['label'][i])
+                traffic_matrix = mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
+                if ~np.isnan(self.station_df['label'][i]):
+                    j = int(self.station_df['label'][i])
                     mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
-                    cc_plot = plot_lines(self.labels, j, mean_vector)
+                    cc_plot = plot_center(self.labels, j, mean_vector)
                     return pn.Column(cc_plot, f"Station index {i} is in cluster {j}")
                 else:
                     return f"Station index {i} is not in a cluster due to min_trips."
+
         elif self.clustering == 'gaussian_mixture':
             if self.plot_all_clusters == 'True':
                 cc_plot_list = list()
                 for j in range(self.k):
                     ccs = self.clusters.means_[j]
-                    cc_plot = plot_lines(self.labels.argmax(axis=1), j, ccs)
+                    cc_plot = plot_center(self.labels.argmax(axis=1), j, ccs)
                     cc_plot_list.append(cc_plot)
                 return pn.Column(*cc_plot_list)
             if not index:
                 return "Select a station to plot cluster centroid"
             else:
                 i = index[0]
-                if ~np.isnan(station_df['label'][i]):
-                    j = station_df['label'][i].argmax()
+                if ~np.isnan(self.station_df['label'][i]):
+                    j = self.station_df['label'][i].argmax()
                     textlist = [f"{j}: {self.labels[i][j]:.2f}\n\n" for j in range(self.k)]
                     ccs = self.clusters.means_[j]
-                    cc_plot = plot_lines(self.labels, j, ccs)
+                    cc_plot = plot_center(self.labels, j, ccs)
                     return pn.Column(cc_plot, f"Station index {i} belongs to cluster \n\n {''.join(textlist)}")
                 else:
                     return f"Station index {i} does not belong to a cluster duto to min_trips"
+
         else: # k-means or k-medoids
             if self.plot_all_clusters == 'True':
                 if self.clusters == None:
@@ -228,43 +337,23 @@ class BikeParameters2(param.Parameterized):
                 cc_plot_list = list()
                 for j in range(self.k):
                     ccs = self.clusters.cluster_centers_[j]
-                    cc_plot = plot_lines(self.labels, j, ccs, title_pre="Centroid")
+                    cc_plot = plot_center(self.labels, j, ccs, title_pre="Centroid")
                     cc_plot_list.append(cc_plot)
                 return pn.Column(*cc_plot_list)
             if not index:
                 return "Select a station to plot cluster centroid"
             else:
                 i = index[0]
-                if ~np.isnan(station_df['label'][i]):
-                    j = int(station_df['label'][i])
+                if ~np.isnan(self.station_df['label'][i]):
+                    j = int(self.station_df['label'][i])
                     ccs = self.clusters.cluster_centers_[j]
-                    cc_plot = plot_lines(station_df['label'], j, ccs, title_pre="Centroid")
+                    cc_plot = plot_center(self.station_df['label'], j, ccs, title_pre="Centroid")
                     return pn.Column(cc_plot, f"Station index {i} is in cluster {j}")
                 else:
                     return f"Station index {i} is not in a cluster due to min_trips."
 
 
-
-extremes = [station_df['easting'].max(), station_df['easting'].min(), station_df['northing'].max(), station_df['northing'].min()]
-
-
-month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
-              7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
-
-
-
-activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'end', 'start': 'start', 'end': 'end'}
-day_type_dict = {'weekend': 'w', 'business_days': 'b'}
-
-color_dict = {0 : 'blue', 1 : 'red', 2 : 'yellow', 3 : 'green', #tab:
-              4 : 'purple', 5 : 'cyan', 6: 'pink',
-              7 : 'brown', 8 : 'olive', 9 : 'magenta', np.nan: 'gray'}
-
-mpl_color_dict = {i: mpl_colors.to_rgb(color_dict[i]) for i in range(10)}
-lab_color_dict = {i: skcolor.rgb2lab(mpl_color_dict[i]) for i in range(10)}
-lab_color_list = [lab_color_dict[i] for i in range(10)]
-
-bike_params = BikeParameters2(None)
+bike_params = BikeDash(None)
 
 params = pn.Param(bike_params.param, widgets={
     'clustering': pn.widgets.RadioBoxGroup,
@@ -294,7 +383,6 @@ def plot_tiles(clustering):
 
 tileview = hv.DynamicMap(plot_tiles)
 
-
 tooltips = [
     ('ID', '@stat_id'),
     ('Name', '@name'),
@@ -315,19 +403,21 @@ selection_stream = hv.streams.Selection1D(source=paraview)
 
 
 @pn.depends(index=selection_stream.param.index,
-            day_type=bike_params.param.day_type)
-def plot_daily_traffic(index, day_type): 
+            day_type=bike_params.param.day_type,
+            city=bike_params.param.city,
+            month=bike_params.param.month)
+def plot_daily_traffic(index, day_type, city, month): 
     if not index:
         return "Select a station to see station traffic"
     else:
         i = index[0]
-    plot = line_callback_both(i, day_type)
+    plot = plot_dta_with_std(bike_params.data, i, day_type)
     if day_type == 'business_days':
-        b_trips = station_df['b_trips'].iloc[i]
-        plot.opts(title=f'Average hourly traffic for {data.stat.names[i]} (b_trips={b_trips:n})', ylabel='percentage')
+        b_trips = bike_params.station_df['b_trips'].iloc[i]
+        plot.opts(title=f'Average hourly traffic for {bike_params.data.stat.names[i]} (b_trips={b_trips:n})', ylabel='percentage')
     if day_type == 'weekend':
-        w_trips = station_df['w_trips'].iloc[i]
-        plot.opts(title=f'Average hourly traffic for {data.stat.names[i]} (w_trips={w_trips:n})', ylabel='percentage')
+        w_trips = bike_params.station_df['w_trips'].iloc[i]
+        plot.opts(title=f'Average hourly traffic for {bike_params.data.stat.names[i]} (w_trips={w_trips:n})', ylabel='percentage')
     
     return plot
 
@@ -336,8 +426,11 @@ def plot_daily_traffic(index, day_type):
             plot_all_clusters=bike_params.param.plot_all_clusters,
             clustering=bike_params.param.clustering,
             k=bike_params.param.k,
-            min_trips=bike_params.param.min_trips)
-def plotterino(index, plot_all_clusters, clustering, k, min_trips):
+            min_trips=bike_params.param.min_trips,
+            day_type=bike_params.param.day_type,
+            city=bike_params.param.city,
+            month=bike_params.param.month)
+def plot_centroid_callback(index, plot_all_clusters, clustering, k, min_trips, day_type, city, month):
     return bike_params.plot_centroid(index)
     
 
@@ -357,19 +450,37 @@ def show_widgets(clustering):
             day_type=bike_params.param.day_type)
 def minpercent(min_trips, day_type):
     if day_type == 'business_days':
-        n_retained = (station_df.b_trips > min_trips).sum()
+        n_retained = (bike_params.station_df.b_trips > min_trips).sum()
     else:
-        n_retained = (station_df.w_trips > min_trips).sum()
+        n_retained = (bike_params.station_df.w_trips > min_trips).sum()
     
-    n_removed = len(station_df) - n_retained
-    return f"Removed {n_removed:d} stations, which is {(n_removed/len(station_df))*100:.2f}%"
+    n_removed = len(bike_params.station_df) - n_retained
+    return f"Removed {n_removed:d} stations, which is {(n_removed/len(bike_params.station_df))*100:.2f}%"
 
-@pn.depends(show_land_use=bike_params.param.show_land_use)
-def land_use_plot(show_land_use):
+@pn.depends(show_land_use=bike_params.param.show_land_use,
+            city=bike_params.param.city)
+def land_use_plot(show_land_use, city):
     if show_land_use == "True":
-        return gv.Polygons(land_use, vdims=['zone_type', 'color']).opts(color='color')
+        return gv.Polygons(bike_params.land_use, vdims=['zone_type', 'color']).opts(color='color')
     else:
         return gv.Polygons([])
+
+extremes = [bike_params.station_df['easting'].max(), bike_params.station_df['easting'].min(), 
+            bike_params.station_df['northing'].max(), bike_params.station_df['northing'].min()]
+
+month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
+              7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
+
+activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'end', 'start': 'start', 'end': 'end'}
+day_type_dict = {'weekend': 'w', 'business_days': 'b'}
+
+color_dict = {0 : 'blue', 1 : 'red', 2 : 'yellow', 3 : 'green', #tab:
+              4 : 'purple', 5 : 'cyan', 6: 'pink',
+              7 : 'brown', 8 : 'olive', 9 : 'magenta', np.nan: 'gray'}
+
+mpl_color_dict = {i: mpl_colors.to_rgb(color_dict[i]) for i in range(10)}
+lab_color_dict = {i: skcolor.rgb2lab(mpl_color_dict[i]) for i in range(10)}
+lab_color_list = [lab_color_dict[i] for i in range(10)]
 
 gif_pane = pn.pane.GIF('Loading_Key.gif')
 
@@ -381,12 +492,12 @@ tooltips_zone = [
 ]
 hover_zone = HoverTool(tooltips=tooltips_zone)
 zoneview.opts(tools=[hover_zone])
+# selection_stream.param.values()['index']
+linecol = pn.Column(plot_daily_traffic, plot_centroid_callback)
 
-linecol = pn.Column(plot_daily_traffic, plotterino)
-
-params.layout.insert(9, 'Show land use:')
-params.layout.insert(8, 'Plot all clusters:')
-params.layout.insert(3, 'Clustering method:')
+params.layout.insert(11, 'Show land use:')
+params.layout.insert(10, 'Plot all clusters:')
+params.layout.insert(5, 'Clustering method:')
 
 param_column = pn.Column(params.layout, minpercent)
 param_column[1].width=300
