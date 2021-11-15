@@ -481,6 +481,18 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         return df
 
 
+def create_all_pickles(city, year, holidays=False):
+    data = bs.Data(city, year)
+    make_station_df(data, holidays=holidays)
+    data.pickle_daily_traffic(holidays=holidays)
+    if city in ['nyc', 'washDC', 'chic', 'la', 'sfran', 'london', 'mexico', 'buenos_aires', ]:
+        for month in range(1, 13):
+            print(f"Pickling month = {month}")
+            data = bs.Data(city, year, month)
+            make_station_df(data, holidays=holidays)
+            data.pickle_daily_traffic(holidays=holidays)
+
+
 color_dict = {
     'residential': mpl_colors.to_hex('tab:purple'), # 4
     'commercial': mpl_colors.to_hex('tab:orange'),  # 1
@@ -506,10 +518,16 @@ color_num_dict = {
 
     
 if __name__ == "__main__":
-    import bikeshare as bs
     import time
     
-    data = bs.Data('helsinki', 2019, 9)
-    pre = time.time()
-    station_df, land_use = make_station_df(data, return_land_use=True)
-    print(f'station_df took {time.time() - pre:.2f} seconds')
+    create_all = False
+    if create_all:
+        for city in bs.name_dict.keys():
+            pre = time.time()
+            create_all_pickles(city, 2019)
+            print(f'{bs.name_dict[city]} took {time.time() - pre:.2f} seconds')
+    else:
+        data = bs.Data('helsinki', 2019, 9)
+        pre = time.time()
+        station_df, land_use = make_station_df(data, return_land_use=True)
+        print(f'station_df took {time.time() - pre:.2f} seconds')

@@ -447,8 +447,10 @@ def show_widgets(clustering):
         params.widgets['k'].visible = False
 
 @pn.depends(min_trips=bike_params.param.min_trips,
-            day_type=bike_params.param.day_type)
-def minpercent(min_trips, day_type):
+            day_type=bike_params.param.day_type,
+            city=bike_params.param.city,
+            month=bike_params.param.month)
+def minpercent(min_trips, day_type, city, month):
     if day_type == 'business_days':
         n_retained = (bike_params.station_df.b_trips > min_trips).sum()
     else:
