@@ -276,6 +276,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         
         df = gpd.tools.sjoin(df, CTracts_df, op='within', how='left')
         df['BoroCT2020'] = df['BoroCT2020'].apply(int)
+        df['Shape__Area'] = df['Shape__Area']/10.764 # convert to m^2
         df.drop('index_right', axis=1, inplace=True)
         
         census_df = pd.read_excel('./data/other_data/nyc_census_data.xlsx', sheet_name=1, skiprows=[0,1,2])
