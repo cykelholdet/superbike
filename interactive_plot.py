@@ -35,7 +35,7 @@ cmap = cm.get_cmap('Blues')
 
 year = 2019
 month = 4
-data = bs.Data('helsinki', year, month)
+data = bs.Data('chic', year, month)
 df = data.df
 
 #station_df = ipu.make_station_df(data, holidays=False)

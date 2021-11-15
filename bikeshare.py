@@ -377,9 +377,12 @@ def get_data_month(city, year, month, blacklist=None):
             try:
                 df = pd.read_csv(f'./data/Divvy_Trips_{year:d}_Q{q}.csv')
 
-            except FileNotFoundError as exc:
-                raise FileNotFoundError(
-                    'No trip data found. All relevant files can be found at https://www.divvybikes.com/system-data') from exc
+            except FileNotFoundError:
+                try:
+                    df = pd.read_csv(f'./data/Divvy_Trips_{year:d}_Q{q}')
+                except FileNotFoundError as exc:
+                    raise FileNotFoundError(
+                        'No trip data found. All relevant files can be found at https://www.divvybikes.com/system-data') from exc
 
             if q == 2:
                 col_dict = {'01 - Rental Details Rental ID': 'trip_id',
@@ -4279,7 +4282,7 @@ name_dict = {
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('la', 2019)
+    data = Data('nyc', 2019)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)
