@@ -481,16 +481,16 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         return df
 
 
-def create_all_pickles(city, year, holidays=False):
-    data = bs.Data(city, year)
-    make_station_df(data, holidays=holidays)
-    data.pickle_daily_traffic(holidays=holidays)
+def create_all_pickles(city, year, holidays=False, overwrite=False):
+    data = bs.Data(city, year, overwrite=overwrite)
+    make_station_df(data, holidays=holidays, overwrite=overwrite)
+    data.pickle_daily_traffic(holidays=holidays, overwrite=overwrite)
     if city in ['nyc', 'washDC', 'chic', 'la', 'sfran', 'london', 'mexico', 'buenos_aires', ]:
         for month in range(1, 13):
             print(f"Pickling month = {month}")
-            data = bs.Data(city, year, month)
-            make_station_df(data, holidays=holidays)
-            data.pickle_daily_traffic(holidays=holidays)
+            data = bs.Data(city, year, month, overwrite=overwrite)
+            make_station_df(data, holidays=holidays, overwrite=overwrite)
+            data.pickle_daily_traffic(holidays=holidays, overwrite=overwrite)
 
 
 color_dict = {
@@ -520,9 +520,9 @@ color_num_dict = {
 if __name__ == "__main__":
     import time
     
-    create_all = False
+    create_all = True
     if create_all:
-        for city in bs.name_dict.keys():
+        for city in ['london']:
             pre = time.time()
             create_all_pickles(city, 2019)
             print(f'{bs.name_dict[city]} took {time.time() - pre:.2f} seconds')

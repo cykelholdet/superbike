@@ -196,7 +196,7 @@ def pickle_data(df, city, year, month):
     return d
 
 
-def get_data_month(city, year, month, blacklist=None):
+def get_data_month(city, year, month, blacklist=None, overwrite=False):
     """
     Read data from csv files.
 
@@ -235,16 +235,17 @@ def get_data_month(city, year, month, blacklist=None):
     # Make folder for dataframes if not found
     if not os.path.exists('python_variables/big_data'):
         os.makedirs('python_variables/big_data')
+    if not overwrite:
+        try:
+            with open(f'./python_variables/big_data/{city}{year:d}{month:02d}_dataframe_blcklst={blacklist}.pickle', 'rb') as file:
+                df = pickle.load(file)
+            print('Pickle loaded')
 
-    try:
-        with open(f'./python_variables/big_data/{city}{year:d}{month:02d}_dataframe_blcklst={blacklist}.pickle', 'rb') as file:
-            df = pickle.load(file)
-        print('Pickle loaded')
+        except FileNotFoundError:
+            print('No dataframe pickle found. Pickling dataframe...')
+            overwrite = True
 
-    except FileNotFoundError:
-
-        print('No dataframe pickle found. Pickling dataframe...')
-
+    if overwrite:
         if city == "nyc":
 
             try:
@@ -1037,22 +1038,26 @@ def get_data_month(city, year, month, blacklist=None):
             pickle.dump(df, file)
 
         print('Pickling done.')
-
-    try:
-        with open(f'./python_variables/day_index_{city}{year:d}{month:02d}.pickle', 'rb') as file:
-            days = pickle.load(file)
-    except FileNotFoundError:
-        print("Pickle does not exist. Pickling day indices...")
+    
+    if not overwrite:
+        try:
+            with open(f'./python_variables/day_index_{city}{year:d}{month:02d}.pickle', 'rb') as file:
+                days = pickle.load(file)
+        except FileNotFoundError:
+            print("Pickle does not exist. Pickling day indices...")
+            days = pickle_data(df, city, year, month)
+            print("Pickling done.")
+        # days = days_index(df) # adds about 0.2 to 1 second to not pickle
+    else:
         days = pickle_data(df, city, year, month)
-        print("Pickling done.")
-    # days = days_index(df) # adds about 0.2 to 1 second to not pickle
-
+        print("Pickling day indices done.")
+        
     print(f"Data loaded: {city}{year:d}{month:02d}")
 
     return df, days
 
 
-def get_data_year(city, year, blacklist=None, day_index=True):
+def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
 
     supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki', 'mexico', 'taipei', 'oslo', 'bergen', 'trondheim', 'boston', 'minn', 'guadalajara', 'montreal', 'buenos_aires', 'la'
                         ]  # Remember to update this list
@@ -1064,15 +1069,18 @@ def get_data_year(city, year, blacklist=None, day_index=True):
     # Make folder for dataframes if not found
     if not os.path.exists('python_variables/big_data'):
         os.makedirs('python_variables/big_data')
-
-    try:
-        with open(f'./python_variables/big_data/{city}{year:d}_dataframe.pickle', 'rb') as file:
-            df = pickle.load(file)
-        print('Pickle loaded')
-
-    except FileNotFoundError:
-        print('Pickle not found. Pickling dataframe...')
-
+    
+    if not overwrite:
+        try:
+            with open(f'./python_variables/big_data/{city}{year:d}_dataframe.pickle', 'rb') as file:
+                df = pickle.load(file)
+            print('Pickle loaded')
+    
+        except FileNotFoundError:
+            print('Pickle not found. Pickling dataframe...')
+            overwrite = True
+    
+    if overwrite:
         if city == "nyc":
 
             files = [file for file in os.listdir(
@@ -2730,7 +2738,7 @@ class Data:
 
     """
 
-    def __init__(self, city, year, month=None, blacklist=None):
+    def __init__(self, city, year, month=None, blacklist=None, overwrite=False):
         """
         Parameters
         ----------
@@ -2758,10 +2766,10 @@ class Data:
                              7 for i in range(self.num_days)]
 
             self.df, self.d_index = get_data_month(
-                city, year, month, blacklist)
+                city, year, month, blacklist, overwrite=overwrite)
 
         else:
-            self.df, self.d_index = get_data_year(city, year, blacklist)
+            self.df, self.d_index = get_data_year(city, year, blacklist, overwrite=overwrite)
 
         self.stat = Stations(self.df)
 
@@ -4283,7 +4291,7 @@ name_dict = {
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('nyc', 2019)
+    data = Data('helsinki', 2019, 9, overwrite=True)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)
