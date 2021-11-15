@@ -242,10 +242,11 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             print('Pickle loaded')
 
         except FileNotFoundError:
-            print('No dataframe pickle found. Pickling dataframe...')
+            print('No dataframe pickle found. ', end="")
             overwrite = True
 
     if overwrite:
+        print("Pickling dataframe...")
         if city == "nyc":
 
             try:
@@ -534,8 +535,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
 
             data_files = [file for file in os.listdir(
                 'data') if 'JourneyDataExtract' in file]
-            data_files = [file for file in data_files if '{}'.format(year)
-                          and '{}'.format(month_dict[month]) in file]
+            data_files = [file for file in data_files if f"{month_dict[month]}{year}" in file]
 
             if len(data_files) == 0:
                 raise FileNotFoundError(
@@ -551,53 +551,33 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                 df_temp = pd.read_csv('./data/' + file)
                 df = pd.concat([df, df_temp], sort=False)
 
-            df.rename(columns=dataframe_key.get_key(city), inplace=True)
+            df.rename(columns=dataframe_key.get_key(city), inplace=True)      
 
-            n_days = calendar.monthrange(year, month)[1]
-
-            df = df.iloc[np.where(
-                df['start_t'] >= f'01/{month:02d}/{year} 00:00')]
-            df = df.iloc[np.where(
-                df['start_t'] <= f'{n_days}/{month:02d}/{year} 23:59')]
-
-            df.sort_values(by='start_t', inplace=True)
-            df.reset_index(inplace=True)
-
-            df['start_t'] = pd.to_datetime(
-                df['start_t'], format='%d/%m/%Y %H:%M').astype(str)
-            df['end_t'] = pd.to_datetime(
-                df['end_t'], format='%d/%m/%Y %H:%M').astype(str)
+            df['start_dt'] = pd.to_datetime(df['start_t'], format='%d/%m/%Y %H:%M')
+            df['end_dt'] = pd.to_datetime(df['end_t'], format='%d/%m/%Y %H:%M')
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
+            
+            df = df[(df['start_dt'].dt.month == month) & (df['start_dt'].dt.year == year)]
+            
+            df.sort_values(by='start_dt', inplace=True)
+            
+            df.reset_index(inplace=True)            
 
             stat_df = pd.read_csv('./data/london_stations.csv')
             stat_df.at[np.where(stat_df['station_id'] == 502)[
                 0][0], 'latitude'] = 51.53341
+            
+            long_dict = dict(zip(stat_df['station_id'], stat_df['longitude']))
+            lat_dict = dict(zip(stat_df['station_id'], stat_df['latitude']))
 
-            df['start_stat_lat'] = ''
-            df['start_stat_long'] = ''
-            df['end_stat_lat'] = ''
-            df['end_stat_long'] = ''
+            df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
+            df['start_stat_long'] = df['start_stat_id'].map(long_dict)
 
-            for _, stat in stat_df.iterrows():
-                start_matches = np.where(
-                    df['start_stat_name'] == stat['station_name'])
-                end_matches = np.where(
-                    df['end_stat_name'] == stat['station_name'])
-
-                df.at[start_matches[0], 'start_stat_lat'] = stat['latitude']
-                df.at[start_matches[0], 'start_stat_long'] = stat['longitude']
-                df.at[end_matches[0], 'end_stat_lat'] = stat['latitude']
-                df.at[end_matches[0], 'end_stat_long'] = stat['longitude']
+            df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
+            df['end_stat_long'] = df['end_stat_id'].map(long_dict)
 
             df.replace('', np.nan, inplace=True)
             df.dropna(inplace=True)
-
-            df.reset_index(inplace=True, drop=True)
-
-            df['start_dt'] = pd.to_datetime(df['start_t'])
-            df['end_dt'] = pd.to_datetime(df['end_t'])
-            df.drop(columns=['start_t', 'end_t'], inplace=True)
-
-            df = df[df.start_dt.dt.month == month]
 
             df.reset_index(inplace=True, drop=True)
 
@@ -1077,10 +1057,11 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
             print('Pickle loaded')
     
         except FileNotFoundError:
-            print('Pickle not found. Pickling dataframe...')
+            print('Pickle not found. ', end="")
             overwrite = True
     
     if overwrite:
+        print("Pickling dataframe...")
         if city == "nyc":
 
             files = [file for file in os.listdir(
@@ -1341,43 +1322,32 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
 
             df.rename(columns=dataframe_key.get_key(city), inplace=True)
 
-            df['start_t'] = pd.to_datetime(
-                df['start_t'], format='%d/%m/%Y %H:%M').astype(str)
-            df['end_t'] = pd.to_datetime(
-                df['end_t'], format='%d/%m/%Y %H:%M').astype(str)
-
-            df = df.iloc[np.where(df['start_t'] >= f'{year:d}-01-01 00:00:00')]
-            df = df.iloc[np.where(df['start_t'] <= f'{year:d}-31-12-23:59:59')]
-
-            df.sort_values(by='start_t', inplace=True)
+            df['start_dt'] = pd.to_datetime(df['start_t'], format='%d/%m/%Y %H:%M')
+            df['end_dt'] = pd.to_datetime(df['end_t'], format='%d/%m/%Y %H:%M')
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
+            
+            df = df[df['start_dt'].dt.year == year]
+            
+            df.sort_values(by='start_dt', inplace=True)
             df.reset_index(inplace=True, drop=True)
 
             stat_df = pd.read_csv('./data/london_stations.csv')
             stat_df.at[np.where(stat_df['station_id'] == 502)
                        [0][0], 'latitude'] = 51.53341
 
-            df['start_stat_lat'] = ''
-            df['start_stat_long'] = ''
-            df['end_stat_lat'] = ''
-            df['end_stat_long'] = ''
+            long_dict = dict(zip(stat_df['station_id'], stat_df['longitude']))
+            lat_dict = dict(zip(stat_df['station_id'], stat_df['latitude']))
 
-            for _, stat in stat_df.iterrows():
-                start_matches = np.where(
-                    df['start_stat_name'] == stat['station_name'])
-                end_matches = np.where(df['end_stat_name'] == stat['station_name'])
+            df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
+            df['start_stat_long'] = df['start_stat_id'].map(long_dict)
 
-                df.at[start_matches[0], 'start_stat_lat'] = stat['latitude']
-                df.at[start_matches[0], 'start_stat_long'] = stat['longitude']
-                df.at[end_matches[0], 'end_stat_lat'] = stat['latitude']
-                df.at[end_matches[0], 'end_stat_long'] = stat['longitude']
+            df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
+            df['end_stat_long'] = df['end_stat_id'].map(long_dict)
 
             df.replace('', np.nan, inplace=True)
             df.dropna(inplace=True)
 
             df.reset_index(inplace=True, drop=True)
-
-            df['start_dt'] = pd.to_datetime(df['start_t'])
-            df['end_dt'] = pd.to_datetime(df['end_t'])
 
 
         elif city == 'mexico':
@@ -2372,7 +2342,7 @@ def Davies_Bouldin_index(data_mat, labels, centroids, dist_func='norm', verbose=
     DB_index = np.mean(D)
 
     if verbose:
-        print(f'Done. Time taken: {time.time()-pre}s')
+        print(f'Done. Time taken: {(time.time()-pre):.1f} s')
 
     return DB_index
 
@@ -2438,7 +2408,7 @@ def Dunn_index(data_mat, labels, centroids, dist_func='norm', verbose=False):
     D_index = np.min(inter_cluster_distances)/np.max(intra_cluster_distances)
 
     if verbose:
-        print(f'Done. Time taken: {time.time()-pre}s')
+        print(f'Done. Time taken: {(time.time()-pre):.1f} s')
 
     return D_index
 
@@ -2512,7 +2482,7 @@ def silhouette_index(data_mat, labels, centroids, dist_func='norm', verbose=Fals
     S_index = np.mean(s_coefs)
 
     if verbose:
-        print(f'Done. Time taken: {time.time()-pre}s')
+        print(f'Done. Time taken: {(time.time()-pre):.1f} s')
 
     return S_index
 
@@ -3662,7 +3632,7 @@ class Data:
         with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}.pickle', 'wb') as file:
             pickle.dump((matrix_b, matrix_w), file)
 
-        print(f'Pickling done. Time taken: {time.time()-pre}')
+        print(f'Pickling done. Time taken: {(time.time()-pre):.1f} s')
 
         return matrix_b, matrix_w
 
@@ -3946,7 +3916,7 @@ class Classifier:
                 print(
                     f'{count} iterations done. Current runtime: {time.time()-pre}s')
 
-        print(f'Clustering done. Time taken: {time.time()-pre}s')
+        print(f'Clustering done. Time taken: {(time.time()-pre):.1f} s')
 
         return clustering_history
 
@@ -4053,7 +4023,7 @@ class Classifier:
         DB_index = np.mean(D)
 
         if verbose:
-            print(f'Done. Time taken: {time.time()-pre}s')
+            print(f'Done. Time taken: {(time.time()-pre):.1f} s')
 
         self.Davies_Bouldin_index = DB_index
 
@@ -4120,7 +4090,7 @@ class Classifier:
             np.max(intra_cluster_distances)
 
         if verbose:
-            print(f'Done. Time taken: {time.time()-pre}s')
+            print(f'Done. Time taken: {(time.time()-pre):.1f} s')
 
         self.Dunn_index = D_index
 
@@ -4190,7 +4160,7 @@ class Classifier:
         S_index = np.mean(s_coefs)
 
         if verbose:
-            print(f'Done. Time taken: {time.time()-pre}s')
+            print(f'Done. Time taken: {(time.time()-pre):.1f} s')
 
         self.Silhouette_index = S_index
 
@@ -4291,7 +4261,7 @@ name_dict = {
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('helsinki', 2019, 9, overwrite=True)
+    data = Data('london', 2019, 12, overwrite=True)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)

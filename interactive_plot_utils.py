@@ -520,11 +520,11 @@ color_num_dict = {
 if __name__ == "__main__":
     import time
     
-    create_all = True
+    create_all = False
     if create_all:
-        for city in ['london']:
+        for city in bs.name_dict.keys():
             pre = time.time()
-            create_all_pickles(city, 2019)
+            create_all_pickles(city, 2019, overwrite=False)
             print(f'{bs.name_dict[city]} took {time.time() - pre:.2f} seconds')
     else:
         data = bs.Data('helsinki', 2019, 9)
