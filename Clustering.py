@@ -21,12 +21,12 @@ from sklearn_extra.cluster import KMedoids
 from matplotlib.offsetbox import AnchoredText
 #%% Load data
 
-city = 'nyc'
+city = 'chic'
 year = 2019
-month = 12
+month = 9
 period = 'b' # 'b' = business days or 'w' = weekends
 holidays = False
-min_trips = 100
+min_trips = 0
 
 # if city == 'nyc':
 #     gov_stations = [3254, 3182, 3479]
@@ -50,7 +50,7 @@ traffic_matrix = traffic_matrix[mask]
 
 cluster_func = KMeans
 
-k_test = bs.k_test(traffic_matrix, KMeans, plot=True, k_max=6)
+k_test = bs.k_test(traffic_matrix, cluster_func, plot=True, k_max=10)
 
 if cluster_func == KMeans:
     clustering = 'KMeans'
@@ -63,9 +63,34 @@ elif cluster_func == GaussianMixture:
 
 plt.savefig(f'./figures/k_tests/{data.city}{data.year}{data.month:02d}{period}_{clustering}_k-test.pdf')
 
+#%% Plot centroid
+
+k = 6
+cluster_func = KMeans
+label_plot = 5
+
+clusters = cluster_func(k, random_state=42).fit(traffic_matrix)
+
+cluster_center = clusters.cluster_centers_[label_plot]
+
+fig = plt.figure(figsize=(5,3))
+
+plt.plot(cluster_center[:24], c = 'tab:blue')
+plt.plot(cluster_center[24:], c = 'tab:red')
+
+y_max = np.round(clusters.cluster_centers_.max(),2)+0.01
+plt.ylim(0, y_max)
+
+plt.xticks(range(24))
+plt.xlabel('Hour')
+plt.ylabel('% of daily traffic')
+plt.legend(['departures', 'arrivals'])
+
+plt.savefig(f'./figures/centroids/{city}{year}{month:02d}_{period}_{label_plot}.pdf')
+
 #%% Correlation
 
-k = 5
+k = 6
 cluster_func = KMeans
 seed = 42
 
@@ -90,7 +115,7 @@ for c in range(k):
     mean_pop_density[c] = np.mean(cluster['pop_density'])
     std_pop_density[c] = np.std(cluster['pop_density'])
 
-zone_counts_df = pd.DataFrame()
+zone_counts_df = pd.DataFrame(index = list(range(k)))
 for zone in station_df['zone_type'].unique():
     zone_stats = station_df[station_df['zone_type'] == zone]
     label_counts = zone_stats['label'].value_counts()

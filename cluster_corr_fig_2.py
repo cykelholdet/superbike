@@ -54,7 +54,7 @@ nyc_clust_dict_b={
     'min_trips' : 100,
     'zone_names' : ['Commercial', 'Manufacturing', 'Recreational', 
                     'Residential', 'Mixed'],
-    'zone_colors' : ['tab:orange', 'tab:red', 'tab:green', 'tab:purple', 'tab:blue']}
+    'cluster_type_colors' : ['tab:cyan', 'tab:blue', 'tab:orange', 'tab:red', 'tab:purple', 'tab:green']}
 
 nyc_clust_dict_w={
     (1,0) : (1,207), (1,1) : (0,231), (1,2) : (3,110), (1,3) : None, 
@@ -88,7 +88,7 @@ nyc_clust_dict_w={
     'min_trips' : 70,
     'zone_names' : ['Commercial', 'Manufacturing', 'Recreational', 
                     'Residential', 'Mixed'],
-    'zone_colors' : ['tab:orange', 'tab:red', 'tab:green', 'tab:purple', 'tab:blue']}
+    'cluster_type_colors' : ['tab:cyan', 'tab:blue', 'tab:orange', 'tab:red', 'tab:purple', 'tab:green']}
 
 main_clust_dict = {('nyc','b') : nyc_clust_dict_b,
                    ('nyc','w') : nyc_clust_dict_w}
@@ -97,7 +97,7 @@ clust_dict = main_clust_dict[city, period]
 zone_names_lower = list(map(lambda x: x.lower(), clust_dict['zone_names']))
 
 plt.style.use('seaborn-darkgrid')
-n_cols = len(clust_dict['cluster_types'])
+n_cols = len(clust_dict['zone_names'])
 fig, ax = plt.subplots(12, n_cols, sharex=True, sharey=True, figsize=(10, 14))
 
 for row in range(12):
@@ -118,29 +118,53 @@ for row in range(12):
     # station_df = station_df[mask]
     traffic_matrix = traffic_matrix[mask]
 
-    
-    clusters = KMeans(clust_dict['k_list'][row], random_state=42).fit(traffic_matrix)
+    k = clust_dict['k_list'][row]
+    clusters = KMeans(k, random_state=42).fit(traffic_matrix)
     station_df['label'].iloc[mask] = clusters.predict(traffic_matrix)
     station_df['label'].loc[~mask] = np.nan
     
+    zone_counts_df = pd.DataFrame(index = list(range(len(clust_dict['cluster_types']))))
+    for zone in zone_names_lower:
+        station_df = station_df[mask]
+        zone_stats = station_df[station_df['zone_type'] == zone]
+        label_counts = zone_stats['label'].value_counts()
+        label_counts.sort_index(0, inplace=True)
+        zone_counts_df[zone] = label_counts/np.sum(label_counts)*100
+    zone_counts_df = zone_counts_df.fillna(0)
+    
     for col in range(n_cols):
-        if clust_dict[row+1,col] != None:
-            cluster = station_df[station_df['label']==clust_dict[row+1,col][0]]
+        
+        bar_vals = np.zeros(len(clust_dict['cluster_types']))
+        for clust_type_id in range(len(clust_dict['cluster_types'])):
+            if clust_dict[row+1,clust_type_id] != None:
+                bar_vals[clust_type_id] = zone_counts_df[zone_names_lower[col]].iloc[clust_dict[row+1,clust_type_id][0]]
+        
+        ax[row,col].bar(clust_dict['cluster_types'], bar_vals, 
+                        color = clust_dict['cluster_type_colors'])
+        
+        
+        
+        
+        
+        
+        
+        # if clust_dict[row+1,col] != None:
+        #     cluster = station_df[station_df['label']==clust_dict[row+1,col][0]]
             
-            zone_counts = pd.DataFrame(np.zeros(len(zone_names_lower)),
-                                       index=zone_names_lower,
-                                       columns=['zone_type'])
-            counts = cluster['zone_type'].value_counts()
-            for i in range(len(zone_counts)):
-                if zone_counts.iloc[i].name in counts.index.to_list():
-                    zone_counts.iloc[i]['zone_type'] = counts[zone_counts.iloc[i].name]
-            zone_counts = zone_counts/np.sum(zone_counts)*100
+        #     zone_counts = pd.DataFrame(np.zeros(len(zone_names_lower)),
+        #                                index=zone_names_lower,
+        #                                columns=['zone_type'])
+        #     counts = cluster['zone_type'].value_counts()
+        #     for i in range(len(zone_counts)):
+        #         if zone_counts.iloc[i].name in counts.index.to_list():
+        #             zone_counts.iloc[i]['zone_type'] = counts[zone_counts.iloc[i].name]
+        #     zone_counts = zone_counts/np.sum(zone_counts)*100
             
-            ax[row,col].bar(clust_dict['zone_names'], zone_counts['zone_type'], 
-                            color=clust_dict['zone_colors'])
+        #     ax[row,col].bar(clust_dict['zone_names'], zone_counts['zone_type'], 
+        #                     color=clust_dict['zone_colors'])
             
-            count_box = AnchoredText(f'(n={clust_dict[row+1,col][1]})', frameon=False, loc='upper right', pad=0.3)
-            # ax[row,col].add_artist(count_box)
+        #     count_box = AnchoredText(f'(n={clust_dict[row+1,col][1]})', frameon=False, loc='upper right', pad=0.3)
+        #     ax[row,col].add_artist(count_box)
             
             # zone_counts.plot(kind='bar', ax = ax[row,col], color=clust_dict['zone_colors'])
             
@@ -150,19 +174,18 @@ for row in range(12):
             #     bar.set_color(clust_dict['zone_colors'][i])
         
         if row == 0:
-            ax[row,col].set_title(clust_dict['cluster_types'][col])
+            ax[row,col].set_title(clust_dict['zone_names'][col])
         
         if row == 11:        
-            ax[row,col].set_xticklabels(clust_dict['zone_names'], rotation = 90)            
+            ax[row,col].set_xticklabels(clust_dict['cluster_types'], rotation = 90)            
         
         if col == 0:
             ax[row,col].set_ylabel('%')
-            ax[row,col].set_yticks([25,50,75])
-            
+            ax[row,col].set_yticks([10,20,30,40,50])
             month_box = AnchoredText(f'{month_abbr[row+1]}', frameon=False, loc='upper left', pad=0.3)        
             ax[row,col].add_artist(month_box)
 plt.tight_layout()
-plt.savefig(f'./figures/zone_distributions/{city}{year}_{period}_zone_distributions.pdf')
+plt.savefig(f'./figures/zone_distributions/{city}{year}_{period}_zone_distributions_2.pdf')
 
 # plt.savefig(f'./figures/zone_distributions/test.pdf')
 plt.close()

@@ -256,6 +256,7 @@ def make_station_df(data, holidays=True, return_land_use=False):
         
         df = gpd.tools.sjoin(df, CTracts_df, op='within', how='left')
         df['BoroCT2020'] = df['BoroCT2020'].apply(int)
+        df['Shape__Area'] = df['Shape__Area']/10.764 # convert to m^2
         df.drop('index_right', axis=1, inplace=True)
         
         census_df = pd.read_excel('./data/other_data/nyc_census_data.xlsx', sheet_name=1, skiprows=[0,1,2])
@@ -479,7 +480,7 @@ if __name__ == "__main__":
     import bikeshare as bs
     import time
     
-    data = bs.Data('nyc', 2019, 9)
+    data = bs.Data('helsinki', 2019, 9)
     pre = time.time()
     station_df, land_use = make_station_df(data, return_land_use=True)
     print(f'station_df took {time.time() - pre:.2f} seconds')
