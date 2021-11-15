@@ -813,6 +813,7 @@ def get_data_month(city, year, month, blacklist=None):
             df['end_stat_long'] = df['end_stat_id'].map(long_dict)
             df['end_stat_desc'] = df['end_stat_id'].map(addr_dict)
 
+            df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
 
         elif city == "mexico":
