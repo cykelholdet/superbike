@@ -4,7 +4,9 @@ Created on Tue Oct 19 21:22:19 2021
 
 @author: nweinr
 """
-import fiona
+import pickle
+
+#import fiona
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -77,18 +79,20 @@ def zone_dist_transform(city, zone_dist):
             
             if zone_dist in ['11100', '11210', '11220', '11230']: # Continuous urban fabric (S.L. : > 80%), Discontinuous dense urban fabric (S.L. : 50% -  80%), Discontinuous medium density urban fabric (S.L. : 30% - 50%), Discontinuous low density urban fabric (S.L. : 10% - 30%)
                 zone_type = 'residential' 
-            elif zone_dist in ['12220']: # Other roads and associated land
+            elif zone_dist in ['12220', '12210']: # Other roads and associated land, Fast transit roads and associated land
                 zone_type = 'road'
             elif zone_dist in ['12100']: # Industrial, commercial, public, military and private units
                 zone_type = 'commercial'
-            elif zone_dist in ['14100', '14200', '31000']: # Green urban areas, Sports and leisure facilities, Forests
+            elif zone_dist in ['14100', '14200', '31000', '32000']: # Green urban areas, Sports and leisure facilities, Forests, Herbaceous vegetation associations (natural grassland, moors...)
                 zone_type = 'recreational'
             elif zone_dist in ['12230']: # Railways and associated land
-                zone_type = 'transport'
+                zone_type = 'transportation'
             elif zone_dist in ['12300']: # Port areas
                 zone_type = 'port'
             elif zone_dist in ['13100', 'Construction sites']: # Mineral extraction and dump sites
-                zone_type = 'industrial'
+                zone_type = 'manufacturing'
+            elif zone_dist in ['50000']:
+                zone_type = 'water'
             else:
                 zone_type = 'UNKNOWN'
         
@@ -187,8 +191,21 @@ def zone_dist_transform(city, zone_dist):
     return zone_type
     
 
-def make_station_df(data, holidays=True, return_land_use=False):
-
+def make_station_df(data, holidays=True, return_land_use=False, overwrite=False):
+    postfix = "" if data.month == None else f"{data.month:02d}"
+    postfix = postfix + "" if holidays else postfix + "_no_holidays"
+    
+    if not overwrite:
+        try:
+            with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'rb') as file:
+                df, land_use = pickle.load(file)
+            if return_land_use:
+                return df, land_use
+            else:
+                return df
+        except FileNotFoundError:
+            print("Pickle does not exist. Pickling station_df...")
+    
     df = pd.DataFrame(data.stat.locations).T.rename(columns={0: 'long', 1: 'lat'})
     
     df['stat_id'] = df.index.map(data.stat.inverse)
@@ -231,6 +248,9 @@ def make_station_df(data, holidays=True, return_land_use=False):
     
     df['label'] = np.nan
     df['color'] = "gray"
+    
+    extent = {'lat': [df['lat'].min(), df['lat'].max()], 
+              'long': [df['long'].min(), df['long'].max()]}
     
     if data.city == 'nyc':
     
@@ -283,9 +303,12 @@ def make_station_df(data, holidays=True, return_land_use=False):
         
         df['zone_type'] = df['code_2018'].apply(lambda x: zone_dist_transform(data.city, x))
 
-        land_use = land_use_df[['class_2018', 'geometry']]
+        land_use = land_use_df[['code_2018', 'geometry']]
+        land_use = land_use.cx[extent['long'][0]:extent['long'][1], extent['lat'][0]:extent['lat'][1]]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
+        land_use = land_use[land_use['zone_type'] != 'road']
+        land_use = land_use[land_use['zone_type'] != 'water']
     
     elif data.city == 'chic':
         
@@ -445,11 +468,14 @@ def make_station_df(data, holidays=True, return_land_use=False):
         land_use = pd.DataFrame([])
         land_use['zone_type'] = 'UNKNOWN'
         
-    df.rename(mapper=df_key(data.city), axis=1, inplace=True)    
+    df.rename(mapper=df_key(data.city), axis=1, inplace=True)  
     
+    land_use['color'] = land_use['zone_type'].map(color_dict).fillna("pink")
+    
+    with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'wb') as file:
+        pickle.dump([df, land_use], file)
     
     if return_land_use:
-        land_use['color'] = land_use['zone_type'].map(color_dict)
         return df, land_use
     else:
         return df
@@ -462,7 +488,10 @@ color_dict = {
     'manufacturing': mpl_colors.to_hex('tab:red'), # 3
     'mixed': mpl_colors.to_hex('tab:blue'), # 0
     'educational': mpl_colors.to_hex('tab:brown'), # 5
-    'UNKNOWN': mpl_colors.to_hex('gray') # 7
+    'UNKNOWN': mpl_colors.to_hex('gray'), # 7
+    'road': mpl_colors.to_hex('tab:pink'),
+    'port': mpl_colors.to_hex('tab:olive'),
+    'transportation': mpl_colors.to_hex('tab:olive'),
     }
 
 color_num_dict = {
