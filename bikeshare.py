@@ -1095,6 +1095,7 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
 
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
 
         elif city == "washDC":
 
@@ -2743,10 +2744,10 @@ class Data:
 
         self.stat = Stations(self.df)
 
-        self.df['start_stat_index'] = self.df['start_stat_id'].map(
-            self.stat.id_index)
-        self.df['end_stat_index'] = self.df['end_stat_id'].map(
-            self.stat.id_index)
+        #self.df['start_stat_index'] = self.df['start_stat_id'].map(
+        #    self.stat.id_index)
+        #self.df['end_stat_index'] = self.df['end_stat_id'].map(
+        #    self.stat.id_index)
 
     def adjacency(self, days, threshold=1, remove_self_loops=True):
         """
@@ -4261,7 +4262,7 @@ name_dict = {
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('london', 2019, 12, overwrite=True)
+    data = Data('helsinki', 2019, overwrite=True)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)
