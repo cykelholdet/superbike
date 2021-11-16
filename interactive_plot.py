@@ -467,6 +467,12 @@ def land_use_plot(show_land_use, city):
     else:
         return gv.Polygons([])
 
+@pn.depends(city=bike_params.param.city, watch=True)
+def update_extent(city):
+    extremes = [bike_params.station_df['easting'].max(), bike_params.station_df['easting'].min(), 
+                bike_params.station_df['northing'].max(), bike_params.station_df['northing'].min()]
+    tileview.opts(xlim=(extremes[1], extremes[0]), ylim=(extremes[3], extremes[2]))
+
 extremes = [bike_params.station_df['easting'].max(), bike_params.station_df['easting'].min(), 
             bike_params.station_df['northing'].max(), bike_params.station_df['northing'].min()]
 
