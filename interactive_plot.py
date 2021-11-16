@@ -34,8 +34,8 @@ cmap = cm.get_cmap('Blues')
 # Load bikeshare data
 
 YEAR = 2019
-MONTH = None
-CITY = 'nyc'
+MONTH = 9
+CITY = 'madrid'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -369,7 +369,7 @@ params = pn.Param(bike_params.param, widgets={
     name="Bikeshare Parameters"
     )
 
-paraview = hv.DynamicMap(bike_params.plot_clusters_full)
+pointview = hv.DynamicMap(bike_params.plot_clusters_full)
 
 
 @pn.depends(clustering=bike_params.param.clustering)
@@ -377,7 +377,7 @@ def plot_tiles(clustering):
     
     tiles = hv.element.tiles.StamenTerrainRetina()
     tiles = gv.tile_sources.StamenTerrainRetina()
-    tiles.opts(height=800, width=800, xlim=(extremes[1], extremes[0]), ylim=(extremes[3], extremes[2]), active_tools=['wheel_zoom'])
+    tiles.opts(height=800, width=800, xlim=(extremes[1], extremes[0]), ylim=(extremes[3], extremes[2]), active_tools=['wheel_zoom'],  apply_ranges=False)
     return tiles
 
 
@@ -396,10 +396,10 @@ tooltips = [
 ]
 hover = HoverTool(tooltips=tooltips)
 
-paraview.opts(tools=['tap', hover])
-paraview.opts(nonselection_alpha=0.3)
+pointview.opts(tools=['tap', hover])
+pointview.opts(nonselection_alpha=0.3)
 
-selection_stream = hv.streams.Selection1D(source=paraview)
+selection_stream = hv.streams.Selection1D(source=pointview)
 
 
 @pn.depends(index=selection_stream.param.index,
@@ -472,6 +472,19 @@ def update_extent(city):
     extremes = [bike_params.station_df['easting'].max(), bike_params.station_df['easting'].min(), 
                 bike_params.station_df['northing'].max(), bike_params.station_df['northing'].min()]
     tileview.opts(xlim=(extremes[1], extremes[0]), ylim=(extremes[3], extremes[2]))
+    panel_column[1][1].object.data[()].Points.I.data = bike_params.station_df
+    print(f"update city = {city}")
+
+
+def hook(plot, element):
+    print('plot.state:   ', plot.state)
+    print('plot.handles: ', sorted(plot.handles.keys()))
+    plot.handles['xaxis'].axis_label_text_color = 'blue'
+    plot.handles['yaxis'].axis_label_text_color = 'red'
+    plot.handles['xaxis'].axis_label = extremes[1] - extremes[0]
+    plot.handles['yaxis'].axis_label = extremes[3] - extremes[2]
+    #plot.handles['x_range'] = [extremes[1], extremes[0]]
+    #plot.handles['y_range'] = [extremes[3], extremes[2]]
 
 extremes = [bike_params.station_df['easting'].max(), bike_params.station_df['easting'].min(), 
             bike_params.station_df['northing'].max(), bike_params.station_df['northing'].min()]
@@ -495,6 +508,8 @@ gif_pane = pn.pane.GIF('Loading_Key.gif')
 zoneview = hv.DynamicMap(land_use_plot)
 zoneview.opts(alpha=0.5, apply_ranges=False)
 
+#tileview.opts(framewise=True, apply_ranges=False)
+
 tooltips_zone = [
     ('Zone Type', '@zone_type'),
 ]
@@ -510,7 +525,7 @@ params.layout.insert(5, 'Clustering method:')
 param_column = pn.Column(params.layout, minpercent)
 param_column[1].width=300
 
-panel_param = pn.Row(param_column, tileview*zoneview*paraview, linecol)
+panel_param = pn.Row(param_column, tileview*zoneview*pointview, linecol)
 text = '#Bikesharing Clustering Analysis'
 title_row = pn.Row(text, indicator)
 title_row[0].width=400

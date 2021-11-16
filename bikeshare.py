@@ -4262,7 +4262,7 @@ name_dict = {
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('helsinki', 2019, overwrite=True)
+    data = Data('nyc', 2019)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)
