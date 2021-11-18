@@ -21,12 +21,12 @@ from sklearn_extra.cluster import KMedoids
 from matplotlib.offsetbox import AnchoredText
 #%% Load data
 
-city = 'chic'
+city = 'nyc'
 year = 2019
 month = 9
 period = 'b' # 'b' = business days or 'w' = weekends
 holidays = False
-min_trips = 0
+min_trips = 100
 
 # if city == 'nyc':
 #     gov_stations = [3254, 3182, 3479]
@@ -90,7 +90,7 @@ plt.savefig(f'./figures/centroids/{city}{year}{month:02d}_{period}_{label_plot}.
 
 #%% Correlation
 
-k = 6
+k = 5
 cluster_func = KMeans
 seed = 42
 
@@ -123,7 +123,7 @@ for zone in station_df['zone_type'].unique():
     zone_counts_df[zone] = label_counts/np.sum(label_counts)*100
 zone_counts_df = zone_counts_df.fillna(0)
 
-#%%
 
-print(mean_dist_to_subway)
-print(std_dist_to_subway)
+station_df = pd.concat([station_df, pd.get_dummies(station_df['label'], prefix='label')], axis=1)
+station_df = pd.concat([station_df, pd.get_dummies(station_df['zone_type'])], axis=1)
+corr_mat = station_df.corr()

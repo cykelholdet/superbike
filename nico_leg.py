@@ -9,24 +9,28 @@ import os
 import calendar
 import pickle
 import numpy as np
-import networkx as nx
+# import networkx as nx
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import contextily as ctx
+# import contextily as ctx
 import bikeshare as bs
+import interactive_plot_utils as ipu
 import simpledtw as dtw
-import plotting
+# import plotting
 import time
 from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
+
 #%% Load data
 
 city = 'nyc'
 year = 2019
-month = 4
-period = 'w' # 'b' = business days or 'w' = weekends
+month = 9
+period = 'b' # 'b' = business days or 'w' = weekends
+holidays = False
+min_trips = 100
 
 # if city == 'nyc':
 #     gov_stations = [3254, 3182, 3479]
@@ -34,12 +38,17 @@ period = 'w' # 'b' = business days or 'w' = weekends
 
 data = bs.Data(city,year,month)
 
-with open(f'./python_variables/daily_traffic_{data.city}{data.year:d}{data.month:02d}.pickle', 'rb') as file:
-        
-    if period == 'b':
-        traffic_matrix=pickle.load(file)[0]
-    else:
-        traffic_matrix=pickle.load(file)[1]
+if period == 'b':
+    traffic_matrix = data.pickle_daily_traffic(holidays=holidays)[0]
+    x_trips = 'b_trips'
+elif period == 'w':
+    traffic_matrix = data.pickle_daily_traffic(holidays=holidays)[1]
+    x_trips = 'w_trips'
+
+station_df = ipu.make_station_df(data, holidays = holidays)
+mask = station_df[x_trips] > min_trips
+station_df = station_df[mask]
+traffic_matrix = traffic_matrix[mask]
 
 #%% Make toy data
 
@@ -325,9 +334,9 @@ color_map = [color_dict[label] for label in labels]
 
 ax.scatter(lat, long, c = color_map)
 
-print('Adding basemap... ')
-ctx.add_basemap(ax, source=ctx.providers.Stamen.Terrain,
-                    attribution='(C) Stamen Design, (C) OpenStreetMap contributors')
+# print('Adding basemap... ')
+# ctx.add_basemap(ax, source=ctx.providers.Stamen.Terrain,
+#                     attribution='(C) Stamen Design, (C) OpenStreetMap contributors')
 
 print('Adding scalebar...')
 scalebar = AnchoredSizeBar(ax.transData, scalebars[city], f'{scalebars[city]//1000:d} km', 'lower right', 
@@ -383,125 +392,57 @@ for stat_index in label_indices[0]:
     count += 1
     print(count)
 
-#%%
+#%% Voronoi test
 
-# =============================================================================
-#     init_clusters_SA
-# =============================================================================
+from scipy.spatial import Voronoi, voronoi_plot_2d
+import shapely.geometry
+import shapely.ops
+import pandas as pd
+import geopandas as gpd
 
-data_mat = traffic_matrix
-k = 4
-T_start = 50
-T_end = 1
-alpha = 0.5
-iter_time = 5
+data = bs.Data('nyc', 2019, 9)
+station_df = ipu.make_station_df(data, return_land_use=False)[:10]
 
-n = len(data_mat)
+# np.random.seed(42)
 
-T = T_start
+# points = np.random.random((10, 2))
 
-labels = np.random.randint(low = 0, high = k, size = n)
+points = station_df[['easting', 'northing']].to_numpy()
 
-centroids = np.empty(shape=(k, data_mat.shape[1]))    
+points_gdf = gpd.GeoDataFrame()
+points_gdf['point'] = [shapely.geometry.Point(station_df.iloc[i]['easting'], 
+                                              station_df.iloc[i]['northing'])
+                       for i in range(len(station_df))]
+points_gdf['geometry'] = points_gdf['point']
 
-furthest_neighbors = np.empty(shape=(k,k))
+mean_point= np.mean(points, axis=0)
+edge_dist = 1000000
+edge_points = np.array([[mean_point[0]-edge_dist, mean_point[1]-edge_dist],
+                        [mean_point[0]-edge_dist, mean_point[1]+edge_dist],
+                        [mean_point[0]+edge_dist, mean_point[1]+edge_dist],
+                        [mean_point[0]+edge_dist, mean_point[1]-edge_dist]])
+# points = np.concatenate([points, edge_points], axis = 0)
 
-inner_cluster_sum = 0
-for i in range(k):
-    cluster = data_mat[np.where(labels == i)]
-    centroids[i,:] = np.mean(cluster, axis = 0)
-    inner_distances = np.empty(len(cluster))
-    
-    for j, vec in enumerate(cluster):
-        inner_distances[j] = dtw.dtw(vec, centroids[i])[1]
-    
-    furthest_neighbors[i,:] = np.argpartition(inner_distances, -k)[-k:]
-    
-    inner_cluster_sum += np.sum(inner_distances)
+vor = Voronoi(np.concatenate([points, edge_points], axis=0))
+voronoi_plot_2d(vor)
 
-inter_cluster_sum = 0
-for i in range(k-1):
-    cluster_i = data_mat[np.where(labels == i)]
-    
-    for j in range(i+1,k):
-        distances = np.empty(len(cluster_i))
-        for l, vec in enumerate(cluster_i):
-            distances[l] = dtw.dtw(vec, centroids[j])[1]
-        
-        inter_cluster_sum += np.mean(distances)
+lines = [
+    shapely.geometry.LineString(vor.vertices[line])
+    for line in vor.ridge_vertices
+    if -1 not in line
+]
 
-E_obj = inter_cluster_sum/inner_cluster_sum
+poly_gdf = gpd.GeoDataFrame()
+poly_gdf['vor_poly'] = [poly for poly in shapely.ops.polygonize(lines)]
+poly_gdf['geometry'] = [poly for poly in shapely.ops.polygonize(lines)]
 
-E_best = E_obj
 
-counter = 0
-while T > T_end:
-    pre = time.time()
-    num = 0
-    while num < iter_time:
-        
-        labels_new = labels.copy()
-        
-        for i in range(k):
-            for neighbor in furthest_neighbors[i]:
-                new_labels = [j for j in range(k) if j != i]
-                labels_new[int(neighbor)] = np.random.choice(new_labels)
-        
-        centroids_new = np.empty(shape=(k, data_mat.shape[1]))    
-        furthest_neighbors_new = np.empty(shape=(k,k))
-        
-        inner_cluster_sum = 0
-        for i in range(k):
-            cluster = data_mat[np.where(labels_new == i)]
-            centroids_new[i,:] = np.mean(cluster, axis = 0)
-            inner_distances = np.empty(len(cluster))
-            
-            for j, vec in enumerate(cluster):
-                inner_distances[j] = dtw.dtw(vec, centroids_new[i])[1]
-            
-            furthest_neighbors_new[i,:] = np.argpartition(inner_distances, -k)[-k:]
-            
-            inner_cluster_sum += np.sum(inner_distances)
-        
-        inter_cluster_sum = 0
-        for i in range(k-1):
-            cluster_i = data_mat[np.where(labels_new == i)]
-            
-            for j in range(i+1,k):
-                distances = np.empty(len(cluster_i))
-                for l, vec in enumerate(cluster_i):
-                    distances[l] = dtw.dtw(vec, centroids_new[j])[1]
-                
-                inter_cluster_sum += np.mean(distances)
-        
-        E_new = inter_cluster_sum/inner_cluster_sum
-        
-        dE = E_obj - E_new
-        
-        if dE > 0:
-            labels = labels_new
-            centroids = centroids_new
-            furthest_neighbors = furthest_neighbors_new
-            E_obj = E_new
-            
-            if E_best > E_new:
-                E_best = E_new
-                print(E_best)
-                num = 0
-            else:
-                num += 1
-                print(num)
-        
-        else:
-            if np.random.random_sample() <= min(1,np.exp(-dE/T)):
-                labels = labels_new
-                centroids = centroids_new
-                furthest_neighbors = furthest_neighbors_new
-    
-    print(f'Iteration {counter} done. Runtime: {time.time()-pre}, num = {num}, Error = {E_obj}, T = {T}, new T = {alpha*T}')
-    
-    T = alpha*T
-    
+station_df = gpd.tools.sjoin(station_df, poly_gdf, op='within', how='left')
+station_df.drop('index_right', axis=1, inplace=True)
+
+station_df['service_area'] = station_df['vor_poly'].apply(())
+
+
 
 
 
