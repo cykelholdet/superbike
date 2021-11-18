@@ -11,7 +11,6 @@ import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
-import skimage.color as skcolor
 from matplotlib import cm
 
 import holoviews as hv
@@ -21,9 +20,6 @@ import panel as pn
 import param
 import geoviews as gv
 from bokeh.models import HoverTool
-from sklearn.cluster import AgglomerativeClustering, KMeans
-from sklearn.mixture import GaussianMixture
-from sklearn_extra.cluster import KMedoids
 
 import bikeshare as bs
 import interactive_plot_utils as ipu
@@ -35,46 +31,11 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'madrid'
+CITY = 'helsinki'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
 #station_df.dropna(inplace=True)
-
-def mask_traffic_matrix(traffic_matrices, station_df, day_type, min_trips, holidays=False, return_mask=False):
-    """
-    Applies a mask to the daily traffic matrix based on the minimum number of 
-    trips to include.
-
-    Parameters
-    ----------
-    day_type : str
-        'business_days' or 'weekend'.
-    min_trips : int
-        the minimum number of trips for a station. If the station has fewer
-        trips than this, exclude it.
-    holidays : bool, optional
-        Whether to include holidays in business days (True) or remove them from
-        the business days (False). The default is False.
-
-    Returns
-    -------
-    np array
-        masked traffic matrix, that is, the number of 48-dimensional vectors 
-        which constitute the rows of the traffic matrix is reduced.
-
-    """
-    if day_type == 'business_days':
-        traffic_matrix = traffic_matrices[0]
-        x_trips = 'b_trips'
-    elif day_type == "weekend":
-        traffic_matrix = traffic_matrices[1]
-        x_trips = 'w_trips'
-    mask = station_df[x_trips] > min_trips
-    if return_mask:
-        return traffic_matrix[mask], mask, x_trips
-    else:
-        return traffic_matrix[mask]
     
 
 def plot_center(labels, cluster_j, c_center, title_pre="Mean"):
@@ -102,7 +63,7 @@ def plot_center(labels, cluster_j, c_center, title_pre="Mean"):
     cc_df = pd.DataFrame([c_center[:24], c_center[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
     cc_plot = cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
     n = np.sum(labels == cluster_j)
-    cc_plot.opts(title=f"{title_pre} of cluster {cluster_j} ({color_dict[cluster_j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage')
+    cc_plot.opts(title=f"{title_pre} of cluster {cluster_j} ({ipu.cluster_color_dict[cluster_j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage')
     return cc_plot
 
 
@@ -135,91 +96,6 @@ def plot_dta_with_std(data, index, day_type):
     varea['hour'] = np.arange(0,24)
     return varea.hvplot.area(x='hour', y='dep_low', y2='dep_high', alpha=0.5, line_width=0) * varea.hvplot.area(x='hour', y='arr_low', y2='arr_high', alpha=0.5, line_width=0) * means['departures'].hvplot() * means['arrivals'].hvplot()
 
-
-def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, k, random_state):
-    """
-    From a station dataframe and associated variables, return the updated 
-    station df and clustering and labels
-
-    Parameters
-    ----------
-    station_df : pandas dataframe
-        has each station as a row.
-    day_type : str
-        'weekend' or 'business_days'.
-    min_trips : int
-        minimum number of trips.
-    clustering : str
-        clustering type.
-    k : int
-        number of clusters.
-    random_state : int
-        the seed for the random generator.
-
-    Returns
-    -------
-    station_df : pandas dataframe
-        has each station as a row and color and label columns populated.
-    clusters : sklearn.clustering cluster
-        can be used for stuff later.
-    labels : np array
-        the labels of the masked traffic matrix.
-
-    """
-    traffic_matrix, mask, x_trips = mask_traffic_matrix(
-        traffic_matrices, station_df, day_type, min_trips, holidays=False, return_mask=True)
-    
-    if clustering == 'k_means':
-        clusters = KMeans(k, random_state=random_state).fit(traffic_matrix)
-        labels = clusters.predict(traffic_matrix)
-        station_df['label'].loc[mask] = labels
-        station_df['label'].loc[~mask] = np.nan
-        station_df['color'] = station_df['label'].map(color_dict)
-
-    elif clustering == 'k_medoids':
-        clusters = KMedoids(k, random_state=random_state).fit(traffic_matrix)
-        labels = clusters.predict(traffic_matrix)
-        station_df['label'].loc[mask] = labels
-        station_df['label'].loc[~mask] = np.nan
-        station_df['color'] = station_df['label'].map(color_dict)
-        
-    elif clustering == 'h_clustering':
-        clusters = None
-        labels = AgglomerativeClustering(k).fit_predict(traffic_matrix)
-        station_df['label'].loc[mask] = labels
-        station_df['label'].loc[~mask] = np.nan
-        station_df['color'] = station_df['label'].map(color_dict)
-    
-    elif clustering == 'gaussian_mixture':
-        clusters = GaussianMixture(k, n_init=10, random_state=random_state).fit(traffic_matrix)
-        labels = clusters.predict_proba(traffic_matrix)
-        lab_mat = np.array(lab_color_list[:k]).T
-        lab_cols = [np.sum(labels[i] * lab_mat, axis=1) for i in range(len(traffic_matrix))]
-        labels_rgb = skcolor.lab2rgb(lab_cols)
-        station_df['label'].loc[mask] = pd.Series(list(labels), index=mask[mask].index)
-        station_df['label'].loc[~mask] = np.nan
-        station_df['color'].loc[mask] = ['#%02x%02x%02x' % tuple(label.astype(int)) for label in labels_rgb*255]
-        station_df['color'].loc[~mask] = 'gray'
-        
-    elif clustering == 'none':
-        clusters = None
-        labels = None
-        station_df['label'] = np.nan
-        station_df['color'] = station_df[x_trips].tolist()
-    
-    elif clustering == 'zoning':
-        clusters = None
-        labels = None
-        station_df['label'] = np.nan
-        station_df['color'] = [color_dict[zone] for zone in pd.factorize(station_df['zone_type'])[0]]
-        
-    else:
-        clusters = None
-        labels = None
-        station_df['label'] = np.nan
-        station_df['color'] = None
-    
-    return station_df, clusters, labels
 
 class BikeDash(param.Parameterized):
     """
@@ -270,7 +146,7 @@ class BikeDash(param.Parameterized):
     
     @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 'boolean_', watch=False)
     def plot_clusters_full(self):
-        self.station_df, self.clusters, self.labels = get_clusters(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, self.clustering, self.k, self.random_state)
+        self.station_df, self.clusters, self.labels = ipu.get_clusters(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, self.clustering, self.k, self.random_state)
         
         if self.clustering == 'none':
             title = f'Number of trips per station in {month_dict[self.month]} {YEAR} in {bs.name_dict[self.city]}'
@@ -288,7 +164,7 @@ class BikeDash(param.Parameterized):
             return "No clustering"
         elif self.clustering == 'h_clustering':
             if self.plot_all_clusters == 'True':
-                traffic_matrix = mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
+                traffic_matrix = ipu.mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
                 cc_plot_list = list()
                 for j in range(self.k):
                     mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
@@ -299,7 +175,7 @@ class BikeDash(param.Parameterized):
                 return "Select a station to get cluster info"
             else:
                 i = index[0]
-                traffic_matrix = mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
+                traffic_matrix = ipu.mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
                 if ~np.isnan(self.station_df['label'][i]):
                     j = int(self.station_df['label'][i])
                     mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
@@ -494,14 +370,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'end', 'start': 'start', 'end': 'end'}
 day_type_dict = {'weekend': 'w', 'business_days': 'b'}
-
-color_dict = {0 : 'blue', 1 : 'red', 2 : 'yellow', 3 : 'green', #tab:
-              4 : 'purple', 5 : 'cyan', 6: 'pink',
-              7 : 'brown', 8 : 'olive', 9 : 'magenta', np.nan: 'gray'}
-
-mpl_color_dict = {i: mpl_colors.to_rgb(color_dict[i]) for i in range(10)}
-lab_color_dict = {i: skcolor.rgb2lab(mpl_color_dict[i]) for i in range(10)}
-lab_color_list = [lab_color_dict[i] for i in range(10)]
 
 gif_pane = pn.pane.GIF('Loading_Key.gif')
 

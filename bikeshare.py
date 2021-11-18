@@ -634,8 +634,11 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             try:
                 df = pd.read_csv(f'./data/{year:d}-{month:02d}-helsinki.csv')
             except FileNotFoundError as exc:
-                raise FileNotFoundError(
-                    'No trip data found. All relevant files can be found at https://hri.fi/data/en_GB/dataset/helsingin-ja-espoon-kaupunkipyorilla-ajatut-matkat') from exc
+                if month not in range(4, 10+1):
+                    return pd.DataFrame(columns=[*dataframe_key.get_key(city).values(), 'start_stat_lat', 'start_stat_long', 'end_stat_lat', 'end_stat_long']), []
+                else:
+                    raise FileNotFoundError(
+                        'No trip data found. All relevant files can be found at https://hri.fi/data/en_GB/dataset/helsingin-ja-espoon-kaupunkipyorilla-ajatut-matkat') from exc
 
             df = df.rename(columns=dataframe_key.get_key(city))
             df.dropna(inplace=True)
@@ -762,7 +765,9 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                     df['start_t'], format='%Y-%m-%dT%H:%M:%S')
 
             df.drop(columns=['start_t'], inplace=True)
-
+            
+            df = df[df['start_dt'].dt.month == month] # Hour adjusted because of timezone... Fix in year data.
+            
             df['end_dt'] = df['start_dt'] + \
                 pd.to_timedelta(df['duration'], unit='s')
             #df['end_t'] = pd.to_datetime(df['end_dt']).astype(str)
@@ -1447,28 +1452,13 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
             df['end_dt'] = pd.to_datetime(df['end_t'])
             df.drop(columns=['start_t', 'end_t'], inplace=True)
 
-        elif city in ['madrid', 'edinburgh', 'taipei', 'bergen', 'boston', 'guadalajara']:
+        elif city in ['madrid', 'edinburgh', 'taipei', 'bergen', 'boston', 'guadalajara',
+                      'trondheim', 'minn',
+                      'oslo',
+                      'helsinki', 'montreal']:
             dfs = []
-            for month in range(1, 12+1):
-                dfs.append(get_data_month(city, year, month)[0] )
-            df = pd.concat(dfs)
-
-        elif city in ['trondheim', 'minn']:
-            dfs = []
-            for month in range(4, 11+1):
-                dfs.append(get_data_month(city, year, month)[0] )
-            df = pd.concat(dfs)
-
-        elif city == 'oslo' and year == 2019:
-            dfs = []
-            for month in range(4, 12+1):
-                dfs.append(get_data_month(city, year, month)[0] )
-            df = pd.concat(dfs)
-
-        elif city in ['helsinki', 'montreal']:
-            dfs = []
-            for month in range(4, 10+1):
-                dfs.append(get_data_month(city, year, month)[0] )
+            for month in get_valid_months(city, year):
+                dfs.append(get_data_month(city, year, month, overwrite=overwrite)[0])
             df = pd.concat(dfs)
 
         with open(f'./python_variables/big_data/{city}{year:d}_dataframe.pickle', 'wb') as file:
@@ -4237,6 +4227,18 @@ def get_cal(city):
         raise KeyError('Calendar key not found')
     return cal
 
+
+def get_valid_months(city, year):
+    if city in ['trondheim', 'minn']:
+        return range(4, 11+1)
+    elif city == 'oslo':
+        return range(4, 12+1)
+    elif city in ['helsinki', 'montreal']:
+        return range(4, 10+1)
+    else:
+        return range(1, 12+1)
+
+
 name_dict = {
     'bergen': 'Bergen',
     'boston': 'Boston',
@@ -4260,9 +4262,11 @@ name_dict = {
 
 
 
+
+
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('nyc', 2019)
+    data = Data('helsinki', 2019, 1, overwrite=True)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)
