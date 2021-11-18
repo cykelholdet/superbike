@@ -18,6 +18,10 @@ from shapely.geometry import Point
 # from shapely.ops import nearest_points
 from geopy.distance import great_circle
 import matplotlib.colors as mpl_colors
+from sklearn.cluster import AgglomerativeClustering, KMeans
+from sklearn.mixture import GaussianMixture
+from sklearn_extra.cluster import KMedoids
+import skimage.color as skcolor
 
 import bikeshare as bs
 import dataframe_key
@@ -481,16 +485,168 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         return df
 
 
+def mask_traffic_matrix(traffic_matrices, station_df, day_type, min_trips, holidays=False, return_mask=False):
+    """
+    Applies a mask to the daily traffic matrix based on the minimum number of 
+    trips to include.
+
+    Parameters
+    ----------
+    day_type : str
+        'business_days' or 'weekend'.
+    min_trips : int
+        the minimum number of trips for a station. If the station has fewer
+        trips than this, exclude it.
+    holidays : bool, optional
+        Whether to include holidays in business days (True) or remove them from
+        the business days (False). The default is False.
+
+    Returns
+    -------
+    np array
+        masked traffic matrix, that is, the number of 48-dimensional vectors 
+        which constitute the rows of the traffic matrix is reduced.
+
+    """
+    if day_type == 'business_days':
+        traffic_matrix = traffic_matrices[0]
+        x_trips = 'b_trips'
+    elif day_type == "weekend":
+        traffic_matrix = traffic_matrices[1]
+        x_trips = 'w_trips'
+    else:
+        raise ValueError("Please enter 'business_days' or 'weekend'.")
+    mask = station_df[x_trips] > min_trips
+    if return_mask:
+        return traffic_matrix[mask], mask, x_trips
+    else:
+        return traffic_matrix[mask]
+
+
+def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, k, random_state=None):
+    """
+    From a station dataframe and associated variables, return the updated 
+    station df and clustering and labels
+
+    Parameters
+    ----------
+    station_df : pandas dataframe
+        has each station as a row.
+    day_type : str
+        'weekend' or 'business_days'.
+    min_trips : int
+        minimum number of trips.
+    clustering : str
+        clustering type.
+    k : int
+        number of clusters.
+    random_state : int
+        the seed for the random generator.
+
+    Returns
+    -------
+    station_df : pandas dataframe
+        has each station as a row and color and label columns populated.
+    clusters : sklearn.clustering cluster
+        can be used for stuff later.
+    labels : np array
+        the labels of the masked traffic matrix.
+
+    """
+    traffic_matrix, mask, x_trips = mask_traffic_matrix(
+        traffic_matrices, station_df, day_type, min_trips, holidays=False, return_mask=True)
+    
+    if clustering == 'k_means':
+        clusters = KMeans(k, random_state=random_state).fit(traffic_matrix)
+        labels = clusters.predict(traffic_matrix)
+        station_df['label'].loc[mask] = labels
+        station_df['label'].loc[~mask] = np.nan
+        station_df['color'] = station_df['label'].map(cluster_color_dict)
+
+    elif clustering == 'k_medoids':
+        clusters = KMedoids(k, random_state=random_state).fit(traffic_matrix)
+        labels = clusters.predict(traffic_matrix)
+        station_df['label'].loc[mask] = labels
+        station_df['label'].loc[~mask] = np.nan
+        station_df['color'] = station_df['label'].map(cluster_color_dict)
+        
+    elif clustering == 'h_clustering':
+        clusters = None
+        labels = AgglomerativeClustering(k).fit_predict(traffic_matrix)
+        station_df['label'].loc[mask] = labels
+        station_df['label'].loc[~mask] = np.nan
+        station_df['color'] = station_df['label'].map(cluster_color_dict)
+    
+    elif clustering == 'gaussian_mixture':
+        clusters = GaussianMixture(k, n_init=10, random_state=random_state).fit(traffic_matrix)
+        labels = clusters.predict_proba(traffic_matrix)
+        lab_mat = np.array(lab_color_list[:k]).T
+        lab_cols = [np.sum(labels[i] * lab_mat, axis=1) for i in range(len(traffic_matrix))]
+        labels_rgb = skcolor.lab2rgb(lab_cols)
+        station_df['label'].loc[mask] = pd.Series(list(labels), index=mask[mask].index)
+        station_df['label'].loc[~mask] = np.nan
+        station_df['color'].loc[mask] = ['#%02x%02x%02x' % tuple(label.astype(int)) for label in labels_rgb*255]
+        station_df['color'].loc[~mask] = 'gray'
+        
+    elif clustering == 'none':
+        clusters = None
+        labels = None
+        station_df['label'] = np.nan
+        station_df['color'] = station_df[x_trips].tolist()
+    
+    elif clustering == 'zoning':
+        clusters = None
+        labels = None
+        station_df['label'] = np.nan
+        station_df['color'] = [cluster_color_dict[zone] for zone in pd.factorize(station_df['zone_type'])[0]]
+        
+    else:
+        clusters = None
+        labels = None
+        station_df['label'] = np.nan
+        station_df['color'] = None
+    
+    return station_df, clusters, labels
+
+
 def create_all_pickles(city, year, holidays=False, overwrite=False):
-    data = bs.Data(city, year, overwrite=overwrite)
-    make_station_df(data, holidays=holidays, overwrite=overwrite)
-    data.pickle_daily_traffic(holidays=holidays, overwrite=overwrite)
-    if city in ['nyc', 'washDC', 'chic', 'la', 'sfran', 'london', 'mexico', 'buenos_aires', ]:
-        for month in range(1, 13):
+    if isinstance(city, str):
+        data = bs.Data(city, year, overwrite=overwrite)
+        make_station_df(data, holidays=holidays, overwrite=overwrite)
+        data.pickle_daily_traffic(holidays=holidays, overwrite=overwrite)
+        
+        for month in bs.get_valid_months(city, year):
             print(f"Pickling month = {month}")
-            data = bs.Data(city, year, month, overwrite=overwrite)
+            if city in ['nyc', 'washDC', 'chic', 'la', 'sfran', 'london', 'mexico', 'buenos_aires', ]:
+                data = bs.Data(city, year, month, overwrite=overwrite)
+            else: #For other cities, the dataframe has been made already during the yearly dataframe.
+                data = bs.Data(city, year, month, overwrite=False)
             make_station_df(data, holidays=holidays, overwrite=overwrite)
             data.pickle_daily_traffic(holidays=holidays, overwrite=overwrite)
+    else:
+        try:
+            for cities_i in city:
+                pre = time.time()
+                create_all_pickles(cities_i, year, holidays=holidays, overwrite=overwrite)
+                print(f'{bs.name_dict[city]} took {time.time() - pre:.2f} seconds')
+        except TypeError:
+            print(city, "is not iterable, no pickle was made")
+
+
+def create_all_pickles_all_cities(year, holidays=False, overwrite=False):
+    for city in ['madrid']:
+        pre = time.time()
+        create_all_pickles(city, 2019, overwrite=True)
+        print(f'{bs.name_dict[city]} took {time.time() - pre:.2f} seconds')
+
+
+cluster_color_dict = {0 : 'blue', 1 : 'red', 2 : 'yellow', 3 : 'green', #tab:
+              4 : 'purple', 5 : 'cyan', 6: 'pink',
+              7 : 'brown', 8 : 'olive', 9 : 'magenta', np.nan: 'gray'}
+
+mpl_color_dict = {i: mpl_colors.to_rgb(cluster_color_dict[i]) for i in range(10)}
+lab_color_dict = {i: skcolor.rgb2lab(mpl_color_dict[i]) for i in range(10)}
+lab_color_list = [lab_color_dict[i] for i in range(10)]
 
 
 color_dict = {
@@ -520,14 +676,9 @@ color_num_dict = {
 if __name__ == "__main__":
     import time
     
-    create_all = False
-    if create_all:
-        for city in bs.name_dict.keys():
-            pre = time.time()
-            create_all_pickles(city, 2019, overwrite=False)
-            print(f'{bs.name_dict[city]} took {time.time() - pre:.2f} seconds')
-    else:
-        data = bs.Data('helsinki', 2019, 9)
-        pre = time.time()
-        station_df, land_use = make_station_df(data, return_land_use=True)
-        print(f'station_df took {time.time() - pre:.2f} seconds')
+    create_all_pickles('helsinki', 2019, overwrite=False)
+
+    data = bs.Data('helsinki', 2019, 9)
+    pre = time.time()
+    station_df, land_use = make_station_df(data, return_land_use=True)
+    print(f'station_df took {time.time() - pre:.2f} seconds')
