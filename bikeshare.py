@@ -3137,7 +3137,7 @@ class Data:
 
         return deg_compare
 
-    def daily_traffic(self, stat_index, day, normalise=True, plot=False):
+    def daily_traffic(self, stat_index, day, normalise=True, plot=False, all_days=False, period = None, holidays=True):
         """
         Computes the number of arrivals and departures to and from the station
         in every hour of the specified day.
@@ -3161,53 +3161,96 @@ class Data:
             index 0 yields the number of arrivals from 00:00:00 to 01:00:00.
 
         """
-
-        df_stat_start = self.df.iloc[np.where(
-            self.df['start_stat_index'] == stat_index)]
-        df_stat_end = self.df.iloc[np.where(
-            self.df['end_stat_index'] == stat_index)]
-
-        trips_arrivals = np.zeros(24)
-        trips_departures = np.zeros(24)
-
-        for hour in range(24):
-
-            mask = (df_stat_start['start_dt'].dt.day == day) & (
-                df_stat_start['start_dt'].dt.hour == hour)
-            df_hour_start = df_stat_start.loc[mask]
-
-            trips_departures[hour] = len(df_hour_start)
-
-            mask = (df_stat_end['end_dt'].dt.day == day) & (
-                df_stat_end['end_dt'].dt.hour == hour)
-            df_hour_end = df_stat_end.loc[mask]
-
-            trips_arrivals[hour] = len(df_hour_end)
-
-        if normalise:
-            trips_total = sum(trips_departures) + sum(trips_arrivals)
-            trips_departures = trips_departures/trips_total
-            trips_arrivals = trips_arrivals/trips_total
-
-        if plot:
-
-            if normalise:
-                plt.plot(np.arange(24), trips_arrivals*100)
-                plt.plot(np.arange(24), trips_departures*100)
-                plt.ylabel('% of total trips')
+        
+        if all_days:
+            
+            weekdays = [calendar.weekday(self.year, self.month, i) for i in range(
+            1, calendar.monthrange(self.year, self.month)[1]+1)]
+        
+            if period == 'b':
+                days = [date+1 for date, day in enumerate(weekdays) if day <= 4]
+            
+                if not holidays:
+                      holiday_year = pd.DataFrame(
+                          get_cal(self.city).get_calendar_holidays(self.year), columns=['day', 'name'])
+                      holiday_list = holiday_year['day'].tolist()
+                else:
+                    holiday_list = []
+                
+                days = [day for day in days if datetime.date(self.year, self.month, day) not in holiday_list]
+              
+                    
+            elif period == 'w':
+                days = [date+1 for date, day in enumerate(weekdays) if day > 4]
             else:
-                plt.plot(np.arange(24), trips_arrivals)
-                plt.plot(np.arange(24), trips_departures)
-                plt.ylabel('# trips')
-
-            plt.xticks(np.arange(24))
-            plt.legend(['Arrivals', 'Departures'])
-            plt.xlabel('Hour')
-
-            plt.title(
-                f'Hourly traffic for {self.stat.names[stat_index]} \n on {self.year:d}-{self.month:02d}-{day:02d}')
-
-        return trips_departures, trips_arrivals
+                
+                if not holidays:
+                    holiday_year = pd.DataFrame(
+                              get_cal(self.city).get_calendar_holidays(self.year), columns=['day', 'name'])
+                    holiday_list = holiday_year['day'].tolist()
+                else:
+                    holiday_list = []
+                    
+                days = [date for date, day in enumerate(weekdays) if datetime.date(self.year, self.month, date) not in holiday_list]
+            
+            traffic_mat_dep = np.zeros(shape=(len(days), 24))
+            traffic_mat_arr = np.zeros(shape=(len(days), 24))
+            
+            for i, day in enumerate(days):
+                traffic_mat_dep[i,:], traffic_mat_arr[i,:] = self.daily_traffic(
+                    stat_index, day, normalise=normalise,
+                    plot=False, all_days=False)
+            
+            return traffic_mat_dep, traffic_mat_arr
+            
+        
+        else: 
+            df_stat_start = self.df.iloc[np.where(
+                self.df['start_stat_index'] == stat_index)]
+            df_stat_end = self.df.iloc[np.where(
+                self.df['end_stat_index'] == stat_index)]
+    
+            trips_arrivals = np.zeros(24)
+            trips_departures = np.zeros(24)
+    
+            for hour in range(24):
+    
+                mask = (df_stat_start['start_dt'].dt.day == day) & (
+                    df_stat_start['start_dt'].dt.hour == hour)
+                df_hour_start = df_stat_start.loc[mask]
+    
+                trips_departures[hour] = len(df_hour_start)
+    
+                mask = (df_stat_end['end_dt'].dt.day == day) & (
+                    df_stat_end['end_dt'].dt.hour == hour)
+                df_hour_end = df_stat_end.loc[mask]
+    
+                trips_arrivals[hour] = len(df_hour_end)
+    
+            if normalise:
+                trips_total = sum(trips_departures) + sum(trips_arrivals)
+                trips_departures = trips_departures/trips_total
+                trips_arrivals = trips_arrivals/trips_total
+    
+            if plot:
+    
+                if normalise:
+                    plt.plot(np.arange(24), trips_arrivals*100)
+                    plt.plot(np.arange(24), trips_departures*100)
+                    plt.ylabel('% of total trips')
+                else:
+                    plt.plot(np.arange(24), trips_arrivals)
+                    plt.plot(np.arange(24), trips_departures)
+                    plt.ylabel('# trips')
+    
+                plt.xticks(np.arange(24))
+                plt.legend(['Arrivals', 'Departures'])
+                plt.xlabel('Hour')
+    
+                plt.title(
+                    f'Hourly traffic for {self.stat.names[stat_index]} \n on {self.year:d}-{self.month:02d}-{day:02d}')
+    
+            return trips_departures, trips_arrivals
 
     def daily_traffic_average(self, stat_index, period='b', normalise=True, plot=False, return_all=False, return_fig=False, return_std=False):
         """

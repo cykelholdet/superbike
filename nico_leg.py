@@ -442,6 +442,49 @@ station_df.drop('index_right', axis=1, inplace=True)
 
 station_df['service_area'] = station_df['vor_poly'].apply(())
 
+#%% 
+
+import datetime
+from bikeshare import get_cal
+
+
+city = 'nyc'
+year = 2019
+month = 9
+period = 'b' # 'b' = business days or 'w' = weekends
+holidays = False
+min_trips = 100
+
+# if city == 'nyc':
+#     gov_stations = [3254, 3182, 3479]
+#     data = bs.Data(city, year, month, blacklist=gov_stations)
+
+data = bs.Data(city,year,month)
+
+if period == 'b':
+    df = data.df[['start_stat_id', 'start_dt']][data.df['start_dt'].dt.weekday <= 4]
+    if not holidays:
+        holiday_year = pd.DataFrame(
+            get_cal(data.city).get_calendar_holidays(data.year), columns=['day', 'name'])
+        holiday_list = holiday_year['day'].tolist()
+        df = df[~df['start_dt'].dt.date.isin(holiday_list)] # Rows which are not in holiday list
+    else:
+        holiday_list = []
+
+    weekmask = '1111100'
+elif period == 'w':
+    df = data.df[['start_stat_id', 'start_dt']][data.df['start_dt'].dt.weekday > 4]
+    holiday_list = []
+    weekmask = '0000011'
+
+if data.month == None:
+    n_days = np.busday_count(datetime.date(data.year, 1, 1), datetime.date(data.year+1, 1, 1), weekmask=weekmask, holidays=holiday_list)
+
+else:
+    if data.month != 12:
+        n_days = np.busday_count(datetime.date(data.year, data.month, 1), datetime.date(data.year, data.month+1, 1), weekmask=weekmask, holidays=holiday_list)
+    else:
+        n_days = np.busday_count(datetime.date(data.year, data.month, 1), datetime.date(data.year+1, 1, 1), weekmask=weekmask, holidays=holiday_list)
 
 
 

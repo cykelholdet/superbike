@@ -15,19 +15,48 @@ from sklearn.model_selection import train_test_split
 import bikeshare as bs
 import interactive_plot_utils as ipu
 
-data = bs.Data('nyc', 2019, 9)
+k = 3
+
+data = bs.Data('nyc', 2019, 8)
 station_df = ipu.make_station_df(data, holidays=False)
 traffic_matrices = data.pickle_daily_traffic(holidays=False)
 
-station_df, clusters, labels = ipu.get_clusters(traffic_matrices, station_df, 'business_days', 100, 'k_means', 2, random_state=42)
+station_df, clusters, labels = ipu.get_clusters(traffic_matrices, 
+                                                station_df, 
+                                                'business_days', 
+                                                100, 
+                                                'k_means', 
+                                                k, 
+                                                random_state=42)
+station_df = station_df.dropna()
 
-station_df.dropna(inplace=True)
-#%%
+mean = np.mean(traffic_matrices[0][station_df.index], axis=0)
+
+dist_list=[]
+for label, center in enumerate(clusters.cluster_centers_):
+    dist = np.linalg.norm(center/np.max(center)-mean/np.max(mean))
+    dist_list.append(dist)
+
+avg_label = np.argmin(dist_list)
+
+new_labels = [avg_label]
+for i in range(1,k):
+    if i == avg_label:
+        new_labels.append(0)
+    else:
+        new_labels.append(i)
+
+labels_dict = dict(zip(range(len(new_labels)), new_labels))
+
+station_df.replace({'label' : labels_dict}, inplace=True)
+
+#%% sklearn
+
 
 ohe_zone = pd.get_dummies(station_df['zone_type'])
 
-# X = pd.concat([ohe_zone, station_df[['nearest_subway_dist', 'pop_density', 'n_trips',]], pd.DataFrame(traffic_matrices[0])], axis=1)
-X = pd.concat([ohe_zone, station_df[['nearest_subway_dist', 'pop_density', ]]], axis=1)
+X = pd.concat([ohe_zone, station_df[['nearest_subway_dist', 'pop_density', 'n_trips',]], pd.DataFrame(traffic_matrices[0])], axis=1)
+
 y = station_df['label']
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
@@ -104,16 +133,16 @@ print(f"accuracy is {accuracy*100:.2f}%")
 import statsmodels.api as sm
 from statsmodels.discrete.discrete_model import MNLogit
 
-data = sm.datasets.scotland.load_pandas()
+# data = sm.datasets.scotland.load_pandas()
 
 ohe_zone = pd.get_dummies(station_df['zone_type'])
 X = pd.concat([ohe_zone, station_df[['nearest_subway_dist', 'pop_density', 'n_trips']]], axis=1)
-# X['n_trips'] = X['n_trips']/X['n_trips'].sum()
-# X['nearest_subway_dist'] = X['nearest_subway_dist']/X['nearest_subway_dist'].sum()
+X['n_trips'] = X['n_trips']/X['n_trips'].sum()
+X['nearest_subway_dist'] = X['nearest_subway_dist']/X['nearest_subway_dist'].sum()
 
 # X = ohe_zone
 
-# X = sm.add_constant(X)
+X = sm.add_constant(X)
 y = station_df['label']
 
 
@@ -123,12 +152,4 @@ print(LR_results.summary())
 
 # sk_model = LogisticRegression(max_iter=10000)
 # sk_results = sk_model.fit(X,y)
-
-
-
-
-
-
-
-
 
