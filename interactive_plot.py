@@ -31,7 +31,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'helsinki'
+CITY = 'nyc'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -129,6 +129,7 @@ class BikeDash(param.Parameterized):
         super().__init__(**kwargs)  # Runs init for the superclass param.Parameterized
         self.clusters = None
         self.labels = None
+        self.labels_dict = None
         self.index = index
         self.data = bs.Data(self.city, YEAR, self.month)
         self.station_df, self.land_use = ipu.make_station_df(self.data, holidays=False, return_land_use=True)
@@ -148,6 +149,37 @@ class BikeDash(param.Parameterized):
     def plot_clusters_full(self):
         self.station_df, self.clusters, self.labels = ipu.get_clusters(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, self.clustering, self.k, self.random_state)
         
+        print(self.station_df.label.iloc[0])
+        
+        if self.day_type == 'business_days':
+            mean = np.mean(self.traffic_matrices[0][self.station_df.index], axis=0)
+        elif self.day_type == 'weekend':
+            mean = np.mean(self.traffic_matrices[1][self.station_df.index], axis=0)
+        
+        mean = mean/np.max(mean)
+        
+        dist_list=[]
+        for label, center in enumerate(self.clusters.cluster_centers_):
+            
+            dist_from_mean = np.linalg.norm(center/np.max(center)-mean)
+            dist_list.append(dist_from_mean)
+        
+        avg_label = np.argmin(dist_list)
+        
+        new_labels = [avg_label]
+        for i in range(1,self.k):
+            if i == avg_label:
+                new_labels.append(0)
+            else:
+                new_labels.append(i)
+        
+        self.labels_dict = dict(zip(range(len(new_labels)), new_labels))
+        
+        self.station_df = self.station_df.replace({'label' : self.labels_dict})
+        self.labels = np.array(self.station_df['label'])
+        
+        print(self.station_df.label.iloc[0])
+        
         if self.clustering == 'none':
             title = f'Number of trips per station in {month_dict[self.month]} {YEAR} in {bs.name_dict[self.city]}'
         else:
@@ -156,7 +188,7 @@ class BikeDash(param.Parameterized):
         plot = gv.Points(self.station_df, kdims=['long', 'lat'], vdims=['stat_id', 'color', 'n_trips', 'b_trips', 'w_trips', 'zone_type', 'name', ])
         plot.opts(gv.opts.Points(fill_color='color', size=10, line_color='black'))
         return plot
-    
+
 
     @param.depends('day_type', 'clustering', 'k', 'plot_all_clusters', 'min_trips', 'boolean_', watch=False)
     def plot_centroid(self, index):
@@ -212,7 +244,10 @@ class BikeDash(param.Parameterized):
                     
                 cc_plot_list = list()
                 for j in range(self.k):
-                    ccs = self.clusters.cluster_centers_[j]
+                    
+                    # print(self.labels[0])
+                    
+                    ccs = self.clusters.cluster_centers_[self.labels_dict[j]]
                     cc_plot = plot_center(self.labels, j, ccs, title_pre="Centroid")
                     cc_plot_list.append(cc_plot)
                 return pn.Column(*cc_plot_list)
@@ -222,8 +257,8 @@ class BikeDash(param.Parameterized):
                 i = index[0]
                 if ~np.isnan(self.station_df['label'][i]):
                     j = int(self.station_df['label'][i])
-                    ccs = self.clusters.cluster_centers_[j]
-                    cc_plot = plot_center(self.station_df['label'], j, ccs, title_pre="Centroid")
+                    ccs = self.clusters.cluster_centers_[self.labels_dict[j]]
+                    cc_plot = plot_center(self.station_df['label'], self.labels_dict[j], ccs, title_pre="Centroid")
                     return pn.Column(cc_plot, f"Station index {i} is in cluster {j}")
                 else:
                     return f"Station index {i} is not in a cluster due to min_trips."
@@ -400,7 +435,7 @@ title_row[0].width=400
 panel_column = pn.Column(title_row, panel_param)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-bokeh_server = panel_column.show(port=12345)
+# bokeh_server = panel_column.show(port=12345)
 
 #%%
-bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
+# bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
