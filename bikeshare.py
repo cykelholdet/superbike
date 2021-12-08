@@ -3137,7 +3137,7 @@ class Data:
 
         return deg_compare
 
-    def daily_traffic(self, stat_index, day, normalise=True, plot=False, all_days=False, period = None, holidays=True):
+    def daily_traffic(self, stat_index=None, stat_id=None, month = None, day='all', normalise=True, plot=False, period = None, holidays=True):
         """
         Computes the number of arrivals and departures to and from the station
         in every hour of the specified day.
@@ -3162,53 +3162,93 @@ class Data:
 
         """
         
-        if all_days:
-            
-            weekdays = [calendar.weekday(self.year, self.month, i) for i in range(
-            1, calendar.monthrange(self.year, self.month)[1]+1)]
+        if not month:
+            month = self.month
         
-            if period == 'b':
-                days = [date+1 for date, day in enumerate(weekdays) if day <= 4]
+        if stat_index is None and stat_id is None:
+            raise ValueError('Plese provide either a station index or station id')
+        
+        if stat_index:
+            stat_id = self.stat.inverse[stat_index]
+        
+        if day=='all':
             
+            if period == 'b':
+                
+                if not month:
+                    days = [datetime.date(self.year, 1, day) for day in range(
+                        1,calendar.monthrange(self.year,1)[1]+1) if calendar.weekday(self.year,1,day) <=4]
+                    
+                    for m in range(2,13):
+                        for day in range(1,calendar.monthrange(self.year,m)[1]+1):
+                            if calendar.weekday(self.year, m, day) <= 4:
+                                days.append(datetime.date(self.year, m, day))
+                
+                else:
+                    days = [datetime.date(self.year, month, day) for day in range(
+                        1,calendar.monthrange(self.year,month)[1]+1) if calendar.weekday(self.year,month,day) <=4]
+                    
+                
                 if not holidays:
                       holiday_year = pd.DataFrame(
                           get_cal(self.city).get_calendar_holidays(self.year), columns=['day', 'name'])
                       holiday_list = holiday_year['day'].tolist()
-                else:
-                    holiday_list = []
-                
-                days = [day for day in days if datetime.date(self.year, self.month, day) not in holiday_list]
-              
+                      days =  [day for day in days if day not in holiday_list]
                     
             elif period == 'w':
-                days = [date+1 for date, day in enumerate(weekdays) if day > 4]
+                
+                if not month:
+                    days = [datetime.date(self.year, 1, day) for day in range(
+                        1,calendar.monthrange(self.year,1)[1]+1) if calendar.weekday(self.year,1,day) >4]
+                    
+                    for m in range(2,13):
+                        for day in range(1,calendar.monthrange(self.year,m)[1]+1):
+                            if calendar.weekday(self.year, m, day) > 4:
+                                days.append(datetime.date(self.year, m, day))
+                
+                    else:
+                        days = [datetime.date(self.year, month, day) for day in range(
+                            1,calendar.monthrange(self.year,month)[1]+1) if calendar.weekday(self.year,month,day) > 4]
+
             else:
+                
+                if not month:
+                    days = [datetime.date(self.year, 1, day) for day in range(1, calendar.monthrange(self.year, 1)[1]+1)]
+                
+                    for m in range(2,13):
+                        for i in range(1, calendar.monthrange(self.year, m)[1]+1):
+                            days.append(datetime.date(self.year, m, i))
+                
+                else:
+                    days = [datetime.date(self.year, month, day) for day in range(1, calendar.monthrange(self.year, month)[1]+1)]
                 
                 if not holidays:
                     holiday_year = pd.DataFrame(
                               get_cal(self.city).get_calendar_holidays(self.year), columns=['day', 'name'])
-                    holiday_list = holiday_year['day'].tolist()
-                else:
-                    holiday_list = []
+                    holiday_list = holiday_year['day'].tolist()    
                     
-                days = [date for date, day in enumerate(weekdays) if datetime.date(self.year, self.month, date) not in holiday_list]
-            
+                    days = [day for day in days if day not in holiday_list]
+                    
             traffic_mat_dep = np.zeros(shape=(len(days), 24))
             traffic_mat_arr = np.zeros(shape=(len(days), 24))
             
             for i, day in enumerate(days):
                 traffic_mat_dep[i,:], traffic_mat_arr[i,:] = self.daily_traffic(
-                    stat_index, day, normalise=normalise,
-                    plot=False, all_days=False)
-            
+                    stat_index, month=day.month, day=day.day, normalise=normalise,
+                    plot=False)
+
             return traffic_mat_dep, traffic_mat_arr
             
         
         else: 
+            
+            if not month:
+                raise ValueError('Please provide a month.')
+            
             df_stat_start = self.df.iloc[np.where(
-                self.df['start_stat_index'] == stat_index)]
+                self.df['start_stat_id'] == stat_id)]
             df_stat_end = self.df.iloc[np.where(
-                self.df['end_stat_index'] == stat_index)]
+                self.df['end_stat_id'] == stat_id)]
     
             trips_arrivals = np.zeros(24)
             trips_departures = np.zeros(24)
@@ -3248,7 +3288,7 @@ class Data:
                 plt.xlabel('Hour')
     
                 plt.title(
-                    f'Hourly traffic for {self.stat.names[stat_index]} \n on {self.year:d}-{self.month:02d}-{day:02d}')
+                    f'Hourly traffic for {self.stat.names[self.stat.id_index[stat_id]]} \n on {self.year:d}-{self.month:02d}-{day:02d}')
     
             return trips_departures, trips_arrivals
 

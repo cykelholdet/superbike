@@ -104,7 +104,7 @@ class BikeDash(param.Parameterized):
     Variables for the dashboard are introduced as param objects with their
     possible values. In addition, the plotting functions are defined.
     """
-    city = param.Selector(default=CITY, objects=['nyc', 'chic', 'helsinki', 'madrid', 'edinburgh'])
+    city = param.Selector(default=CITY, objects=['nyc', 'chic', 'washDC', 'london', 'helsinki', 'madrid', 'edinburgh'])
     if MONTH == None:
         month = param.Selector(default=MONTH, objects=[None, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
     else:
@@ -149,7 +149,7 @@ class BikeDash(param.Parameterized):
     def plot_clusters_full(self):
         self.station_df, self.clusters, self.labels = ipu.get_clusters(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, self.clustering, self.k, self.random_state)
         
-        print(self.station_df.label.iloc[0])
+        # print(self.station_df.label.iloc[0])
         
         if self.day_type == 'business_days':
             mean = np.mean(self.traffic_matrices[0][self.station_df.index], axis=0)
@@ -158,13 +158,20 @@ class BikeDash(param.Parameterized):
         
         mean = mean/np.max(mean)
         
-        dist_list=[]
-        for label, center in enumerate(self.clusters.cluster_centers_):
-            
+        dist1_list = []
+        for center in self.clusters.cluster_centers_:
             dist_from_mean = np.linalg.norm(center/np.max(center)-mean)
-            dist_list.append(dist_from_mean)
+            dist1_list.append(dist_from_mean)
         
-        avg_label = np.argmin(dist_list)
+        avg_candidates = np.argsort(dist1_list)[:2]
+        
+        dist2_list=[]
+        for candidate_label in avg_candidates:
+            center = self.clusters.cluster_centers_[candidate_label]
+            dist_from_zero = np.linalg.norm(center[:24]-center[24:])
+            dist2_list.append(dist_from_zero)
+        
+        avg_label = avg_candidates[np.argmin(dist2_list)]
         
         new_labels = [avg_label]
         for i in range(1,self.k):
@@ -178,7 +185,7 @@ class BikeDash(param.Parameterized):
         self.station_df = self.station_df.replace({'label' : self.labels_dict})
         self.labels = np.array(self.station_df['label'])
         
-        print(self.station_df.label.iloc[0])
+        # print(self.station_df.label.iloc[0])
         
         if self.clustering == 'none':
             title = f'Number of trips per station in {month_dict[self.month]} {YEAR} in {bs.name_dict[self.city]}'
