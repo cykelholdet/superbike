@@ -64,11 +64,11 @@ station_df.replace({'label' : labels_dict}, inplace=True)
 
 #%% sklearn
 
+
 ohe_zone = pd.get_dummies(station_df['zone_type'])
 
-# X = pd.concat([ohe_zone, station_df[['nearest_subway_dist', 'pop_density', 'n_trips',]], pd.DataFrame(traffic_matrices[0])], axis=1)
-X = pd.concat([ohe_zone, station_df[['nearest_subway_dist', 'pop_density', 'n_trips']]], axis=1)
-# X = ohe_zone
+X = pd.concat([ohe_zone, station_df[['nearest_subway_dist', 'pop_density', 'n_trips',]], pd.DataFrame(traffic_matrices[0])], axis=1)
+
 y = station_df['label']
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
@@ -91,6 +91,54 @@ print(f"accuracy is {accuracy*100:.2f}%")
 #     print(zone_type)
 #     print(probs[i])
 #     print(probs[i].argmax())
+
+#%% Compare cities
+
+k = 2
+min_trips = 100
+seed = None
+
+city_train = 'nyc'
+month_train = 9
+
+city_test = 'helsinki'
+month_test = 9
+
+data_train = bs.Data(city_train, 2019, month_train)
+stat_df_train = ipu.make_station_df(data_train, holidays=False)
+traffic_matrices_train = data_train.pickle_daily_traffic(holidays=False)
+stat_df_train, clusters_train, labels_train = ipu.get_clusters(traffic_matrices_train, stat_df_train, 'business_days', min_trips, 'k_means', k, random_state=seed)
+stat_df_train.dropna(inplace=True)
+
+data_test = bs.Data(city_test, 2019, month_test)
+stat_df_test = ipu.make_station_df(data_test, holidays=False)
+traffic_matrices_test = data_test.pickle_daily_traffic(holidays=False)
+stat_df_test, clusters_test, labels_test = ipu.get_clusters(traffic_matrices_test, stat_df_test, 'business_days', min_trips, 'k_means', k, random_state=seed)
+stat_df_test.dropna(inplace=True)
+
+ohe_zone_train = pd.get_dummies(stat_df_train['zone_type'])
+X_train = pd.concat([ohe_zone_train, stat_df_train[['nearest_subway_dist', 'pop_density']]], axis=1)
+y_train = stat_df_train['label']
+
+ohe_zone_test = pd.get_dummies(stat_df_test['zone_type'])
+X_test = pd.concat([ohe_zone_test, stat_df_test[['nearest_subway_dist', 'pop_density', ]]], axis=1)
+
+drop_indices = np.where(X_test.transportation == 1)[0]
+
+X_test.drop(drop_indices, inplace=True)
+X_test.drop(columns=['transportation'], axis=1, inplace=True)
+y_test = stat_df_test['label']
+y_test.drop(drop_indices, inplace=True)
+
+lr = LogisticRegression(max_iter=10000).fit(X_train, y_train)
+coefs = pd.DataFrame(lr.coef_, columns=X_train.columns)
+
+y_pred = lr.predict(X_test)
+
+accuracy = np.sum(y_pred == y_test) / y_test.shape[0]
+
+print(f"accuracy is {accuracy*100:.2f}%")
+
 
 #%% Statsmodels
 
