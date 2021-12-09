@@ -634,7 +634,7 @@ def create_all_pickles(city, year, holidays=False, overwrite=False):
 
 
 def create_all_pickles_all_cities(year, holidays=False, overwrite=False):
-    for city in ['madrid']:
+    for city in bs.name_dict.keys():
         pre = time.time()
         create_all_pickles(city, 2019, overwrite=True)
         print(f'{bs.name_dict[city]} took {time.time() - pre:.2f} seconds')
@@ -676,9 +676,9 @@ color_num_dict = {
 if __name__ == "__main__":
     import time
     
-    create_all_pickles('helsinki', 2019, overwrite=False)
+    #create_all_pickles('helsinki', 2019, overwrite=False)
 
-    data = bs.Data('helsinki', 2019, 9)
+    data = bs.Data('nyc', 2019, 9)
     pre = time.time()
     station_df, land_use = make_station_df(data, return_land_use=True)
     print(f'station_df took {time.time() - pre:.2f} seconds')
