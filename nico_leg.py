@@ -395,13 +395,16 @@ for stat_index in label_indices[0]:
 #%% Voronoi test
 
 from scipy.spatial import Voronoi, voronoi_plot_2d
-import shapely.geometry
+from shapely.geometry import Point, LineString
+# import shapely.geometry
 import shapely.ops
 import pandas as pd
 import geopandas as gpd
 
 data = bs.Data('nyc', 2019, 9)
-station_df = ipu.make_station_df(data, return_land_use=False)[:10]
+station_df, land_use_df = ipu.make_station_df(data, return_land_use=True)
+
+service_radius  = 1000
 
 # np.random.seed(42)
 
@@ -409,11 +412,13 @@ station_df = ipu.make_station_df(data, return_land_use=False)[:10]
 
 points = station_df[['easting', 'northing']].to_numpy()
 
-points_gdf = gpd.GeoDataFrame()
-points_gdf['point'] = [shapely.geometry.Point(station_df.iloc[i]['easting'], 
+points_gdf = gpd.GeoDataFrame(geometry = [Point(station_df.iloc[i]['easting'], 
                                               station_df.iloc[i]['northing'])
-                       for i in range(len(station_df))]
-points_gdf['geometry'] = points_gdf['point']
+                       for i in range(len(station_df))], crs='EPSG:3857')
+
+points_gdf['point'] = points_gdf['geometry']
+# points_gdf['geometry'] = points_gdf['point']
+# points_gdf.set_crs(epsg=3857, inplace=True)
 
 mean_point= np.mean(points, axis=0)
 edge_dist = 1000000
@@ -424,29 +429,73 @@ edge_points = np.array([[mean_point[0]-edge_dist, mean_point[1]-edge_dist],
 # points = np.concatenate([points, edge_points], axis = 0)
 
 vor = Voronoi(np.concatenate([points, edge_points], axis=0))
-voronoi_plot_2d(vor)
+# voronoi_plot_2d(vor)
 
-lines = [
-    shapely.geometry.LineString(vor.vertices[line])
+lines = [LineString(vor.vertices[line])
     for line in vor.ridge_vertices
     if -1 not in line
 ]
 
+
 poly_gdf = gpd.GeoDataFrame()
 poly_gdf['vor_poly'] = [poly for poly in shapely.ops.polygonize(lines)]
-poly_gdf['geometry'] = [poly for poly in shapely.ops.polygonize(lines)]
+poly_gdf['geometry'] = poly_gdf['vor_poly']
+poly_gdf.set_crs(epsg=3857, inplace=True)
 
+poly_gdf = gpd.tools.sjoin(points_gdf, poly_gdf, op='within', how='left')
+poly_gdf.drop('index_right', axis=1, inplace=True)
+
+poly_gdf['service_area'] = [
+    row['vor_poly'].intersection(row['point'].buffer(service_radius))
+    for i, row in poly_gdf.iterrows()]
+
+poly_gdf['geometry'] = poly_gdf['service_area']
+poly_gdf.set_crs(epsg=3857, inplace=True)
+poly_gdf.to_crs(epsg=4326, inplace=True)
+poly_gdf['service_area'] = poly_gdf['geometry']
 
 station_df = gpd.tools.sjoin(station_df, poly_gdf, op='within', how='left')
-station_df.drop('index_right', axis=1, inplace=True)
+station_df.drop(columns=['index_right', 'vor_poly', 'point'], inplace=True)
 
-station_df['service_area'] = station_df['vor_poly'].apply(())
+# zoning_df = gpd.read_file('./data/other_data/nyc_zoning_data.json')
+union = shapely.ops.unary_union(land_use_df.geometry)
+
+station_df['service_area'] = station_df['service_area'].apply(lambda area: area.intersection(union))
+
+service_area_trim = []
+for i, row in station_df.iterrows():
+    if isinstance(row['service_area'], shapely.geometry.multipolygon.MultiPolygon):
+        for poly in row['service_area']:
+            if poly.contains(row['coords']):
+                service_area_trim.append(poly)
+    else:
+        service_area_trim.append(row['service_area'])
+
+station_df['service_area'] = service_area_trim
+station_df.set_geometry('service_area', inplace=True)
+
+start = time.time()
+
+station_df['service_area'] = station_df['service_area'].to_crs(epsg=3857)
+land_use_df['geometry'] = land_use_df['geometry'].to_crs(epsg=3857)
+neighborhoods = []
+for i, stat in station_df.iterrows():
+    
+    buffer = stat['service_area'].buffer(1000)
+    
+    neighborhoods.append([
+        [row['geometry'], row['zone_type']] 
+        for j, row in land_use_df.iterrows() 
+        if row['geometry'].distance(stat['service_area']) == 0])
+
+print(time.time()-start)
+            
 
 #%% 
 
 import datetime
 from bikeshare import get_cal
-
+from matplotlib.collections import PolyCollection
 
 city = 'nyc'
 year = 2019
@@ -455,40 +504,54 @@ period = 'b' # 'b' = business days or 'w' = weekends
 holidays = False
 min_trips = 100
 
-# if city == 'nyc':
-#     gov_stations = [3254, 3182, 3479]
-#     data = bs.Data(city, year, month, blacklist=gov_stations)
+stat=247
 
-data = bs.Data(city,year,month)
+def normal_dist(x , mean , sd):
+    prob_density = (np.pi*sd) * np.exp(-0.5*((x-mean)/sd)**2)
+    return prob_density
 
-if period == 'b':
-    df = data.df[['start_stat_id', 'start_dt']][data.df['start_dt'].dt.weekday <= 4]
-    if not holidays:
-        holiday_year = pd.DataFrame(
-            get_cal(data.city).get_calendar_holidays(data.year), columns=['day', 'name'])
-        holiday_list = holiday_year['day'].tolist()
-        df = df[~df['start_dt'].dt.date.isin(holiday_list)] # Rows which are not in holiday list
-    else:
-        holiday_list = []
+data = bs.Data(city,year)
 
-    weekmask = '1111100'
-elif period == 'w':
-    df = data.df[['start_stat_id', 'start_dt']][data.df['start_dt'].dt.weekday > 4]
-    holiday_list = []
-    weekmask = '0000011'
+traffic_dep, traffic_arr = data.daily_traffic(stat_index = stat, normalise=False, period=period, holidays=holidays)
 
-if data.month == None:
-    n_days = np.busday_count(datetime.date(data.year, 1, 1), datetime.date(data.year+1, 1, 1), weekmask=weekmask, holidays=holiday_list)
 
-else:
-    if data.month != 12:
-        n_days = np.busday_count(datetime.date(data.year, data.month, 1), datetime.date(data.year, data.month+1, 1), weekmask=weekmask, holidays=holiday_list)
-    else:
-        n_days = np.busday_count(datetime.date(data.year, data.month, 1), datetime.date(data.year+1, 1, 1), weekmask=weekmask, holidays=holiday_list)
+mean_dep = np.mean(traffic_dep, axis=0)
+mean_arr = np.mean(traffic_arr, axis=0)
+
+std_dep = np.std(traffic_dep, axis=0)
+std_arr = np.std(traffic_arr, axis=0)
+
+var_dep = np.var(traffic_dep, axis=0)
+var_arr = np.var(traffic_arr, axis=0)
+
+
+# bar plots
+
+hours = np.arange(24)
+
+fig = plt.figure()
+ax = plt.add_subplot(projectio='3d')
+ax.bar()
 
 
 
 
+
+# Norm plots
+
+# hour_range = np.arange(24)
+# x_range = np.linspace(0,250,10**3)
+# hours = np.tile(hour_range, (x_range.size,1)).T
+# x_tile = np.tile(x_range, (hour_range.size,1))
+# z = np.zeros(shape=(hour_range.size, x_range.size))
+
+# for hour in hour_range:
+#     for i, x in enumerate(x_range):
+#         z[hour,i] = normal_dist(x, mean_arr[hour], std_arr[hour])
+
+# fig = plt.figure()
+# ax = fig.add_subplot(projection='3d')
+# ax.plot_wireframe(hours,x_tile, z, cstride=1000000)
 
 
 

@@ -5,6 +5,8 @@ Created on Thu Nov 18 11:01:55 2021
 
 @author: dbvd
 """
+import os
+
 import numpy as np
 import pandas as pd
 
@@ -15,9 +17,9 @@ from sklearn.model_selection import train_test_split
 import bikeshare as bs
 import interactive_plot_utils as ipu
 
-k = 3
+k = 5
 
-data = bs.Data('nyc', 2019, 8)
+data = bs.Data('london', 2019, 9)
 station_df = ipu.make_station_df(data, holidays=False)
 traffic_matrices = data.pickle_daily_traffic(holidays=False)
 
@@ -32,12 +34,22 @@ station_df = station_df.dropna()
 
 mean = np.mean(traffic_matrices[0][station_df.index], axis=0)
 
-dist_list=[]
-for label, center in enumerate(clusters.cluster_centers_):
-    dist = np.linalg.norm(center/np.max(center)-mean/np.max(mean))
-    dist_list.append(dist)
+mean = mean/np.max(mean)
 
-avg_label = np.argmin(dist_list)
+dist1_list = []
+for center in clusters.cluster_centers_:
+    dist_from_mean = np.linalg.norm(center/np.max(center)-mean)
+    dist1_list.append(dist_from_mean)
+
+avg_candidates = np.argsort(dist1_list)[:2]
+
+dist2_list=[]
+for candidate_label in avg_candidates:
+    center = clusters.cluster_centers_[candidate_label]
+    dist_from_zero = np.linalg.norm(center[:24]-center[24:])
+    dist2_list.append(dist_from_zero)
+
+avg_label = avg_candidates[np.argmin(dist2_list)]
 
 new_labels = [avg_label]
 for i in range(1,k):
@@ -136,20 +148,45 @@ from statsmodels.discrete.discrete_model import MNLogit
 # data = sm.datasets.scotland.load_pandas()
 
 ohe_zone = pd.get_dummies(station_df['zone_type'])
-X = pd.concat([ohe_zone, station_df[['nearest_subway_dist', 'pop_density', 'n_trips']]], axis=1)
-X['n_trips'] = X['n_trips']/X['n_trips'].sum()
-X['nearest_subway_dist'] = X['nearest_subway_dist']/X['nearest_subway_dist'].sum()
 
-# X = ohe_zone
+X = ohe_zone
 
-X = sm.add_constant(X)
+X = pd.concat([X, station_df['pop_density']/station_df['pop_density'].max()], axis=1)
+X = pd.concat([X, station_df['nearest_subway_dist']/station_df['nearest_subway_dist'].max()], axis=1)
+# X = pd.concat([X, station_df['n_trips']], axis=1)
+
+# X['n_trips'] = X['n_trips']/X['n_trips'].sum()
+# X['nearest_subway_dist'] = X['nearest_subway_dist']/X['nearest_subway_dist'].sum()
+
+# X = sm.add_constant(X)
+
+X.reset_index(inplace=True, drop=True)
+
+bad_columns = ['mixed', 'transportation', ]
+bad_indices = []
+for column in bad_columns:
+    if column in X.columns:
+        np.concatenate([bad_indices, np.where(X[column] == 1)[0]])
+        X.drop(columns = [column], inplace=True)
+X.drop(index = bad_indices, inplace=True)
+
 y = station_df['label']
-
+y.reset_index(inplace=True, drop=True)
+y.drop(index=bad_indices, inplace=True)
 
 LR_model = MNLogit(y, X)
-LR_results = LR_model.fit(maxiter=1000)
-print(LR_results.summary())
 
-# sk_model = LogisticRegression(max_iter=10000)
-# sk_results = sk_model.fit(X,y)
+# LR_results = LR_model.fit(maxiter=10000)
+LR_results = LR_model.fit_regularized(maxiter=10000)
+# LR_results = LR_model.fit(start_params = LR_results.params, method = 'bfgs', maxiter=1000)
+# print(LR_results.summary())
+
+if not os.path.exists('stat_results'):
+    os.makedirs('stat_results')
+
+
+with open(f'./stat_results/{data.city}{data.year}{data.month:02d}_MNLogit_results.txt', 'w') as file:
+    print(LR_results.summary())
+    print(LR_results.summary(), file = file)
+
 
