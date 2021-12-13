@@ -506,12 +506,12 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
             for j, row in land_use.iterrows() 
             if row['geometry'].distance(buffer) == 0])
     
-    df['neighborhood'] = neighborhoods
+    # df['neighborhood'] = neighborhoods
     
     for zone_type in df['zone_type'].unique():
         zone_hoods = []
         for i, stat in df.iterrows():
-            union = [hood[0] for hood in stat['neighborhood'] if hood[1] == zone_type]
+            union = [hood[0] for hood in neighborhoods[i] if hood[1] == zone_type]
             if len(union) != 0:
                 zone_hoods.append(shapely.ops.unary_union(union))
             else:
@@ -519,7 +519,9 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
             
         df[f'neighborhood_{zone_type}'] = zone_hoods
     
-    land_use.to_crs(epsg=4326, inplace=True)
+    # df.drop('neighborhood', inplace=True)
+    
+    # land_use.to_crs(epsg=4326, inplace=True)
     
     land_use['color'] = land_use['zone_type'].map(color_dict).fillna("pink")
     
@@ -725,7 +727,7 @@ if __name__ == "__main__":
     
     # create_all_pickles('helsinki', 2019, overwrite=False)
 
-    data = bs.Data('madrid', 2019, 9)
+    data = bs.Data('helsinki', 2019)
 
     pre = time.time()
     station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
