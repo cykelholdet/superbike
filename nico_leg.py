@@ -401,10 +401,14 @@ import shapely.ops
 import pandas as pd
 import geopandas as gpd
 
-data = bs.Data('nyc', 2019, 9)
+data = bs.Data('madrid', 2019, 9)
 station_df, land_use_df = ipu.make_station_df(data, return_land_use=True)
 
-service_radius  = 1000
+#%%
+
+start = time.time()
+
+service_radius  = 500
 
 # np.random.seed(42)
 
@@ -457,8 +461,15 @@ poly_gdf['service_area'] = poly_gdf['geometry']
 station_df = gpd.tools.sjoin(station_df, poly_gdf, op='within', how='left')
 station_df.drop(columns=['index_right', 'vor_poly', 'point'], inplace=True)
 
+#%%
+
 # zoning_df = gpd.read_file('./data/other_data/nyc_zoning_data.json')
 union = shapely.ops.unary_union(land_use_df.geometry)
+
+# with open('./python_variables/zone_union_madrid.pickle', 'rb') as file:
+#     union = pickle.load(file)
+
+#%%
 
 station_df['service_area'] = station_df['service_area'].apply(lambda area: area.intersection(union))
 
@@ -474,22 +485,25 @@ for i, row in station_df.iterrows():
 station_df['service_area'] = service_area_trim
 station_df.set_geometry('service_area', inplace=True)
 
-start = time.time()
 
 station_df['service_area'] = station_df['service_area'].to_crs(epsg=3857)
 land_use_df['geometry'] = land_use_df['geometry'].to_crs(epsg=3857)
-neighborhoods = []
-for i, stat in station_df.iterrows():
-    
-    buffer = stat['service_area'].buffer(1000)
-    
-    neighborhoods.append([
-        [row['geometry'], row['zone_type']] 
-        for j, row in land_use_df.iterrows() 
-        if row['geometry'].distance(stat['service_area']) == 0])
 
-print(time.time()-start)
-            
+# print(start-time)
+
+#%%
+
+for zone_type in station_df['zone_type'].unique():
+    
+    zone_percents = np.zeros(len(station_df))
+    
+    for i, stat in station_df.iterrows():
+        
+        if stat[f'neighborhood_{zone_type}']:
+        
+            zone_percents[i] = stat['service_area'].buffer(0).intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area'].area*100
+        
+    station_df[f'%_{zone_type}'] = zone_percents
 
 #%% 
 

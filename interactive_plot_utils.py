@@ -14,7 +14,7 @@ import holoviews as hv
 
 import shapely.ops
 
-from shapely.geometry import Point
+from shapely.geometry import Point, Polygon
 # from shapely.ops import nearest_points
 from geopy.distance import great_circle
 import matplotlib.colors as mpl_colors
@@ -253,8 +253,21 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
     df['label'] = np.nan
     df['color'] = "gray"
     
-    extent = {'lat': [df['lat'].min(), df['lat'].max()], 
-              'long': [df['long'].min(), df['long'].max()]}
+    land_use_extent = Polygon(
+        [(df['easting'].min()-1000, df['northing'].min()-1000),
+         (df['easting'].min()-1000, df['northing'].max()+1000),
+         (df['easting'].max()+1000, df['northing'].max()+1000),
+         (df['easting'].max()+1000, df['northing'].min()-1000)])
+    
+    # poly_gdf = gpd.GeoDataFrame(index=[0], columns=['poly'], geometry='poly')
+    # poly_gdf.loc[0,'poly'] = land_use_extent
+    # poly_gdf.set_crs(epsg=3857, inplace=True)
+    # poly_gdf.to_crs(epsg=4326, inplace=True)
+    
+    # return poly_gdf
+    # print(poly_gdf.iloc.poly)
+    # extent = {'lat': [df['lat'].min(), df['lat'].max()], 
+              # 'long': [df['long'].min(), df['long'].max()]}
     
     if data.city == 'nyc':
     
@@ -308,10 +321,17 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         df['zone_type'] = df['code_2018'].apply(lambda x: zone_dist_transform(data.city, x))
 
         land_use = land_use_df[['code_2018', 'geometry']]
-        land_use = land_use.cx[extent['long'][0]:extent['long'][1], extent['lat'][0]:extent['lat'][1]]
+        land_use.to_crs(epsg=3857, inplace=True)
+        land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
+                               df['northing'].min()-1000:df['northing'].max()+1000]
+        
+        land_use['geometry'] = land_use['geometry'].apply(lambda area: area.intersection(land_use_extent))
+        land_use.to_crs(epsg=4326, inplace=True)
+        
+        
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
-        land_use = land_use[land_use['zone_type'] != 'road']
+        # land_use = land_use[land_use['zone_type'] != 'road']
         land_use = land_use[land_use['zone_type'] != 'water']
     
     elif data.city == 'chic':
@@ -473,6 +493,33 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         land_use['zone_type'] = 'UNKNOWN'
         
     df.rename(mapper=df_key(data.city), axis=1, inplace=True)  
+    
+    land_use.to_crs(epsg=3857, inplace=True)
+    
+    neighborhoods = []
+    for i, stat in df.iterrows():
+        
+        buffer = Point(stat['easting'], stat['northing']).buffer(1000)
+        
+        neighborhoods.append([
+            [row['geometry'], row['zone_type']] 
+            for j, row in land_use.iterrows() 
+            if row['geometry'].distance(buffer) == 0])
+    
+    df['neighborhood'] = neighborhoods
+    
+    for zone_type in df['zone_type'].unique():
+        zone_hoods = []
+        for i, stat in df.iterrows():
+            union = [hood[0] for hood in stat['neighborhood'] if hood[1] == zone_type]
+            if len(union) != 0:
+                zone_hoods.append(shapely.ops.unary_union(union))
+            else:
+                zone_hoods.append(None)
+            
+        df[f'neighborhood_{zone_type}'] = zone_hoods
+    
+    land_use.to_crs(epsg=4326, inplace=True)
     
     land_use['color'] = land_use['zone_type'].map(color_dict).fillna("pink")
     
@@ -676,9 +723,9 @@ color_num_dict = {
 if __name__ == "__main__":
     import time
     
-    create_all_pickles('helsinki', 2019, overwrite=False)
+    # create_all_pickles('helsinki', 2019, overwrite=False)
 
-    data = bs.Data('helsinki', 2019, 9)
+    data = bs.Data('madrid', 2019, 9)
     pre = time.time()
-    station_df, land_use = make_station_df(data, return_land_use=True)
+    station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
     print(f'station_df took {time.time() - pre:.2f} seconds')
