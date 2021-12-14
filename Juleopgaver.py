@@ -248,10 +248,57 @@ for a_i in a:
         print("-------------------------------")
 
 
+#%% Opgave 13
+
+from sympy.utilities.iterables import multiset_permutations
+
+ints = range(10)
+
+nums = list(range(100, 1000))
+
+perms = []
+for num in nums:
+    perms.append(list(multiset_permutations([num // 100 % 10, num // 10 % 10, num // 1 % 10])))
+
+perms = [sorted(perm) for perm in perms]
 
 
+nodup = []
+for perm in perms:
+    if perm not in nodup:
+        nodup.append(perm)
 
+families = []
 
+for n in nodup:
+    number_row = []
+    for num in n:
+        number = num[0]*100 + num[1]*10 + num[2]
+        if number >= 100:
+            number_row.append(number)
+    families.append(number_row)
+        
+family_list = []
 
+checks = [1,3,5,7,9,11]
 
+for family in families:
+    familycheck = []
+    for num in family:
+        numcheck = []
+        for check in checks:
+            numcheck.append((num % check) == 0)
+        familycheck.append(numcheck)
+    family_list.append(familycheck)
 
+fams = []
+
+for i, family in enumerate(family_list):
+    if len(family) > 1:
+        family = [any(i) for i in zip(*family)]
+    else:
+        family = family[0]
+    fams.append(family)
+    if family == [True,True,True,True,True,True]:
+        print(i)
+        print(families[i])
