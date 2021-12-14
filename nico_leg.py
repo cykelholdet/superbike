@@ -401,7 +401,7 @@ import shapely.ops
 import pandas as pd
 import geopandas as gpd
 
-data = bs.Data('madrid', 2019, 9)
+data = bs.Data('nyc', 2019, 9)
 station_df, land_use_df = ipu.make_station_df(data, return_land_use=True)
 
 #%%

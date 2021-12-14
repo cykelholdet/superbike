@@ -12,6 +12,9 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 from matplotlib import cm
+from scipy.spatial import Voronoi
+import shapely.ops
+from shapely.geometry import Point, LineString
 
 import holoviews as hv
 import hvplot.pandas
@@ -24,6 +27,7 @@ from bokeh.models import HoverTool
 import bikeshare as bs
 import interactive_plot_utils as ipu
 
+import pickle
 
 cmap = cm.get_cmap('Blues')
 
@@ -118,9 +122,10 @@ class BikeDash(param.Parameterized):
     dist_func = param.Selector(objects=['norm'])
     plot_all_clusters = param.Selector(objects=['False', 'True'])
     show_land_use = param.Selector(objects=['False', 'True'])
+    show_service_area = param.Selector(objects=['False', 'True'])
     random_state = param.Integer(default=42, bounds=(0, 10000))
     min_trips = param.Integer(default=100, bounds=(0, 800))
-    
+    service_radius = param.Integer(default=500, bounds=(0,1000))
     
     boolean_ = param.Boolean(True)
     
@@ -269,7 +274,99 @@ class BikeDash(param.Parameterized):
                     return pn.Column(cc_plot, f"Station index {i} is in cluster {j}")
                 else:
                     return f"Station index {i} is not in a cluster due to min_trips."
-
+    
+    
+    @param.depends('service_radius')
+    def make_service_areas(self):
+        
+        if 'service_area' in self.station_df.columns:
+            self.station_df.drop(columns='service_area', inplace=True)
+            self.station_df.set_geometry('coords', inplace=True)
+        
+        points = self.station_df[['easting', 'northing']].to_numpy()
+        
+        points_gdf = gpd.GeoDataFrame(geometry = [Point(self.station_df.iloc[i]['easting'], 
+                                                      self.station_df.iloc[i]['northing'])
+                               for i in range(len(self.station_df))], crs='EPSG:3857')
+        
+        points_gdf['point'] = points_gdf['geometry']
+        
+        mean_point= np.mean(points, axis=0)
+        edge_dist = 1000000
+        edge_points = np.array([[mean_point[0]-edge_dist, mean_point[1]-edge_dist],
+                                [mean_point[0]-edge_dist, mean_point[1]+edge_dist],
+                                [mean_point[0]+edge_dist, mean_point[1]+edge_dist],
+                                [mean_point[0]+edge_dist, mean_point[1]-edge_dist]])
+        
+        vor = Voronoi(np.concatenate([points, edge_points], axis=0))
+        
+        lines = [LineString(vor.vertices[line])
+            for line in vor.ridge_vertices
+            if -1 not in line]
+        
+        poly_gdf = gpd.GeoDataFrame()
+        poly_gdf['vor_poly'] = [poly for poly in shapely.ops.polygonize(lines)]
+        poly_gdf['geometry'] = poly_gdf['vor_poly']
+        poly_gdf.set_crs(epsg=3857, inplace=True)
+        
+        poly_gdf = gpd.tools.sjoin(points_gdf, poly_gdf, op='within', how='left')
+        poly_gdf.drop('index_right', axis=1, inplace=True)
+        
+        poly_gdf['service_area'] = [
+            row['vor_poly'].intersection(row['point'].buffer(self.service_radius))
+            for i, row in poly_gdf.iterrows()]
+        
+        poly_gdf['geometry'] = poly_gdf['service_area']
+        poly_gdf.set_crs(epsg=3857, inplace=True)
+        poly_gdf.to_crs(epsg=4326, inplace=True)
+        poly_gdf['service_area'] = poly_gdf['geometry']
+        
+        self.station_df = gpd.tools.sjoin(self.station_df, poly_gdf, op='within', how='left')
+        self.station_df.drop(columns=['index_right', 'vor_poly', 'point'], inplace=True)
+        
+        try:
+            with open(f'./python_variables/union_{self.city}.pickle', 'rb') as file:
+                union = pickle.load(file)
+        except FileNotFoundError:
+            union = shapely.ops.unary_union(self.land_use.geometry)
+            with open(f'./python_variables/union_{self.city}.pickle', 'wb') as file:
+                pickle.dump(union, file)
+    
+        self.station_df['service_area'] = self.station_df['service_area'].apply(lambda area: area.intersection(union))
+        
+        service_area_trim = []
+        for i, row in self.station_df.iterrows():
+            if isinstance(row['service_area'], shapely.geometry.multipolygon.MultiPolygon):
+                for poly in row['service_area']:
+                    if poly.contains(row['coords']):
+                        service_area_trim.append(poly)
+            else:
+                service_area_trim.append(row['service_area'])
+        
+        self.station_df['service_area'] = service_area_trim
+        self.station_df.set_geometry('service_area', inplace=True)
+        
+        
+        self.station_df['service_area'] = self.station_df['service_area'].to_crs(epsg=3857)
+        self.land_use['geometry'] = self.land_use['geometry'].to_crs(epsg=3857)
+                
+                
+        for zone_type in self.station_df['zone_type'].unique():
+            
+            zone_percents = np.zeros(len(self.station_df))
+            
+            for i, stat in self.station_df.iterrows():
+                
+                if stat[f'neighborhood_{zone_type}']:
+                
+                    zone_percents[i] = stat['service_area'].buffer(0).intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area'].area*100
+                
+            self.station_df[f'percent_{zone_type}'] = zone_percents
+        
+        self.station_df['service_area'] = self.station_df['service_area'].to_crs(epsg=4326)
+        self.land_use['geometry'] = self.land_use['geometry'].to_crs(epsg=4326)
+        
+        self.station_df['geometry'] = self.station_df['service_area']
 
 bike_params = BikeDash(None)
 
@@ -283,6 +380,8 @@ params = pn.Param(bike_params.param, widgets={
     'min_trips': pn.widgets.IntInput,
     'k': pn.widgets.IntSlider,
     'show_land_use': pn.widgets.RadioButtonGroup,
+    'show_service_area': pn.widgets.RadioButtonGroup,
+    'service_radius': pn.widgets.IntInput,
     },
     name="Bikeshare Parameters"
     )
@@ -385,6 +484,21 @@ def land_use_plot(show_land_use, city):
     else:
         return gv.Polygons([])
 
+@pn.depends(show_service_area=bike_params.param.show_service_area,
+            service_radius=bike_params.param.service_radius)
+def service_area_plot(show_service_area, service_radius):
+    if show_service_area == 'True':
+        bike_params.make_service_areas()
+        zone_percents_columns = [column for column in bike_params.station_df.columns
+                                 if 'percent_' in column]
+        
+        bike_params.station_df['service_color'] = ['#808080' for i in range(len(bike_params.station_df))]
+        
+        return gv.Polygons(bike_params.station_df, vdims=zone_percents_columns).opts(color='#808080')
+    else:
+        return gv.Polygons([])
+
+
 @pn.depends(city=bike_params.param.city, watch=True)
 def update_extent(city):
     extremes = [bike_params.station_df['easting'].max(), bike_params.station_df['easting'].min(), 
@@ -392,7 +506,6 @@ def update_extent(city):
     tileview.opts(xlim=(extremes[1], extremes[0]), ylim=(extremes[3], extremes[2]))
     panel_column[1][1].object.data[()].Points.I.data = bike_params.station_df
     print(f"update city = {city}")
-
 
 def hook(plot, element):
     print('plot.state:   ', plot.state)
@@ -418,13 +531,27 @@ gif_pane = pn.pane.GIF('Loading_Key.gif')
 zoneview = hv.DynamicMap(land_use_plot)
 zoneview.opts(alpha=0.5, apply_ranges=False)
 
+service_area_view = hv.DynamicMap(service_area_plot)
+service_area_view.opts(alpha=0.5, apply_ranges=False)
+
 #tileview.opts(framewise=True, apply_ranges=False)
 
 tooltips_zone = [
     ('Zone Type', '@zone_type'),
 ]
+
+tooltips_service_area = [
+    ('% residential', '@percent_residential'),
+    ('% commercial', '@percent_commercial'),
+    ('% manufacturing', '@percent_manufacturing'),
+    ('% recreational', '@percent_recreational'),
+    ('% mixed', '@percent_mixed'),
+    ('% road', '@percent_road')]
+
 hover_zone = HoverTool(tooltips=tooltips_zone)
+hover_service_area = HoverTool(tooltips=tooltips_service_area)
 zoneview.opts(tools=[hover_zone])
+service_area_view.opts(tools=[hover_service_area])
 # selection_stream.param.values()['index']
 linecol = pn.Column(plot_daily_traffic, plot_centroid_callback)
 
@@ -435,7 +562,7 @@ params.layout.insert(5, 'Clustering method:')
 param_column = pn.Column(params.layout, minpercent)
 param_column[1].width=300
 
-panel_param = pn.Row(param_column, tileview*zoneview*pointview, linecol)
+panel_param = pn.Row(param_column, tileview*zoneview*service_area_view*pointview, linecol)
 text = '#Bikesharing Clustering Analysis'
 title_row = pn.Row(text, indicator)
 title_row[0].width=400
