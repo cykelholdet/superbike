@@ -386,7 +386,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
         df['nearest_subway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]).meters, axis=1)
     
-    elif data.city in ['madrid', 'helsinki']:
+    elif data.city in ['madrid', 'helsinki', 'london']:
         
         land_use_df = gpd.read_file(f'data/other_data/{data.city}_UA2018_v013.gpkg')
         land_use_df = land_use_df[['code_2018', 'class_2018', 'area', 'Pop2018', 'geometry']].to_crs('EPSG:4326')
@@ -788,6 +788,6 @@ if __name__ == "__main__":
 
     data = bs.Data('helsinki', 2019, 9)
 
-    pre = time.time()
-    station_df, land_use = make_station_df(data, return_land_use=True, overwrite=False)
-    print(f'station_df took {time.time() - pre:.2f} seconds')
+    # pre = time.time()
+    # station_df, land_use = make_station_df(data, return_land_use=True, overwrite=False)
+    # print(f'station_df took {time.time() - pre:.2f} seconds')
