@@ -5,6 +5,7 @@ Created on Tue Oct 19 21:22:19 2021
 @author: nweinr
 """
 import pickle
+import time
 
 #import fiona
 import numpy as np
@@ -199,7 +200,7 @@ def make_neighborhoods(city, year, df, land_use):
     pre = time.time()
     
     data_year = bs.Data(city, year)
-    
+    print("The data is ready")
     neighborhoods = gpd.GeoDataFrame(index = list(data_year.stat.inverse.keys()))
     neighborhoods['stat_id'] = list(data_year.stat.id_index.keys())
     neighborhoods['coords'] = [Point(data_year.stat.locations[i][0],
@@ -208,38 +209,54 @@ def make_neighborhoods(city, year, df, land_use):
     neighborhoods.set_geometry('coords', inplace=True)
     neighborhoods.set_crs(epsg=4326, inplace=True)
     neighborhoods.to_crs(epsg=3857, inplace=True)        
-    
-    land_use.to_crs(epsg=3857, inplace=True)
-    
-    hoods = []
-    for i, stat in neighborhoods.iterrows():
+    print("The hood is getting ready to go")
+    if len(land_use) > 0:
+        land_use.to_crs(epsg=3857, inplace=True)
         
-        buffer = stat['coords'].buffer(1000)
-        
-        hoods.append([
-            [row['geometry'], row['zone_type']] 
-            for j, row in land_use.iterrows() 
-            if row['geometry'].distance(buffer) == 0])
-    
-    neighborhoods['neighborhood'] = hoods
-    
-    for zone_type in df['zone_type'].unique():
-        zone_hoods = []
-        for i, stat in df.iterrows():
-            union = [hood[0] for hood in neighborhoods[i] if hood[1] == zone_type]
-            if len(union) != 0:
-                zone_hoods.append(shapely.ops.unary_union(union))
-            else:
-                zone_hoods.append(None)
+        # hoods = []
+        # for i, stat in neighborhoods.iterrows():
             
-        neighborhoods[f'neighborhood_{zone_type}'] = zone_hoods
-    
-    with open(f'./python_variables/neighborhoods_{city}', 'wb') as file:
-        pickle.dump(neighborhoods, file)
-    
-    print(f'Pickling done. Time taken: {time.time()-pre} seconds.')
-    
-    land_use.to_crs(epsg=4326, inplace=True)
+        #     buffer = stat['coords'].buffer(1000)
+        #     distances = land_use['geometry'].distance(buffer)
+        #     land_use_in_buffer = land_use[distances == 0]
+        #     hoods.append(land_use_in_buffer[['geometry', 'zone_type']])
+        
+        buffers = neighborhoods['coords'].buffer(1000)
+        
+        intersections = buffers.apply(lambda a: land_use['geometry'][land_use['geometry'].intersects(a)].index)
+        
+        hoods = intersections.apply(lambda a: land_use[['geometry', 'zone_type']].loc[a])
+        
+        #neighborhoods['neighborhood'] = hoods
+        
+        zone_polys = pd.concat(list(hoods), keys=range(len(hoods)))
+        # hood[hood['zone_type'] == zone_type].unary_union
+        
+        print("Zone polygons are done. Nice")
+               
+        for zone_type in land_use['zone_type'].unique():
+            type_polys = zone_polys['geometry'][zone_polys['zone_type'] == zone_type]
+            zone_hoods = type_polys.groupby(level=0).apply(lambda geo: geo.unary_union if len(geo) > 1 else geo)
+            
+            # zone_hoods = []
+            # for i, stat in df.iterrows():
+            #     #union = [hood['geometry'] for hood in hoods[i] if hood['zone_type'] == zone_type]
+            #     union = hoods[i][hoods[i]['zone_type'] == zone_type]['geometry']
+            #     if len(union) != 0:
+            #         zone_hoods.append(shapely.ops.unary_union(union))
+            #     else:
+            #         zone_hoods.append(None)
+            
+                
+            neighborhoods[f'neighborhood_{zone_type}'] = zone_hoods
+            print(f'{zone_type} done')
+        
+        with open(f'./python_variables/neighborhoods_{city}', 'wb') as file:
+            pickle.dump(neighborhoods, file)
+        
+        print(f'Pickling done. Time taken: {time.time()-pre} seconds.')
+        
+        land_use.to_crs(epsg=4326, inplace=True)
     
     return neighborhoods
     
@@ -566,7 +583,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
     
     except FileNotFoundError:
         print(f'No neighborhoods found. Pickling neighborhoods using {data.city}{data.year} data...')
-        neighborhoods = make_neighborhoods(data.city, data.year, land_use)
+        neighborhoods = make_neighborhoods(data.city, data.year, df, land_use)
     
     df = df.merge(neighborhoods, on='stat_id')
     
@@ -771,6 +788,6 @@ if __name__ == "__main__":
 
     data = bs.Data('helsinki', 2019, 9)
 
-    # pre = time.time()
-    # station_df, land_use = make_station_df(data, return_land_use=True, overwrite=False)
-    # print(f'station_df took {time.time() - pre:.2f} seconds')
+    pre = time.time()
+    station_df, land_use = make_station_df(data, return_land_use=True, overwrite=False)
+    print(f'station_df took {time.time() - pre:.2f} seconds')
