@@ -80,7 +80,7 @@ def zone_dist_transform(city, zone_dist):
             else:
                 zone_type = 'UNKNOWN'
         
-        elif city in ['madrid', 'helsinki']:
+        elif city in ['madrid', 'helsinki', 'london']:
             
             if zone_dist in ['11100', '11210', '11220', '11230']: # Continuous urban fabric (S.L. : > 80%), Discontinuous dense urban fabric (S.L. : 50% -  80%), Discontinuous medium density urban fabric (S.L. : 30% - 50%), Discontinuous low density urban fabric (S.L. : 10% - 30%)
                 zone_type = 'residential' 
@@ -235,23 +235,23 @@ def make_neighborhoods(city, year, df, land_use):
         print("Zone polygons are done. Nice")
                
         for zone_type in land_use['zone_type'].unique():
-            type_polys = zone_polys['geometry'][zone_polys['zone_type'] == zone_type]
-            zone_hoods = type_polys.groupby(level=0).apply(lambda geo: geo.unary_union if len(geo) > 1 else geo)
+            # type_polys = zone_polys['geometry'][zone_polys['zone_type'] == zone_type]
+            # zone_hoods = type_polys.groupby(level=0).apply(lambda geo: geo.unary_union if len(geo) > 1 else geo)
             
-            # zone_hoods = []
-            # for i, stat in df.iterrows():
-            #     #union = [hood['geometry'] for hood in hoods[i] if hood['zone_type'] == zone_type]
-            #     union = hoods[i][hoods[i]['zone_type'] == zone_type]['geometry']
-            #     if len(union) != 0:
-            #         zone_hoods.append(shapely.ops.unary_union(union))
-            #     else:
-            #         zone_hoods.append(None)
+            zone_hoods = []
+            for i, stat in neighborhoods.iterrows():
+                #union = [hood['geometry'] for hood in hoods[i] if hood['zone_type'] == zone_type]
+                union = hoods[i][hoods[i]['zone_type'] == zone_type]['geometry']
+                if len(union) != 0:
+                    zone_hoods.append(shapely.ops.unary_union(union))
+                else:
+                    zone_hoods.append(None)
             
                 
             neighborhoods[f'neighborhood_{zone_type}'] = zone_hoods
             print(f'{zone_type} done')
         
-        with open(f'./python_variables/neighborhoods_{city}', 'wb') as file:
+        with open(f'./python_variables/neighborhoods_{city}{year}.pickle', 'wb') as file:
             pickle.dump(neighborhoods, file)
         
         print(f'Pickling done. Time taken: {time.time()-pre} seconds.')
@@ -786,8 +786,8 @@ if __name__ == "__main__":
     
     # create_all_pickles('helsinki', 2019, overwrite=False)
 
-    data = bs.Data('helsinki', 2019, 9)
+    data = bs.Data('london', 2019, 9)
 
-    # pre = time.time()
-    # station_df, land_use = make_station_df(data, return_land_use=True, overwrite=False)
-    # print(f'station_df took {time.time() - pre:.2f} seconds')
+    pre = time.time()
+    station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
+    print(f'station_df took {time.time() - pre:.2f} seconds')

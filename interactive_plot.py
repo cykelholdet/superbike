@@ -27,6 +27,9 @@ from bokeh.models import HoverTool
 import bikeshare as bs
 import interactive_plot_utils as ipu
 
+import statsmodels.api as sm
+from statsmodels.discrete.discrete_model import MNLogit
+
 import pickle
 
 cmap = cm.get_cmap('Blues')
@@ -123,9 +126,12 @@ class BikeDash(param.Parameterized):
     plot_all_clusters = param.Selector(objects=['False', 'True'])
     show_land_use = param.Selector(objects=['False', 'True'])
     show_service_area = param.Selector(objects=['False', 'True'])
+    service_radius = param.Integer(default=500, bounds=(0,1000))
+    service_area_color = param.Selector(objects=['residential', 'commercial', 'recreational'])
+    use_road = param.Selector(objects=['False', 'True'])
     random_state = param.Integer(default=42, bounds=(0, 10000))
     min_trips = param.Integer(default=100, bounds=(0, 800))
-    service_radius = param.Integer(default=500, bounds=(0,1000))
+    
     
     boolean_ = param.Boolean(True)
     
@@ -139,6 +145,10 @@ class BikeDash(param.Parameterized):
         self.data = bs.Data(self.city, YEAR, self.month)
         self.station_df, self.land_use = ipu.make_station_df(self.data, holidays=False, return_land_use=True)
         self.traffic_matrices = self.data.pickle_daily_traffic(holidays=False)
+        
+        self.plot_clusters_full()
+        self.make_service_areas()
+        
         
     @param.depends('month', 'city', watch=True)
     def get_data(self):
@@ -191,6 +201,9 @@ class BikeDash(param.Parameterized):
         self.labels = np.array(self.station_df['label'])
         
         # print(self.station_df.label.iloc[0])
+        
+        month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
+              7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
         
         if self.clustering == 'none':
             title = f'Number of trips per station in {month_dict[self.month]} {YEAR} in {bs.name_dict[self.city]}'
@@ -276,7 +289,7 @@ class BikeDash(param.Parameterized):
                     return f"Station index {i} is not in a cluster due to min_trips."
     
     
-    @param.depends('service_radius')
+    @param.depends('service_radius', 'use_road')
     def make_service_areas(self):
         
         if 'service_area' in self.station_df.columns:
@@ -328,10 +341,12 @@ class BikeDash(param.Parameterized):
             with open(f'./python_variables/union_{self.city}.pickle', 'rb') as file:
                 union = pickle.load(file)
         except FileNotFoundError:
+            print(f'No union for {self.city} found. Pickling union...')
             union = shapely.ops.unary_union(self.land_use.geometry)
             with open(f'./python_variables/union_{self.city}.pickle', 'wb') as file:
                 pickle.dump(union, file)
-    
+            print('Pickling done')
+            
         self.station_df['service_area'] = self.station_df['service_area'].apply(lambda area: area.intersection(union))
         
         service_area_trim = []
@@ -349,25 +364,68 @@ class BikeDash(param.Parameterized):
         
         self.station_df['service_area'] = self.station_df['service_area'].to_crs(epsg=3857)
         self.land_use['geometry'] = self.land_use['geometry'].to_crs(epsg=3857)
-                
-                
-        for zone_type in self.station_df['zone_type'].unique():
+        
+        if 'road' in self.station_df['zone_type'].unique() and self.use_road == 'False':
             
-            zone_percents = np.zeros(len(self.station_df))
+            self.station_df['service_area_no_road'] = [
+                stat['service_area'].difference(stat['neighborhood_road'])
+                for i, stat in self.station_df.iterrows()]
             
-            for i, stat in self.station_df.iterrows():
+            zone_types = [zone for zone in self.station_df['zone_type'].unique() 
+                          if zone != 'road']
+            
+            for zone_type in zone_types:
+            
+                zone_percents = np.zeros(len(self.station_df))
                 
-                if stat[f'neighborhood_{zone_type}']:
+                for i, stat in self.station_df.iterrows():
+                    
+                    if stat[f'neighborhood_{zone_type}']:
+                    
+                        zone_percents[i] = stat['service_area_no_road'].buffer(0).intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area_no_road'].area*100
+                    
+                self.station_df[f'percent_{zone_type}'] = zone_percents
+            
+        else:
                 
-                    zone_percents[i] = stat['service_area'].buffer(0).intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area'].area*100
+            for zone_type in self.station_df['zone_type'].unique():
                 
-            self.station_df[f'percent_{zone_type}'] = zone_percents
+                zone_percents = np.zeros(len(self.station_df))
+                
+                for i, stat in self.station_df.iterrows():
+                    
+                    if stat[f'neighborhood_{zone_type}']:
+                    
+                        zone_percents[i] = stat['service_area'].buffer(0).intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area'].area*100
+                    
+                self.station_df[f'percent_{zone_type}'] = zone_percents
+        
+        self.station_df['service_area_size'] = self.station_df['service_area'].apply(lambda area: area.area/1000000)
         
         self.station_df['service_area'] = self.station_df['service_area'].to_crs(epsg=4326)
         self.land_use['geometry'] = self.land_use['geometry'].to_crs(epsg=4326)
         
         self.station_df['geometry'] = self.station_df['service_area']
-
+    
+    @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 'boolean_', 'service_radius', 'use_road', watch=False)
+    def make_logistic_regression(self):
+        
+        columns = [column for column in self.station_df.columns 
+                   if 'percent_' in column]
+        
+        # columns.append('n_trips')
+        # columns.append('nearest_subway_dist')
+        
+        X = self.station_df[~self.station_df['label'].isna()][columns]
+        y = self.station_df[~self.station_df['label'].isna()]['label']
+        
+        LR_model = MNLogit(y, X)
+        
+        LR_results = LR_model.fit_regularized(maxiter=10000)
+    
+        return LR_results
+    
+    
 bike_params = BikeDash(None)
 
 params = pn.Param(bike_params.param, widgets={
@@ -382,6 +440,7 @@ params = pn.Param(bike_params.param, widgets={
     'show_land_use': pn.widgets.RadioButtonGroup,
     'show_service_area': pn.widgets.RadioButtonGroup,
     'service_radius': pn.widgets.IntInput,
+    'use_road': pn.widgets.RadioButtonGroup
     },
     name="Bikeshare Parameters"
     )
@@ -484,21 +543,51 @@ def land_use_plot(show_land_use, city):
     else:
         return gv.Polygons([])
 
+# @pn.depends(service_radius=bike_params.param.service_radius,
+#             city=bike_params.param.city,
+#             use_road=bike_params.param.use_road)
+# def update_service_areas(service_radius, city, use_road):
+#     bike_params.make_service_areas()
+
 @pn.depends(show_service_area=bike_params.param.show_service_area,
-            service_radius=bike_params.param.service_radius)
-def service_area_plot(show_service_area, service_radius):
+            service_radius=bike_params.param.service_radius,
+            service_area_color=bike_params.param.service_area_color,
+            city=bike_params.param.city,
+            use_road=bike_params.param.use_road)
+def service_area_plot(show_service_area, service_radius, service_area_color, city, use_road):
+    bike_params.make_service_areas()
     if show_service_area == 'True':
-        bike_params.make_service_areas()
         zone_percents_columns = [column for column in bike_params.station_df.columns
                                  if 'percent_' in column]
         
-        bike_params.station_df['service_color'] = ['#808080' for i in range(len(bike_params.station_df))]
+        # bike_params.station_df['service_color'] = ['#808080' for i in range(len(bike_params.station_df))]
         
-        return gv.Polygons(bike_params.station_df, vdims=zone_percents_columns).opts(color='#808080')
+        vdims = zone_percents_columns
+        vdims.append('service_area_size')
+        
+        print(vdims)
+        if service_area_color == 'residential':
+            return gv.Polygons(bike_params.station_df, vdims=vdims).opts(color='percent_residential')
+        elif service_area_color == 'commercial':
+            return gv.Polygons(bike_params.station_df, vdims=vdims).opts(color='percent_commercial')
+        elif service_area_color == 'recreational':
+            return gv.Polygons(bike_params.station_df, vdims=vdims).opts(color='percent_recreational')
+            
     else:
         return gv.Polygons([])
 
-
+@pn.depends(service_radius=bike_params.param.service_radius,
+            use_road=bike_params.param.use_road,
+            clustering=bike_params.param.clustering,
+            k=bike_params.param.k,
+            min_trips=bike_params.param.min_trips,
+            day_type=bike_params.param.day_type,
+            city=bike_params.param.city,
+            month=bike_params.param.month)
+def print_logistic_regression(service_radius, use_road, clustering, k, min_trips, day_type, city, month):
+    res = bike_params.make_logistic_regression()
+    return res.summary().as_html()
+    
 @pn.depends(city=bike_params.param.city, watch=True)
 def update_extent(city):
     extremes = [bike_params.station_df['easting'].max(), bike_params.station_df['easting'].min(), 
@@ -541,6 +630,7 @@ tooltips_zone = [
 ]
 
 tooltips_service_area = [
+    ('area (km^2)', '@service_area_size'),
     ('% residential', '@percent_residential'),
     ('% commercial', '@percent_commercial'),
     ('% manufacturing', '@percent_manufacturing'),
@@ -553,16 +643,25 @@ hover_service_area = HoverTool(tooltips=tooltips_service_area)
 zoneview.opts(tools=[hover_zone])
 service_area_view.opts(tools=[hover_service_area])
 # selection_stream.param.values()['index']
+
+views = tileview*zoneview*service_area_view*pointview
+
+mid_column = pn.Column(views, print_logistic_regression)
+
 linecol = pn.Column(plot_daily_traffic, plot_centroid_callback)
 
+params.layout.insert(15, 'Use roads:')
+params.layout.insert(12, 'Show service area:')
 params.layout.insert(11, 'Show land use:')
 params.layout.insert(10, 'Plot all clusters:')
 params.layout.insert(5, 'Clustering method:')
 
+
 param_column = pn.Column(params.layout, minpercent)
 param_column[1].width=300
 
-panel_param = pn.Row(param_column, tileview*zoneview*service_area_view*pointview, linecol)
+
+panel_param = pn.Row(param_column, mid_column, linecol)
 text = '#Bikesharing Clustering Analysis'
 title_row = pn.Row(text, indicator)
 title_row[0].width=400
