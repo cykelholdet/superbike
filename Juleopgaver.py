@@ -302,3 +302,37 @@ for i, family in enumerate(family_list):
     if family == [True,True,True,True,True,True]:
         print(i)
         print(families[i])
+
+#%% Opgave 15
+
+
+
+def s(roll):
+    return np.sum(((roll[:,0] + roll[:,1]) % 2) == 0)
+
+def m(roll):
+    return np.sum(((roll[:,0] * roll[:,1]) % 2) == 0)
+
+def a(roll):
+    return np.sum(np.logical_or((roll[:,0] % 2) == 1, (roll[:,1] % 2) == 1))
+
+    
+diceroll = np.random.randint(1, 6+1, (400, 2))
+
+s1 = s(diceroll)
+m1 = m(diceroll)
+a1 = a(diceroll)
+
+i = 0
+while s1 != 188 or m1 != 295:
+    diceroll = np.random.randint(1, 6+1, (400, 2))
+    
+    s1 = s(diceroll)
+    m1 = m(diceroll)
+    a1 = a(diceroll)
+    
+    print(f"s={s1}, m={m1}, a={a1}")
+    i += 1
+
+print(i)
+
