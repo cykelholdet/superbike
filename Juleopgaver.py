@@ -335,4 +335,3 @@ while s1 != 188 or m1 != 295:
     i += 1
 
 print(i)
-

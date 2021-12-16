@@ -3,8 +3,8 @@
 Dep. Variable:                  label   No. Observations:                  794
 Model:                        MNLogit   Df Residuals:                      770
 Method:                           MLE   Df Model:                           20
-Date:                Tue, 07 Dec 2021   Pseudo R-squ.:                  0.1217
-Time:                        14:46:56   Log-Likelihood:                -1043.5
+Date:                Wed, 15 Dec 2021   Pseudo R-squ.:                  0.1217
+Time:                        10:28:58   Log-Likelihood:                -1043.5
 converged:                       True   LL-Null:                       -1188.0
 Covariance Type:            nonrobust   LLR p-value:                 1.330e-49
 =======================================================================================
