@@ -134,19 +134,20 @@ class BikeDash(param.Parameterized):
     
     # LR params
     
-    use_points_or_percents = param.Selector(objects=['points', 'percents'])
+    use_points_or_percents = param.Selector(objects=['percents', 'points'])
     make_points_by = param.Selector(objects=['station location', 'station land use'])
     
-    use_residential = param.Boolean(True)
-    use_commerial = param.Boolean(True)
-    use_manufacturing = param.Boolean(True)
-    use_recreational = param.Boolean(True)
-    use_mixed = param.Boolean(True)
-    use_road_2 = param.Boolean(True)
-    use_transportation = param.Boolean(True)
-    use_n_trips = param.Boolean(True)
-    use_pop_density = param.Boolean(True)
-    use_nearest_subway_dist = param.Boolean(True)
+    residential = param.Boolean(True)
+    commercial = param.Boolean(True)
+    manufacturing = param.Boolean(True)
+    recreational = param.Boolean(True)
+    mixed = param.Boolean(True)
+    road= param.Boolean(True)
+    transportation = param.Boolean(True)
+    n_trips = param.Boolean(True)
+    pop_density = param.Boolean(True)
+    nearest_subway_dist = param.Boolean(True)
+    const = param.Boolean(False)
     
     # LR_indicator = param.Boolean(True)
     # boolean_ = param.Boolean(True)
@@ -164,7 +165,7 @@ class BikeDash(param.Parameterized):
         
         self.plot_clusters_full()
         self.make_service_areas()
-        # self.make_logistic_regression()
+        self.make_logistic_regression()
         
     @param.depends('month', 'city', watch=True)
     def get_data(self):
@@ -434,64 +435,88 @@ class BikeDash(param.Parameterized):
     
     @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 
                    'service_radius', 'use_road', 'LR_indicator', 'use_points_or_percents',
-                   'make_points_by', 'use_residential', 'use_commercial',
-                   'use_manufacturing', 'use_recreational', 'use_mixed',
-                   'use_road_2', 'use_transportation', 'use_n_trips',
-                   'use_pop_density', 'use_nearest_subway_dist', watch=False)
+                   'make_points_by', 'residential', 'commercial',
+                   'manufacturing', 'recreational', 'mixed',
+                   'road', 'transportation', 'n_trips',
+                   'pop_density', 'nearest_subway_dist', watch=False)
     def make_logistic_regression(self):
         
-        #TODO: Rename columns to a stadard form
-        #      Add/remove columns to/from X depending on parameters
-        #      Remove NANs fom label column
-        
-        
-        
-        
+        #TODO: Find the correct column names from one-hot
+        #      Improve layout in dashboard
         
         # if self.station_df['label'].isna().all():
         #     self.plot_clusters_full()
         
         df = self.station_df.copy()
+        df = df[~df['label'].isna()]
+        
+        X=pd.DataFrame()
         
         p_columns = [column for column in self.station_df.columns 
-                     if 'percent_' in column]
+                      if 'percent_' in column]
         
-        if self.make_points_by == 'points':
+        if self.use_points_or_percents == 'points':
             
             if self.make_points_by == 'station_location':
-                X = pd.get_dummies(station_df['zone_type'])
+                X = pd.get_dummies(df['zone_type'])
                 
             elif self.make_points_by == 'percents':
                 
                 p_df = df[p_columns]
                 
                 # get the zonetype with the largest percentage
-                zone_types = [p_df.iloc[i].index[p_df.iloc[i].argmax()][8:]]
+                zone_types = [p_df.iloc[i].index[p_df.iloc[i].argmax()][8:] 
                               for i in range(len(p_df))]
-    
+        
                 df['zone_type_by_percent'] = zone_types
             
-                X = pd.get_dummies(station_df['zone_type_by_percent'])
+                X = pd.get_dummies(df['zone_type_by_percent'])
         
-        elif self.make_points_by == 'percents':
+        elif self.use_points_or_percents == 'percents':
             X = df[p_columns]
         
-         
+        zones_params = [('residential', self.residential),
+                        ('commercial', self.commercial),
+                        ('manufacturing', self.manufacturing),
+                        ('recreational', self.recreational),
+                        ('road', self.road),
+                        ('transportation', self.transportation)]
         
+        drop_columns = []
+        
+        for zone_type in zones_params:
+            if not zone_type[1]:
+                
+                if zone_type[0] in X.columns:
+                    drop_columns.append(zone_type[0])
+                    
+                elif 'percent_'+zone_type[0] in X.columns:
+                    drop_columns.append('percent_'+zone_type[0])
+        
+        
+        other_params = [('n_trips', self.n_trips),
+                        ('pop_density', self.pop_density),
+                        ('nearest_subway_dist', self.nearest_subway_dist)]
+        
+        add_columns = [param[0] for param in other_params if param[1]]
+        
+        X.drop(columns=drop_columns, inplace=True)
        
+        for column in add_columns:
+            try:
+                X[column] = df[column]
+            except KeyError:
+                pass
         
-        # columns.append('n_trips')
-        # columns.append('nearest_subway_dist')
+        if self.const:
+            X = sm.add_constant(X)
         
-        X = self.station_df[~self.station_df['label'].isna()][columns]
-        # X = sm.add_constant(X)
-        
-        y = self.station_df[~self.station_df['label'].isna()]['label']
+        y = df[~df['label'].isna()]['label']
         
         LR_model = MNLogit(y, X)
         
         LR_results = LR_model.fit_regularized(maxiter=10000)
-    
+        
         return LR_results
     
     
@@ -657,8 +682,27 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
             min_trips=bike_params.param.min_trips,
             day_type=bike_params.param.day_type,
             city=bike_params.param.city,
-            month=bike_params.param.month)
-def print_logistic_regression(service_radius, use_road, clustering, k, min_trips, day_type, city, month):
+            month=bike_params.param.month,
+            use_points_or_percents=bike_params.param.use_points_or_percents,
+            make_points_by=bike_params.param.make_points_by,
+            residential=bike_params.param.residential,
+            commercial=bike_params.param.commercial,
+            manufacturing=bike_params.param.manufacturing,
+            recreational=bike_params.param.recreational,
+            mixed=bike_params.param.mixed,
+            road=bike_params.param.road,
+            transportation=bike_params.param.transportation,
+            n_trips=bike_params.param.n_trips,
+            pop_density=bike_params.param.pop_density,
+            nearest_subway_dist=bike_params.param.nearest_subway_dist,
+            const=bike_params.param.const
+            )
+def print_logistic_regression(service_radius, use_road, clustering, k, 
+                              min_trips, day_type, city, month, residential,
+                              commercial, manufacturing, recreational,
+                              mixed, road, transportation, n_trips, 
+                              pop_density, nearest_subway_dist, const, 
+                              use_points_or_percents, make_points_by):
     res = bike_params.make_logistic_regression()
     return res.summary().as_html()
     
