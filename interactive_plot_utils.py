@@ -80,7 +80,7 @@ def zone_dist_transform(city, zone_dist):
             else:
                 zone_type = 'UNKNOWN'
         
-        elif city in ['madrid', 'helsinki', 'london']:
+        elif city in ['madrid', 'helsinki', 'london', 'oslo']:
             
             if zone_dist in ['11100', '11210', '11220', '11230']: # Continuous urban fabric (S.L. : > 80%), Discontinuous dense urban fabric (S.L. : 50% -  80%), Discontinuous medium density urban fabric (S.L. : 30% - 50%), Discontinuous low density urban fabric (S.L. : 10% - 30%)
                 zone_type = 'residential' 
@@ -198,9 +198,8 @@ def zone_dist_transform(city, zone_dist):
 def make_neighborhoods(city, year, df, land_use):
     
     pre = time.time()
-    
+    print(f"Loading data: {city}{year}")
     data_year = bs.Data(city, year)
-    print("The data is ready")
     neighborhoods = gpd.GeoDataFrame(index = list(data_year.stat.inverse.keys()))
     neighborhoods['stat_id'] = list(data_year.stat.id_index.keys())
     neighborhoods['coords'] = [Point(data_year.stat.locations[i][0],
@@ -236,7 +235,7 @@ def make_neighborhoods(city, year, df, land_use):
                
         for zone_type in land_use['zone_type'].unique():
             # type_polys = zone_polys['geometry'][zone_polys['zone_type'] == zone_type]
-            # zone_hoods = type_polys.groupby(level=0).apply(lambda geo: geo.unary_union if len(geo) > 1 else geo)
+            # zone_hoods = type_polys.groupby(level=0).apply(lambda geo: shapely.ops.unary_union(geo) if len(geo) > 1 else geo)
             
             zone_hoods = []
             for i, stat in neighborhoods.iterrows():
@@ -386,7 +385,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
         df['nearest_subway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]).meters, axis=1)
     
-    elif data.city in ['madrid', 'helsinki', 'london']:
+    elif data.city in ['madrid', 'helsinki', 'london', 'oslo']:
         
         land_use_df = gpd.read_file(f'data/other_data/{data.city}_UA2018_v013.gpkg')
         land_use_df = land_use_df[['code_2018', 'class_2018', 'area', 'Pop2018', 'geometry']].to_crs('EPSG:4326')
@@ -410,6 +409,13 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
         # land_use = land_use[land_use['zone_type'] != 'road']
         land_use = land_use[land_use['zone_type'] != 'water']
+        
+        subways_df = gpd.read_file(f'./data/other_data/{data.city}_transit_data.geojson')
+        
+        df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
+        df['nearest_subway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]).meters, axis=1)
+        
+        df['pop_density'] = df['Pop2018'] / df['area']
     
     elif data.city == 'chic':
         
