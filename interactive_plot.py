@@ -132,8 +132,25 @@ class BikeDash(param.Parameterized):
     random_state = param.Integer(default=42, bounds=(0, 10000))
     min_trips = param.Integer(default=100, bounds=(0, 800))
     
+    # LR params
     
-    boolean_ = param.Boolean(True)
+    use_points_or_percents = param.Selector(objects=['percents', 'points'])
+    make_points_by = param.Selector(objects=['station location', 'station land use'])
+    
+    residential = param.Boolean(True)
+    commercial = param.Boolean(True)
+    manufacturing = param.Boolean(True)
+    recreational = param.Boolean(True)
+    mixed = param.Boolean(True)
+    road= param.Boolean(True)
+    transportation = param.Boolean(True)
+    n_trips = param.Boolean(True)
+    pop_density = param.Boolean(True)
+    nearest_subway_dist = param.Boolean(True)
+    const = param.Boolean(False)
+    
+    # LR_indicator = param.Boolean(True)
+    # boolean_ = param.Boolean(True)
     
     
     def __init__(self, index, **kwargs):
@@ -148,7 +165,7 @@ class BikeDash(param.Parameterized):
         
         self.plot_clusters_full()
         self.make_service_areas()
-        
+        self.make_logistic_regression()
         
     @param.depends('month', 'city', watch=True)
     def get_data(self):
@@ -157,10 +174,14 @@ class BikeDash(param.Parameterized):
         self.station_df, self.land_use = ipu.make_station_df(self.data, holidays=False, return_land_use=True)
         self.traffic_matrices = self.data.pickle_daily_traffic(holidays=False)
         print(len(self.station_df))
-        self.boolean_ = not self.boolean_
+        
+        self.plot_clusters_full()
+        self.make_service_areas()
+        self.make_logistic_regression()
+        # self.boolean_ = not self.boolean_
     
     
-    @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 'boolean_', watch=False)
+    @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', watch=False)
     def plot_clusters_full(self):
         self.station_df, self.clusters, self.labels = ipu.get_clusters(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, self.clustering, self.k, self.random_state)
         
@@ -212,10 +233,13 @@ class BikeDash(param.Parameterized):
 
         plot = gv.Points(self.station_df, kdims=['long', 'lat'], vdims=['stat_id', 'color', 'n_trips', 'b_trips', 'w_trips', 'zone_type', 'name', ])
         plot.opts(gv.opts.Points(fill_color='color', size=10, line_color='black'))
+        
+        # self.LR_indicator = not self.LR_indicator
+        
         return plot
 
 
-    @param.depends('day_type', 'clustering', 'k', 'plot_all_clusters', 'min_trips', 'boolean_', watch=False)
+    @param.depends('day_type', 'clustering', 'k', 'plot_all_clusters', 'min_trips', watch=False)
     def plot_centroid(self, index):
         if self.clustering == 'none':
             return "No clustering"
@@ -406,23 +430,93 @@ class BikeDash(param.Parameterized):
         self.land_use['geometry'] = self.land_use['geometry'].to_crs(epsg=4326)
         
         self.station_df['geometry'] = self.station_df['service_area']
+        
+        # self.LR_indicator = not self.LR_indicator
     
-    @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 'boolean_', 'service_radius', 'use_road', watch=False)
+    @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 
+                   'service_radius', 'use_road', 'LR_indicator', 'use_points_or_percents',
+                   'make_points_by', 'residential', 'commercial',
+                   'manufacturing', 'recreational', 'mixed',
+                   'road', 'transportation', 'n_trips',
+                   'pop_density', 'nearest_subway_dist', watch=False)
     def make_logistic_regression(self):
         
-        columns = [column for column in self.station_df.columns 
-                   if 'percent_' in column]
+        #TODO: Find the correct column names from one-hot
+        #      Improve layout in dashboard
         
-        # columns.append('n_trips')
-        # columns.append('nearest_subway_dist')
+        # if self.station_df['label'].isna().all():
+        #     self.plot_clusters_full()
         
-        X = self.station_df[~self.station_df['label'].isna()][columns]
-        y = self.station_df[~self.station_df['label'].isna()]['label']
+        df = self.station_df.copy()
+        df = df[~df['label'].isna()]
+        
+        X=pd.DataFrame()
+        
+        p_columns = [column for column in self.station_df.columns 
+                      if 'percent_' in column]
+        
+        if self.use_points_or_percents == 'points':
+            
+            if self.make_points_by == 'station_location':
+                X = pd.get_dummies(df['zone_type'])
+                
+            elif self.make_points_by == 'percents':
+                
+                p_df = df[p_columns]
+                
+                # get the zonetype with the largest percentage
+                zone_types = [p_df.iloc[i].index[p_df.iloc[i].argmax()][8:] 
+                              for i in range(len(p_df))]
+        
+                df['zone_type_by_percent'] = zone_types
+            
+                X = pd.get_dummies(df['zone_type_by_percent'])
+        
+        elif self.use_points_or_percents == 'percents':
+            X = df[p_columns]
+        
+        zones_params = [('residential', self.residential),
+                        ('commercial', self.commercial),
+                        ('manufacturing', self.manufacturing),
+                        ('recreational', self.recreational),
+                        ('road', self.road),
+                        ('transportation', self.transportation)]
+        
+        drop_columns = []
+        
+        for zone_type in zones_params:
+            if not zone_type[1]:
+                
+                if zone_type[0] in X.columns:
+                    drop_columns.append(zone_type[0])
+                    
+                elif 'percent_'+zone_type[0] in X.columns:
+                    drop_columns.append('percent_'+zone_type[0])
+        
+        
+        other_params = [('n_trips', self.n_trips),
+                        ('pop_density', self.pop_density),
+                        ('nearest_subway_dist', self.nearest_subway_dist)]
+        
+        add_columns = [param[0] for param in other_params if param[1]]
+        
+        X.drop(columns=drop_columns, inplace=True)
+       
+        for column in add_columns:
+            try:
+                X[column] = df[column]
+            except KeyError:
+                pass
+        
+        if self.const:
+            X = sm.add_constant(X)
+        
+        y = df[~df['label'].isna()]['label']
         
         LR_model = MNLogit(y, X)
         
         LR_results = LR_model.fit_regularized(maxiter=10000)
-    
+        
         return LR_results
     
     
@@ -444,6 +538,11 @@ params = pn.Param(bike_params.param, widgets={
     },
     name="Bikeshare Parameters"
     )
+
+# LR_params = pn.Param(bike_params.param)
+
+
+
 
 pointview = hv.DynamicMap(bike_params.plot_clusters_full)
 
@@ -506,7 +605,7 @@ def plot_daily_traffic(index, day_type, city, month):
             day_type=bike_params.param.day_type,
             city=bike_params.param.city,
             month=bike_params.param.month)
-def plot_centroid_callback(index, plot_all_clusters, clustering, k, min_trips, day_type, city, month):
+def plot_centroid_callback(index, plot_all_clusters, clustering, k, min_trips, day_type, city, month): 
     return bike_params.plot_centroid(index)
     
 
@@ -583,11 +682,35 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
             min_trips=bike_params.param.min_trips,
             day_type=bike_params.param.day_type,
             city=bike_params.param.city,
-            month=bike_params.param.month)
-def print_logistic_regression(service_radius, use_road, clustering, k, min_trips, day_type, city, month):
+            month=bike_params.param.month,
+            use_points_or_percents=bike_params.param.use_points_or_percents,
+            make_points_by=bike_params.param.make_points_by,
+            residential=bike_params.param.residential,
+            commercial=bike_params.param.commercial,
+            manufacturing=bike_params.param.manufacturing,
+            recreational=bike_params.param.recreational,
+            mixed=bike_params.param.mixed,
+            road=bike_params.param.road,
+            transportation=bike_params.param.transportation,
+            n_trips=bike_params.param.n_trips,
+            pop_density=bike_params.param.pop_density,
+            nearest_subway_dist=bike_params.param.nearest_subway_dist,
+            const=bike_params.param.const
+            )
+def print_logistic_regression(service_radius, use_road, clustering, k, 
+                              min_trips, day_type, city, month, residential,
+                              commercial, manufacturing, recreational,
+                              mixed, road, transportation, n_trips, 
+                              pop_density, nearest_subway_dist, const, 
+                              use_points_or_percents, make_points_by):
     res = bike_params.make_logistic_regression()
     return res.summary().as_html()
     
+# @pn.depends(LR_indicator=bike_params.param.LR_indicator)
+# def print_logistic_regression(LR_indicator):
+#     res = bike_params.make_logistic_regression()
+#     return res.summary().as_html()
+
 @pn.depends(city=bike_params.param.city, watch=True)
 def update_extent(city):
     extremes = [bike_params.station_df['easting'].max(), bike_params.station_df['easting'].min(), 
@@ -644,22 +767,24 @@ zoneview.opts(tools=[hover_zone])
 service_area_view.opts(tools=[hover_service_area])
 # selection_stream.param.values()['index']
 
-views = tileview*zoneview*service_area_view*pointview
-
-mid_column = pn.Column(views, print_logistic_regression)
-
-linecol = pn.Column(plot_daily_traffic, plot_centroid_callback)
-
 params.layout.insert(15, 'Use roads:')
 params.layout.insert(12, 'Show service area:')
 params.layout.insert(11, 'Show land use:')
 params.layout.insert(10, 'Plot all clusters:')
 params.layout.insert(5, 'Clustering method:')
 
+param_split = 23 # add to this number if additional parameters are added in the first column
 
 param_column = pn.Column(params.layout, minpercent)
 param_column[1].width=300
 
+# LR_param_col = pn.Column(params.layout[param_split:])
+
+views = tileview*zoneview*service_area_view*pointview
+
+mid_column = pn.Column(views, print_logistic_regression)
+
+linecol = pn.Column(plot_daily_traffic, plot_centroid_callback)
 
 panel_param = pn.Row(param_column, mid_column, linecol)
 text = '#Bikesharing Clustering Analysis'

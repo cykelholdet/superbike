@@ -246,9 +246,11 @@ def make_neighborhoods(city, year, df, land_use):
                 else:
                     zone_hoods.append(None)
             
-                
+              
             neighborhoods[f'neighborhood_{zone_type}'] = zone_hoods
             print(f'{zone_type} done')
+            
+        neighborhoods.drop(columns=['coords'], inplace=True)
         
         with open(f'./python_variables/neighborhoods_{city}{year}.pickle', 'wb') as file:
             pickle.dump(neighborhoods, file)
@@ -792,8 +794,8 @@ if __name__ == "__main__":
     
     # create_all_pickles('helsinki', 2019, overwrite=False)
 
-    data = bs.Data('helsinki', 2019, 9)
+    data = bs.Data('london', 2019, 9)
 
     pre = time.time()
-    station_df, land_use = make_station_df(data, return_land_use=True, overwrite=False)
+    station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
     print(f'station_df took {time.time() - pre:.2f} seconds')
