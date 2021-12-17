@@ -6,12 +6,14 @@ Created on Tue Oct 19 21:22:19 2021
 """
 import pickle
 import time
+from functools import partial
 
 #import fiona
 import numpy as np
 import pandas as pd
 import geopandas as gpd
 import holoviews as hv
+import pyproj
 
 import shapely.ops
 
@@ -207,11 +209,11 @@ def make_neighborhoods(city, year, station_df, land_use):
                                      data_year.stat.locations[i][1]) 
                                for i in neighborhoods.index]
     neighborhoods.set_geometry('coords', inplace=True)
-    neighborhoods.set_crs(epsg=4326, inplace=True)
-    neighborhoods.to_crs(epsg=3857, inplace=True)        
+    # neighborhoods.set_crs(epsg=4326, inplace=True)
+    # neighborhoods.to_crs(epsg=3857, inplace=True)        
     print("Getting the hood ready to go", end="")
     if len(land_use) > 0:
-        land_use.to_crs(epsg=3857, inplace=True)
+        # land_use.to_crs(epsg=3857, inplace=True)
         
         lu_merge = {}
         for zone_type in land_use['zone_type'].unique():
@@ -219,7 +221,7 @@ def make_neighborhoods(city, year, station_df, land_use):
             print(".", end="")
         print(" ", end="")
         
-        buffers = neighborhoods['coords'].buffer(1000)
+        buffers = neighborhoods['coords'].apply(lambda coord: geodesic_point_buffer(coord.y, coord.x, 1000))
         
         for zone_type in lu_merge.keys():
             neighborhoods[f"neighborhood_{zone_type}"] = buffers.intersection(lu_merge[zone_type])
@@ -741,6 +743,19 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
     return station_df, clusters, labels
 
 
+proj_wgs84 = pyproj.Proj('+proj=longlat +datum=WGS84')
+
+def geodesic_point_buffer(lat, lon, m):
+    # Azimuthal equidistant projection
+    aeqd_proj = '+proj=aeqd +lat_0={lat} +lon_0={lon} +x_0=0 +y_0=0'
+    project = partial(
+        pyproj.transform,
+        pyproj.Proj(aeqd_proj.format(lat=lat, lon=lon)),
+        proj_wgs84)
+    buf = Point(0, 0).buffer(m)  # distance in metres
+    return shapely.ops.transform(project, buf)
+
+
 def create_all_pickles(city, year, holidays=False, overwrite=False):
     if isinstance(city, str):
         data = bs.Data(city, year, overwrite=overwrite)
@@ -810,8 +825,12 @@ if __name__ == "__main__":
     
     # create_all_pickles('helsinki', 2019, overwrite=False)
 
-    data = bs.Data('oslo', 2019, 9)
+    data = bs.Data('helsinki', 2019, 9)
 
     pre = time.time()
     station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
     print(f'station_df took {time.time() - pre:.2f} seconds')
+    
+    for i, station in station_df.iterrows():
+        a = geodesic_point_buffer(station['lat'], station['long'], 1000)
+    
