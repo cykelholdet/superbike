@@ -134,7 +134,7 @@ class BikeDash(param.Parameterized):
     
     # LR params
     
-    use_points_or_percents = param.Selector(objects=['percents', 'points'])
+    use_points_or_percents = param.Selector(objects=['points', 'percents'])
     make_points_by = param.Selector(objects=['station location', 'station land use'])
     
     residential = param.Boolean(True)
@@ -441,8 +441,7 @@ class BikeDash(param.Parameterized):
                    'pop_density', 'nearest_subway_dist', watch=False)
     def make_logistic_regression(self):
         
-        #TODO: Find the correct column names from one-hot
-        #      Improve layout in dashboard
+        #TODO: Improve layout in dashboard
         
         # if self.station_df['label'].isna().all():
         #     self.plot_clusters_full()
@@ -452,15 +451,15 @@ class BikeDash(param.Parameterized):
         
         X=pd.DataFrame()
         
-        p_columns = [column for column in self.station_df.columns 
+        p_columns = [column for column in df.columns 
                       if 'percent_' in column]
         
         if self.use_points_or_percents == 'points':
             
-            if self.make_points_by == 'station_location':
+            if self.make_points_by == 'station location':
                 X = pd.get_dummies(df['zone_type'])
                 
-            elif self.make_points_by == 'percents':
+            elif self.make_points_by == 'station land use':
                 
                 p_df = df[p_columns]
                 
@@ -479,6 +478,7 @@ class BikeDash(param.Parameterized):
                         ('commercial', self.commercial),
                         ('manufacturing', self.manufacturing),
                         ('recreational', self.recreational),
+                        ('mixed', self.mixed),
                         ('road', self.road),
                         ('transportation', self.transportation)]
         
@@ -517,35 +517,10 @@ class BikeDash(param.Parameterized):
         
         LR_results = LR_model.fit_regularized(maxiter=10000)
         
-        return LR_results
+        return LR_results, X, y
     
     
 bike_params = BikeDash(None)
-
-params = pn.Param(bike_params.param, widgets={
-    'clustering': pn.widgets.RadioBoxGroup,
-    'trip_type': {'widget_type': pn.widgets.RadioButtonGroup, 'button_type': 'success'},
-    'day_type': pn.widgets.RadioButtonGroup,
-    'plot_all_clusters': {'widget_type': pn.widgets.RadioButtonGroup, 'title': 'Hello'},
-    'day': pn.widgets.IntSlider,
-    'random_state': pn.widgets.IntInput,
-    'min_trips': pn.widgets.IntInput,
-    'k': pn.widgets.IntSlider,
-    'show_land_use': pn.widgets.RadioButtonGroup,
-    'show_service_area': pn.widgets.RadioButtonGroup,
-    'service_radius': pn.widgets.IntInput,
-    'use_road': pn.widgets.RadioButtonGroup
-    },
-    name="Bikeshare Parameters"
-    )
-
-# LR_params = pn.Param(bike_params.param)
-
-
-
-
-pointview = hv.DynamicMap(bike_params.plot_clusters_full)
-
 
 @pn.depends(clustering=bike_params.param.clustering)
 def plot_tiles(clustering):
@@ -571,11 +546,12 @@ tooltips = [
 ]
 hover = HoverTool(tooltips=tooltips)
 
+pointview = hv.DynamicMap(bike_params.plot_clusters_full)
+
 pointview.opts(tools=['tap', hover])
 pointview.opts(nonselection_alpha=0.3)
 
 selection_stream = hv.streams.Selection1D(source=pointview)
-
 
 @pn.depends(index=selection_stream.param.index,
             day_type=bike_params.param.day_type,
@@ -621,6 +597,7 @@ def show_widgets(clustering):
     else:
         params.widgets['k'].visible = False
 
+
 @pn.depends(min_trips=bike_params.param.min_trips,
             day_type=bike_params.param.day_type,
             city=bike_params.param.city,
@@ -633,6 +610,7 @@ def minpercent(min_trips, day_type, city, month):
     
     n_removed = len(bike_params.station_df) - n_retained
     return f"Removed {n_removed:d} stations, which is {(n_removed/len(bike_params.station_df))*100:.2f}%"
+
 
 @pn.depends(show_land_use=bike_params.param.show_land_use,
             city=bike_params.param.city)
@@ -675,6 +653,7 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
     else:
         return gv.Polygons([])
 
+
 @pn.depends(service_radius=bike_params.param.service_radius,
             use_road=bike_params.param.use_road,
             clustering=bike_params.param.clustering,
@@ -703,13 +682,9 @@ def print_logistic_regression(service_radius, use_road, clustering, k,
                               mixed, road, transportation, n_trips, 
                               pop_density, nearest_subway_dist, const, 
                               use_points_or_percents, make_points_by):
-    res = bike_params.make_logistic_regression()
+    res, X, y = bike_params.make_logistic_regression()
     return res.summary().as_html()
     
-# @pn.depends(LR_indicator=bike_params.param.LR_indicator)
-# def print_logistic_regression(LR_indicator):
-#     res = bike_params.make_logistic_regression()
-#     return res.summary().as_html()
 
 @pn.depends(city=bike_params.param.city, watch=True)
 def update_extent(city):
@@ -718,6 +693,7 @@ def update_extent(city):
     tileview.opts(xlim=(extremes[1], extremes[0]), ylim=(extremes[3], extremes[2]))
     panel_column[1][1].object.data[()].Points.I.data = bike_params.station_df
     print(f"update city = {city}")
+
 
 def hook(plot, element):
     print('plot.state:   ', plot.state)
@@ -729,6 +705,11 @@ def hook(plot, element):
     #plot.handles['x_range'] = [extremes[1], extremes[0]]
     #plot.handles['y_range'] = [extremes[3], extremes[2]]
 
+
+# =============================================================================
+# Misc
+# =============================================================================
+
 extremes = [bike_params.station_df['easting'].max(), bike_params.station_df['easting'].min(), 
             bike_params.station_df['northing'].max(), bike_params.station_df['northing'].min()]
 
@@ -739,6 +720,59 @@ activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'e
 day_type_dict = {'weekend': 'w', 'business_days': 'b'}
 
 gif_pane = pn.pane.GIF('Loading_Key.gif')
+
+
+# =============================================================================
+# Parameters
+# =============================================================================
+
+param_split = 17 # add to this number if additional parameters are added in the first column
+
+params = pn.Param(bike_params.param, widgets={
+    'clustering': pn.widgets.RadioBoxGroup,
+    'trip_type': {'widget_type': pn.widgets.RadioButtonGroup, 'button_type': 'success'},
+    'day_type': pn.widgets.RadioButtonGroup,
+    'plot_all_clusters': {'widget_type': pn.widgets.RadioButtonGroup, 'title': 'Hello'},
+    'day': pn.widgets.IntSlider,
+    'random_state': pn.widgets.IntInput,
+    'min_trips': pn.widgets.IntInput,
+    'k': pn.widgets.IntSlider,
+    'show_land_use': pn.widgets.RadioButtonGroup,
+    'show_service_area': pn.widgets.RadioButtonGroup,
+    'service_radius': pn.widgets.IntInput,
+    'use_road': pn.widgets.RadioButtonGroup,
+    'use_points_or_percents': pn.widgets.RadioButtonGroup,
+    'make_points_by': pn.widgets.RadioButtonGroup
+    },
+    name="Bikeshare Parameters",
+    )
+
+params.parameters = params.parameters[:param_split]
+
+params.layout.insert(15, 'Use roads:')
+params.layout.insert(12, 'Show service area:')
+params.layout.insert(11, 'Show land use:')
+params.layout.insert(10, 'Plot all clusters:')
+params.layout.insert(5, 'Clustering method:')
+
+LR_params = pn.Param(bike_params.param, widgets={
+    'use_points_or_percents': pn.widgets.RadioButtonGroup,
+    'make_points_by': pn.widgets.RadioButtonGroup
+    },
+    name="Logistic Regression Parameters",
+    )
+
+LR_params.parameters = LR_params.parameters[param_split:]
+
+LR_params.layout.insert(2, 'make points by:')
+LR_params.layout.insert(1, 'use station points or percents')
+
+
+# =============================================================================
+# Views
+# =============================================================================
+
+
 
 zoneview = hv.DynamicMap(land_use_plot)
 zoneview.opts(alpha=0.5, apply_ranges=False)
@@ -767,22 +801,19 @@ zoneview.opts(tools=[hover_zone])
 service_area_view.opts(tools=[hover_service_area])
 # selection_stream.param.values()['index']
 
-params.layout.insert(15, 'Use roads:')
-params.layout.insert(12, 'Show service area:')
-params.layout.insert(11, 'Show land use:')
-params.layout.insert(10, 'Plot all clusters:')
-params.layout.insert(5, 'Clustering method:')
+views = tileview*zoneview*service_area_view*pointview
 
-param_split = 23 # add to this number if additional parameters are added in the first column
+
+# =============================================================================
+# Dashboard layout
+# =============================================================================
 
 param_column = pn.Column(params.layout, minpercent)
 param_column[1].width=300
 
-# LR_param_col = pn.Column(params.layout[param_split:])
+LR_row = pn.Row(LR_params.layout, print_logistic_regression)
 
-views = tileview*zoneview*service_area_view*pointview
-
-mid_column = pn.Column(views, print_logistic_regression)
+mid_column = pn.Column(views, LR_row)
 
 linecol = pn.Column(plot_daily_traffic, plot_centroid_callback)
 
