@@ -38,7 +38,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'helsinki'
+CITY = 'nyc'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -620,11 +620,6 @@ def land_use_plot(show_land_use, city):
     else:
         return gv.Polygons([])
 
-# @pn.depends(service_radius=bike_params.param.service_radius,
-#             city=bike_params.param.city,
-#             use_road=bike_params.param.use_road)
-# def update_service_areas(service_radius, city, use_road):
-#     bike_params.make_service_areas()
 
 @pn.depends(show_service_area=bike_params.param.show_service_area,
             service_radius=bike_params.param.service_radius,
