@@ -195,7 +195,8 @@ def zone_dist_transform(city, zone_dist):
     
     return zone_type
     
-def make_neighborhoods(city, year, df, land_use):
+
+def make_neighborhoods(city, year, station_df, land_use):
     
     pre = time.time()
     print(f"Loading data: {city}{year}")
@@ -208,54 +209,29 @@ def make_neighborhoods(city, year, df, land_use):
     neighborhoods.set_geometry('coords', inplace=True)
     neighborhoods.set_crs(epsg=4326, inplace=True)
     neighborhoods.to_crs(epsg=3857, inplace=True)        
-    print("The hood is getting ready to go")
+    print("Getting the hood ready to go", end="")
     if len(land_use) > 0:
         land_use.to_crs(epsg=3857, inplace=True)
         
-        # hoods = []
-        # for i, stat in neighborhoods.iterrows():
-            
-        #     buffer = stat['coords'].buffer(1000)
-        #     distances = land_use['geometry'].distance(buffer)
-        #     land_use_in_buffer = land_use[distances == 0]
-        #     hoods.append(land_use_in_buffer[['geometry', 'zone_type']])
+        lu_merge = {}
+        for zone_type in land_use['zone_type'].unique():
+            lu_merge[zone_type] = land_use[land_use['zone_type'] == zone_type].unary_union
+            print(".", end="")
+        print(" ", end="")
         
         buffers = neighborhoods['coords'].buffer(1000)
         
-        intersections = buffers.apply(lambda a: land_use['geometry'][land_use['geometry'].intersects(a)].index)
-        
-        hoods = intersections.apply(lambda a: land_use[['geometry', 'zone_type']].loc[a])
-        
-        #neighborhoods['neighborhood'] = hoods
-        
-        zone_polys = pd.concat(list(hoods), keys=range(len(hoods)))
-        # hood[hood['zone_type'] == zone_type].unary_union
-        
-        print("Zone polygons are done. Nice")
-               
-        for zone_type in land_use['zone_type'].unique():
-            # type_polys = zone_polys['geometry'][zone_polys['zone_type'] == zone_type]
-            # zone_hoods = type_polys.groupby(level=0).apply(lambda geo: shapely.ops.unary_union(geo) if len(geo) > 1 else geo)
-            
-            zone_hoods = []
-            for i, stat in neighborhoods.iterrows():
-                #union = [hood['geometry'] for hood in hoods[i] if hood['zone_type'] == zone_type]
-                union = hoods[i][hoods[i]['zone_type'] == zone_type]['geometry']
-                if len(union) != 0:
-                    zone_hoods.append(shapely.ops.unary_union(union))
-                else:
-                    zone_hoods.append(None)
-            
-              
-            neighborhoods[f'neighborhood_{zone_type}'] = zone_hoods
-            print(f'{zone_type} done')
+        for zone_type in lu_merge.keys():
+            neighborhoods[f"neighborhood_{zone_type}"] = buffers.intersection(lu_merge[zone_type])
+            print(".", end="")
+        print(" ")
             
         neighborhoods.drop(columns=['coords'], inplace=True)
         
         with open(f'./python_variables/neighborhoods_{city}{year}.pickle', 'wb') as file:
             pickle.dump(neighborhoods, file)
         
-        print(f'Pickling done. Time taken: {time.time()-pre} seconds.')
+        print(f'Pickling done. Time taken: {time.time()-pre:.2f} seconds.')
         
         land_use.to_crs(epsg=4326, inplace=True)
     
@@ -288,6 +264,8 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         except FileNotFoundError:
             print("Pickle does not exist. Pickling station_df...")
     
+    print("Making Station DataFrame", end="")
+    
     df = pd.DataFrame(data.stat.locations).T.rename(columns={0: 'long', 1: 'lat'})
     
     df['stat_id'] = df.index.map(data.stat.inverse)
@@ -303,6 +281,9 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
     
     
     df_s = data.df[['start_stat_id', 'start_dt']][data.df['start_dt'].dt.weekday <= 4]
+    
+    print(".", end="")
+    
     if not holidays:
         holiday_year = pd.DataFrame(
             bs.get_cal(data.city).get_calendar_holidays(data.year), columns=['day', 'name'])
@@ -336,6 +317,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
          (df['easting'].min()-1000, df['northing'].max()+1000),
          (df['easting'].max()+1000, df['northing'].max()+1000),
          (df['easting'].max()+1000, df['northing'].min()-1000)])
+    print(".", end="")
     
     # poly_gdf = gpd.GeoDataFrame(index=[0], columns=['poly'], geometry='poly')
     # poly_gdf.loc[0,'poly'] = land_use_extent
@@ -398,13 +380,13 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         
         land_use_df = gpd.read_file(f'data/other_data/{data.city}_UA2018_v013.gpkg')
         land_use_df = land_use_df[['code_2018', 'class_2018', 'area', 'Pop2018', 'geometry']].to_crs('EPSG:4326')
-        
+        print(".", end="")
         df = gpd.GeoDataFrame(df, geometry='coords', crs='EPSG:4326')
         df = gpd.tools.sjoin(df, land_use_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
-        
+        print(".", end="")
         df['zone_type'] = df['code_2018'].apply(lambda x: zone_dist_transform(data.city, x))
-
+        print(".", end="")
         land_use = land_use_df[['code_2018', 'geometry']]
         land_use.to_crs(epsg=3857, inplace=True)
         land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
@@ -412,13 +394,13 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         
         land_use['geometry'] = land_use['geometry'].apply(lambda area: area.intersection(land_use_extent))
         land_use.to_crs(epsg=4326, inplace=True)
-        
+        print(".", end="")
         
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
         # land_use = land_use[land_use['zone_type'] != 'road']
         land_use = land_use[land_use['zone_type'] != 'water']
-        
+        print(".", end="")
         subways_df = gpd.read_file(f'./data/other_data/{data.city}_transit_data.geojson')
         
         df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
@@ -611,6 +593,8 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         df['zone_type'] = 0
         land_use = pd.DataFrame([])
         land_use['zone_type'] = 'UNKNOWN'
+    
+    print(".")
         
     df.rename(mapper=df_key(data.city), axis=1, inplace=True)  
     
@@ -620,15 +604,12 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         pickle.dump([df, land_use], file)
     
     
-    try:
-        with open(f'./python_variables/neighborhoods_{data.city}{data.year}.pickle', 'rb') as file:
-            neighborhoods = pickle.load(file)
-    
-    except FileNotFoundError:
-        print(f'No neighborhoods found. Pickling neighborhoods using {data.city}{data.year} data...')
-        neighborhoods = make_neighborhoods(data.city, data.year, df, land_use)
+    print(f'Pickling neighborhoods using {data.city}{data.year} data...')
+    neighborhoods = make_neighborhoods(data.city, data.year, df, land_use)
     
     df = df.merge(neighborhoods, on='stat_id')
+    
+    print("Done")
     
     if return_land_use:
         return df, land_use
@@ -829,7 +810,7 @@ if __name__ == "__main__":
     
     # create_all_pickles('helsinki', 2019, overwrite=False)
 
-    data = bs.Data('nyc', 2019, 9)
+    data = bs.Data('oslo', 2019, 9)
 
     pre = time.time()
     station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)

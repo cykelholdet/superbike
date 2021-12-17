@@ -2581,28 +2581,29 @@ class Stations:
             Bikeshare trip data.
 
         """
-
+        print("Loading Stations", end="")
         self.n_start = len(df['start_stat_id'].unique())
         self.n_end = len(df['end_stat_id'].unique())
         total_station_id = set(df['start_stat_id']).union(
             set(df['end_stat_id']))
         self.n_tot = len(total_station_id)
-
+        print(".", end="")
+        
         self.id_index = dict(
             zip(sorted(total_station_id), np.arange(self.n_tot)))
 
         self.inverse = dict(
             zip(np.arange(self.n_tot), sorted(total_station_id)))
-
+        print(".", end="")
         self.locations = station_locations(df, self.id_index)
         self.loc = np.array(list(self.locations.values()))
         trans = Transformer.from_crs("EPSG:4326", "EPSG:3857")
         self.loc_merc = np.vstack(trans.transform(
             self.loc[:, 1], self.loc[:, 0])).T
-
+        print(".", end="")
         self.names = station_names(df, self.id_index)
 
-        print("Stations loaded")
+        print(" Done")
 
 
 class Data:
