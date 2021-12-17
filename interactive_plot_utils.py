@@ -356,6 +356,13 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
         
+        land_use.to_crs(epsg=3857, inplace=True)
+        land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
+                               df['northing'].min()-1000:df['northing'].max()+1000]
+        
+        land_use['geometry'] = land_use['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
+        land_use.to_crs(epsg=4326, inplace=True)
+        
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
@@ -428,6 +435,13 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
     
+        land_use.to_crs(epsg=3857, inplace=True)
+        land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
+                               df['northing'].min()-1000:df['northing'].max()+1000]
+        
+        land_use['geometry'] = land_use['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
+        land_use.to_crs(epsg=4326, inplace=True)
+    
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
@@ -467,7 +481,14 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         land_use = zoning_df[['ZONING_LABEL', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
-            
+        
+        land_use.to_crs(epsg=3857, inplace=True)
+        land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
+                               df['northing'].min()-1000:df['northing'].max()+1000]
+        
+        land_use['geometry'] = land_use['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
+        land_use.to_crs(epsg=4326, inplace=True)
+        
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
@@ -502,6 +523,13 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         land_use = zoning_df[['ZONE_CODE', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
+        
+        land_use.to_crs(epsg=3857, inplace=True)
+        land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
+                               df['northing'].min()-1000:df['northing'].max()+1000]
+        
+        land_use['geometry'] = land_use['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
+        land_use.to_crs(epsg=4326, inplace=True)
         
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
@@ -539,6 +567,13 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         land_use = zoning_df[['ZONE_',  'SUBDISTRIC', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         #land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
+        
+        land_use.to_crs(epsg=3857, inplace=True)
+        land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
+                               df['northing'].min()-1000:df['northing'].max()+1000]
+        
+        land_use['geometry'] = land_use['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
+        land_use.to_crs(epsg=4326, inplace=True)
         
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')

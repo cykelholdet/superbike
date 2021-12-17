@@ -163,8 +163,8 @@ ohe_zone = pd.get_dummies(station_df['zone_type'])
 
 X = ohe_zone
 
-X = pd.concat([X, station_df['pop_density']/station_df['pop_density'].max()], axis=1)
-X = pd.concat([X, station_df['nearest_subway_dist']/station_df['nearest_subway_dist'].max()], axis=1)
+# X = pd.concat([X, station_df['pop_density']/station_df['pop_density'].max()], axis=1)
+# X = pd.concat([X, station_df['nearest_subway_dist']/station_df['nearest_subway_dist'].max()], axis=1)
 # X = pd.concat([X, station_df['n_trips']], axis=1)
 
 # X['n_trips'] = X['n_trips']/X['n_trips'].sum()
