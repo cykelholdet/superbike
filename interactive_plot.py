@@ -38,7 +38,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'nyc'
+CITY = 'chic'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -441,11 +441,6 @@ class BikeDash(param.Parameterized):
                    'pop_density', 'nearest_subway_dist', watch=False)
     def make_logistic_regression(self):
         
-        #TODO: Improve layout in dashboard
-        
-        # if self.station_df['label'].isna().all():
-        #     self.plot_clusters_full()
-        
         df = self.station_df.copy()
         df = df[~df['label'].isna()]
         
@@ -513,7 +508,17 @@ class BikeDash(param.Parameterized):
         
         y = df[~df['label'].isna()]['label']
         
-        LR_model = MNLogit(y, X)
+        param_names = {'percent_manufacturing' : '% manufacturing',
+                       'percent_commercial' : '% commercial',
+                       'percent_residential' : '% residential',
+                       'percent_recreational' : '% recreational',
+                       'percent_mixed' : '% mixed',
+                       'pop_density' : 'pop density',
+                       'nearest_subway_dist' : 'nearest subway dist'}
+        
+        
+        
+        LR_model = MNLogit(y, X.rename(param_names))
         
         LR_results = LR_model.fit_regularized(maxiter=10000)
         
@@ -644,7 +649,12 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
             return gv.Polygons(bike_params.station_df, vdims=vdims).opts(color='percent_commercial')
         elif service_area_color == 'recreational':
             return gv.Polygons(bike_params.station_df, vdims=vdims).opts(color='percent_recreational')
-            
+        elif service_area_color == 'pop density':
+            if 'pop_density' in bike_params.station_df.columns:
+                return gv.Polygons(bike_params.station_df, vdims=vdims).opts(color='pop_density')
+            else:
+                return gv.Polygons([])
+        
     else:
         return gv.Polygons([])
 
@@ -759,8 +769,8 @@ LR_params = pn.Param(bike_params.param, widgets={
 
 LR_params.parameters = LR_params.parameters[param_split:]
 
-LR_params.layout.insert(2, 'make points by:')
-LR_params.layout.insert(1, 'use station points or percents')
+LR_params.layout.insert(2, 'Make points by:')
+LR_params.layout.insert(1, 'Use station points or percents:')
 
 
 # =============================================================================
