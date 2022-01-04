@@ -515,7 +515,11 @@ class BikeDash(param.Parameterized):
         
         LR_model = MNLogit(y, X)
         
-        LR_results = LR_model.fit_regularized(maxiter=10000)
+        try:
+            LR_results = LR_model.fit_regularized(maxiter=10000)
+        except np.LinAlgError:
+            print("Singular matrix")
+            LR_results = None
         
         return LR_results, X, y
     
@@ -683,7 +687,7 @@ def print_logistic_regression(service_radius, use_road, clustering, k,
                               pop_density, nearest_subway_dist, const, 
                               use_points_or_percents, make_points_by):
     res, X, y = bike_params.make_logistic_regression()
-    return res.summary().as_html()
+    return res.summary().as_html() if res != None else "Singular"
     
 
 @pn.depends(city=bike_params.param.city, watch=True)
@@ -704,6 +708,8 @@ def hook(plot, element):
     plot.handles['yaxis'].axis_label = extremes[3] - extremes[2]
     #plot.handles['x_range'] = [extremes[1], extremes[0]]
     #plot.handles['y_range'] = [extremes[3], extremes[2]]
+
+
 
 
 # =============================================================================

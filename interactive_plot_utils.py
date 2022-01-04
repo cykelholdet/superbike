@@ -746,6 +746,24 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
 proj_wgs84 = pyproj.Proj('+proj=longlat +datum=WGS84')
 
 def geodesic_point_buffer(lat, lon, m):
+    """
+    Stolen from https://gis.stackexchange.com/questions/289044/creating-buffer-circle-x-kilometers-from-point-using-python
+
+    Parameters
+    ----------
+    lat : float
+        latitude in WGS 84.
+    lon : float
+        longitude in WGS84.
+    m : float
+        buffer radius in meter.
+
+    Returns
+    -------
+    shapely
+        DESCRIPTION.
+
+    """
     # Azimuthal equidistant projection
     aeqd_proj = '+proj=aeqd +lat_0={lat} +lon_0={lon} +x_0=0 +y_0=0'
     project = partial(
