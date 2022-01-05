@@ -418,10 +418,15 @@ class BikeDash(param.Parameterized):
                 
                 for i, stat in self.station_df.iterrows():
                     
-                    if stat[f'neighborhood_{zone_type}']:
-                    
-                        zone_percents[i] = stat['service_area'].buffer(0).intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area'].area*100
-                    
+                    if stat['service_area']:
+                        
+                        if stat[f'neighborhood_{zone_type}']:
+                            
+                            zone_percents[i] = stat['service_area'].buffer(0).intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area'].area*100
+                        
+                    else:
+                        zone_percents[i] = np.nan
+                        
                 self.station_df[f'percent_{zone_type}'] = zone_percents
         
         self.station_df['service_area_size'] = self.station_df['service_area'].apply(lambda area: area.area/1000000)
@@ -506,7 +511,9 @@ class BikeDash(param.Parameterized):
         if self.const:
             X = sm.add_constant(X)
         
-        y = df[~df['label'].isna()]['label']
+        y = df['label'][~X.isna().any(axis=1)]
+        
+        X = X[~X.isna().any(axis=1)]
         
         param_names = {'percent_manufacturing' : '% manufacturing',
                        'percent_commercial' : '% commercial',
@@ -522,7 +529,7 @@ class BikeDash(param.Parameterized):
         
         try:
             LR_results = LR_model.fit_regularized(maxiter=10000)
-        except np.LinAlgError:
+        except np.linalg.LinAlgError:
             print("Singular matrix")
             LR_results = None
         
