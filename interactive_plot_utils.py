@@ -6,6 +6,8 @@ Created on Tue Oct 19 21:22:19 2021
 """
 import pickle
 import time
+import os
+import contextlib
 from functools import partial
 
 #import fiona
@@ -386,8 +388,11 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         df = gpd.GeoDataFrame(df, geometry='coords', crs='EPSG:4326')
         df = gpd.tools.sjoin(df, land_use_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
+        df['Pop2018'].fillna(0, inplace=True)
+        df['area'].fillna(0.1, inplace=True)
         print(".", end="")
         df['zone_type'] = df['code_2018'].apply(lambda x: zone_dist_transform(data.city, x))
+        df.loc[df['zone_type'] == 'water', 'zone_type'] = "UNKNOWN"
         print(".", end="")
         land_use = land_use_df[['code_2018', 'geometry']]
         land_use.to_crs(epsg=3857, inplace=True)
@@ -606,8 +611,13 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         pickle.dump([df, land_use], file)
     
     
-    print(f'Pickling neighborhoods using {data.city}{data.year} data...')
-    neighborhoods = make_neighborhoods(data.city, data.year, df, land_use)
+    try:
+        with open(f'./python_variables/neighborhoods_{data.city}{data.year}.pickle', 'rb') as file:
+            neighborhoods = pickle.load(file)
+    
+    except FileNotFoundError:
+        print(f'No neighborhoods found. Pickling neighborhoods using {data.city}{data.year} data...')
+        neighborhoods = make_neighborhoods(data.city, data.year, df, land_use)
     
     df = df.merge(neighborhoods, on='stat_id')
     
@@ -775,7 +785,7 @@ def geodesic_point_buffer(lat, lon, m):
 
 
 def create_all_pickles(city, year, holidays=False, overwrite=False):
-    if isinstance(city, str):
+    if isinstance(city, str): # If city is a str (therefore not a list)
         data = bs.Data(city, year, overwrite=overwrite)
         make_station_df(data, holidays=holidays, overwrite=overwrite)
         data.pickle_daily_traffic(holidays=holidays, overwrite=overwrite)
@@ -792,6 +802,8 @@ def create_all_pickles(city, year, holidays=False, overwrite=False):
         try:
             for cities_i in city:
                 pre = time.time()
+                with contextlib.suppress(FileNotFoundError):
+                    os.remove(f"python_variables/neighborhoods_{cities_i}{year}.pickle")
                 create_all_pickles(cities_i, year, holidays=holidays, overwrite=overwrite)
                 print(f'{bs.name_dict[city]} took {time.time() - pre:.2f} seconds')
         except TypeError:
@@ -841,9 +853,9 @@ color_num_dict = {
 if __name__ == "__main__":
     import time
     
-    # create_all_pickles('helsinki', 2019, overwrite=False)
+    create_all_pickles('london', 2019, overwrite=True)
 
-    data = bs.Data('helsinki', 2019, 9)
+    data = bs.Data('london', 2019, 9)
 
     pre = time.time()
     station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)

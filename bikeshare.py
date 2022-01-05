@@ -579,6 +579,25 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df.replace('', np.nan, inplace=True)
             df.dropna(inplace=True)
 
+            merge_id_dict = {361: 154, 374: 154,
+                              280: 250, 819: 273, 328: 327, 336: 334,
+                              421: 420, 816: 812}    
+            waterloo_dict = {f"Waterloo Station {i}, Waterloo": "Waterloo Station, Waterloo" for i in range(1, 4)}
+            royal_dict = {f"Royal Avenue {i}, Chelsea": "Royal Avenue, Chelsea" for i in range(1, 3)}
+            belvedere_dict = {f"Belvedere Road {i}, South Bank": "Belvedere Road, South Bank" for i in range(1, 3)}
+            north_dict = {f"New North Road {i}, Hoxton": "New North Road, Hoxton" for i in range(1, 3)}
+            concert_dict = {f"Concert Hall Approach {i}, South Bank": "Concert Hall Approach, South Bank" for i in range(1, 3)}
+            south_dict = {f"Southwark Station {i}, Southwark": "Southwark Station, Southwark" for i in range(1, 3)}
+            here_dict = {"Here East North, Queen Elizabeth Olympic Park": "Here East, Queen Elizabeth Olympic Park",
+                          "Here East South, Queen Elizabeth Olympic Park": "Here East, Queen Elizabeth Olympic Park"}
+            merge_name_dict = {**waterloo_dict, **royal_dict, **belvedere_dict, **north_dict, **concert_dict, **south_dict, **here_dict}
+
+            df['start_stat_id'] = df['start_stat_id'].replace(merge_id_dict)
+            df['start_stat_name'] = df['start_stat_name'].replace(merge_name_dict)
+            
+            df['end_stat_id'] = df['end_stat_id'].replace(merge_id_dict)
+            df['end_stat_name'] = df['end_stat_name'].replace(merge_name_dict)
+
             df.reset_index(inplace=True, drop=True)
 
         elif city == "oslo":
@@ -1352,6 +1371,25 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
 
             df.replace('', np.nan, inplace=True)
             df.dropna(inplace=True)
+            
+            merge_id_dict = {361: 154, 374: 154,
+                              280: 250, 819: 273, 328: 327, 336: 334,
+                              421: 420, 816: 812}    
+            waterloo_dict = {f"Waterloo Station {i}, Waterloo": "Waterloo Station, Waterloo" for i in range(1, 4)}
+            royal_dict = {f"Royal Avenue {i}, Chelsea": "Royal Avenue, Chelsea" for i in range(1, 3)}
+            belvedere_dict = {f"Belvedere Road {i}, South Bank": "Belvedere Road, South Bank" for i in range(1, 3)}
+            north_dict = {f"New North Road {i}, Hoxton": "New North Road, Hoxton" for i in range(1, 3)}
+            concert_dict = {f"Concert Hall Approach {i}, South Bank": "Concert Hall Approach, South Bank" for i in range(1, 3)}
+            south_dict = {f"Southwark Station {i}, Southwark": "Southwark Station, Southwark" for i in range(1, 3)}
+            here_dict = {"Here East North, Queen Elizabeth Olympic Park": "Here East, Queen Elizabeth Olympic Park",
+                          "Here East South, Queen Elizabeth Olympic Park": "Here East, Queen Elizabeth Olympic Park"}
+            merge_name_dict = {**waterloo_dict, **royal_dict, **belvedere_dict, **north_dict, **concert_dict, **south_dict, **here_dict}
+
+            df['start_stat_id'] = df['start_stat_id'].replace(merge_id_dict)
+            df['start_stat_name'] = df['start_stat_name'].replace(merge_name_dict)
+            
+            df['end_stat_id'] = df['end_stat_id'].replace(merge_id_dict)
+            df['end_stat_name'] = df['end_stat_name'].replace(merge_name_dict)
 
             df.reset_index(inplace=True, drop=True)
 
@@ -4350,7 +4388,7 @@ name_dict = {
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('helsinki', 2019, 1, overwrite=True)
+    data = Data('london', 2019, 1, overwrite=True)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)

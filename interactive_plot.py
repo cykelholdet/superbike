@@ -38,7 +38,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'nyc'
+CITY = 'london'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -517,7 +517,7 @@ class BikeDash(param.Parameterized):
         
         try:
             LR_results = LR_model.fit_regularized(maxiter=10000)
-        except np.LinAlgError:
+        except np.linalg.LinAlgError:
             print("Singular matrix")
             LR_results = None
         
@@ -806,7 +806,6 @@ views = tileview*zoneview*service_area_view*pointview
 
 
 # =============================================================================
-# Dashboard layout
 # =============================================================================
 
 param_column = pn.Column(params.layout, minpercent)
@@ -825,7 +824,7 @@ title_row[0].width=400
 panel_column = pn.Column(title_row, panel_param)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-# bokeh_server = panel_column.show(port=12345)
+bokeh_server = panel_column.show(port=12345)
 
 #%%
 # bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
