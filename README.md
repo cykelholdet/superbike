@@ -21,14 +21,14 @@ sklearn
 If working with Conda, you could for example make a conda environment as follows. (You can ignore spyder if you wish to use another development environment)
 
 ```
-conda create -n bike_env numpy matplotlib pandas scipy holoviews hvplot geopandas spyder
+conda create -n bike_env numpy matplotlib pandas scipy holoviews hvplot geoviews geopandas spyder
 
 conda activate bike_env
 ```
 
 Then install the remaining packages
 ```
-pip install scikit-learn-extra scikit-image statsmodels
+pip install scikit-learn-extra scikit-image statsmodels workalendar geopy
 ```
 
 ## Directory structure
