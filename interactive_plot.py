@@ -418,10 +418,15 @@ class BikeDash(param.Parameterized):
                 
                 for i, stat in self.station_df.iterrows():
                     
-                    if stat[f'neighborhood_{zone_type}']:
-                    
-                        zone_percents[i] = stat['service_area'].buffer(0).intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area'].area*100
-                    
+                    if stat['service_area']:
+                        
+                        if stat[f'neighborhood_{zone_type}']:
+                            
+                            zone_percents[i] = stat['service_area'].buffer(0).intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area'].area*100
+                        
+                    else:
+                        zone_percents[i] = np.nan
+                        
                 self.station_df[f'percent_{zone_type}'] = zone_percents
         
         self.station_df['service_area_size'] = self.station_df['service_area'].apply(lambda area: area.area/1000000)
@@ -440,11 +445,6 @@ class BikeDash(param.Parameterized):
                    'road', 'transportation', 'n_trips',
                    'pop_density', 'nearest_subway_dist', watch=False)
     def make_logistic_regression(self):
-        
-        #TODO: Improve layout in dashboard
-        
-        # if self.station_df['label'].isna().all():
-        #     self.plot_clusters_full()
         
         df = self.station_df.copy()
         df = df[~df['label'].isna()]
@@ -511,9 +511,21 @@ class BikeDash(param.Parameterized):
         if self.const:
             X = sm.add_constant(X)
         
-        y = df[~df['label'].isna()]['label']
+        y = df['label'][~X.isna().any(axis=1)]
         
-        LR_model = MNLogit(y, X)
+        X = X[~X.isna().any(axis=1)]
+        
+        param_names = {'percent_manufacturing' : '% manufacturing',
+                       'percent_commercial' : '% commercial',
+                       'percent_residential' : '% residential',
+                       'percent_recreational' : '% recreational',
+                       'percent_mixed' : '% mixed',
+                       'pop_density' : 'pop density',
+                       'nearest_subway_dist' : 'nearest subway dist'}
+        
+        
+        
+        LR_model = MNLogit(y, X.rename(param_names))
         
         try:
             LR_results = LR_model.fit_regularized(maxiter=10000)
@@ -648,7 +660,12 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
             return gv.Polygons(bike_params.station_df, vdims=vdims).opts(color='percent_commercial')
         elif service_area_color == 'recreational':
             return gv.Polygons(bike_params.station_df, vdims=vdims).opts(color='percent_recreational')
-            
+        elif service_area_color == 'pop density':
+            if 'pop_density' in bike_params.station_df.columns:
+                return gv.Polygons(bike_params.station_df, vdims=vdims).opts(color='pop_density')
+            else:
+                return gv.Polygons([])
+        
     else:
         return gv.Polygons([])
 
@@ -765,8 +782,8 @@ LR_params = pn.Param(bike_params.param, widgets={
 
 LR_params.parameters = LR_params.parameters[param_split:]
 
-LR_params.layout.insert(2, 'make points by:')
-LR_params.layout.insert(1, 'use station points or percents')
+LR_params.layout.insert(2, 'Make points by:')
+LR_params.layout.insert(1, 'Use station points or percents:')
 
 
 # =============================================================================
@@ -806,6 +823,7 @@ views = tileview*zoneview*service_area_view*pointview
 
 
 # =============================================================================
+# Dashboard layout
 # =============================================================================
 
 param_column = pn.Column(params.layout, minpercent)
@@ -824,7 +842,7 @@ title_row[0].width=400
 panel_column = pn.Column(title_row, panel_param)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-bokeh_server = panel_column.show(port=12345)
+# bokeh_server = panel_column.show(port=12345)
 
 #%%
 # bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
