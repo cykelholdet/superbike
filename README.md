@@ -28,7 +28,7 @@ conda activate bike_env
 
 Then install the remaining packages
 ```
-pip install scikit-learn-extra scikit-image
+pip install scikit-learn-extra scikit-image statsmodels
 ```
 
 ## Directory structure
