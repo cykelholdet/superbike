@@ -144,6 +144,7 @@ class BikeDash(param.Parameterized):
     mixed = param.Boolean(True)
     road= param.Boolean(True)
     transportation = param.Boolean(True)
+    unknown = param.Boolean(True)
     n_trips = param.Boolean(True)
     pop_density = param.Boolean(True)
     nearest_subway_dist = param.Boolean(True)
@@ -386,8 +387,8 @@ class BikeDash(param.Parameterized):
         self.station_df.set_geometry('service_area', inplace=True)
         
         
-        self.station_df['service_area'] = self.station_df['service_area'].to_crs(epsg=3857)
-        self.land_use['geometry'] = self.land_use['geometry'].to_crs(epsg=3857)
+        # self.station_df['service_area'] = self.station_df['service_area'].to_crs(epsg=3857)
+        # self.land_use['geometry'] = self.land_use['geometry'].to_crs(epsg=3857)
         
         if 'road' in self.station_df['zone_type'].unique() and self.use_road == 'False':
             
@@ -395,9 +396,9 @@ class BikeDash(param.Parameterized):
                 stat['service_area'].difference(stat['neighborhood_road'])
                 for i, stat in self.station_df.iterrows()]
             
-            zone_types = [zone for zone in self.station_df['zone_type'].unique() 
-                          if zone != 'road']
-            
+            zone_types = self.station_df['zone_type'].unique()[
+                self.station_df['zone_type'].unique() != 'road']
+
             for zone_type in zone_types:
             
                 zone_percents = np.zeros(len(self.station_df))
@@ -442,9 +443,11 @@ class BikeDash(param.Parameterized):
                    'service_radius', 'use_road', 'LR_indicator', 'use_points_or_percents',
                    'make_points_by', 'residential', 'commercial',
                    'manufacturing', 'recreational', 'mixed',
-                   'road', 'transportation', 'n_trips',
+                   'road', 'transportation', 'unknown', 'n_trips',
                    'pop_density', 'nearest_subway_dist', watch=False)
     def make_logistic_regression(self):
+        
+        #TODO: make UNKNOWN checkbox
         
         df = self.station_df.copy()
         df = df[~df['label'].isna()]
@@ -480,7 +483,8 @@ class BikeDash(param.Parameterized):
                         ('recreational', self.recreational),
                         ('mixed', self.mixed),
                         ('road', self.road),
-                        ('transportation', self.transportation)]
+                        ('transportation', self.transportation),
+                        ('UNKNOWN', self.unknown)]
         
         drop_columns = []
         
@@ -687,6 +691,7 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
             mixed=bike_params.param.mixed,
             road=bike_params.param.road,
             transportation=bike_params.param.transportation,
+            unknown=bike_params.param.unknown,
             n_trips=bike_params.param.n_trips,
             pop_density=bike_params.param.pop_density,
             nearest_subway_dist=bike_params.param.nearest_subway_dist,
@@ -695,7 +700,7 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
 def print_logistic_regression(service_radius, use_road, clustering, k, 
                               min_trips, day_type, city, month, residential,
                               commercial, manufacturing, recreational,
-                              mixed, road, transportation, n_trips, 
+                              mixed, road, transportation, unknown, n_trips, 
                               pop_density, nearest_subway_dist, const, 
                               use_points_or_percents, make_points_by):
     res, X, y = bike_params.make_logistic_regression()
