@@ -6,6 +6,9 @@ Created on Thu Sep 30 11:36:11 2021
 @author: dbvd
 """
 
+import pickle
+import time
+
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -18,19 +21,19 @@ from shapely.geometry import Point, LineString
 
 import holoviews as hv
 import hvplot.pandas
-hv.extension('bokeh', logo=False)
+
 import panel as pn
 import param
 import geoviews as gv
 from bokeh.models import HoverTool
 
-import bikeshare as bs
-import interactive_plot_utils as ipu
-
 import statsmodels.api as sm
 from statsmodels.discrete.discrete_model import MNLogit
 
-import pickle
+import bikeshare as bs
+import interactive_plot_utils as ipu
+
+hv.extension('bokeh', logo=False)
 
 cmap = cm.get_cmap('Blues')
 
@@ -316,7 +319,8 @@ class BikeDash(param.Parameterized):
     
     @param.depends('service_radius', 'use_road')
     def make_service_areas(self):
-        
+
+        t_start = time.time()
         if 'service_area' in self.station_df.columns:
             self.station_df.drop(columns='service_area', inplace=True)
             self.station_df.set_geometry('coords', inplace=True)
@@ -344,15 +348,20 @@ class BikeDash(param.Parameterized):
         
         poly_gdf = gpd.GeoDataFrame()
         poly_gdf['vor_poly'] = [poly for poly in shapely.ops.polygonize(lines)]
+        #poly_gdf.set_geometry('vor_poly', inplace=True)
         poly_gdf['geometry'] = poly_gdf['vor_poly']
         poly_gdf.set_crs(epsg=3857, inplace=True)
         
         poly_gdf = gpd.tools.sjoin(points_gdf, poly_gdf, op='within', how='left')
         poly_gdf.drop('index_right', axis=1, inplace=True)
+        poly_gdf['geometry'] = poly_gdf['vor_poly']
         
-        poly_gdf['service_area'] = [
-            row['vor_poly'].intersection(row['point'].buffer(self.service_radius))
-            for i, row in poly_gdf.iterrows()]
+        buffers = poly_gdf['point'].buffer(self.service_radius)
+        
+        poly_gdf['service_area'] = poly_gdf.intersection(buffers)
+        # poly_gdf['service_area'] = [
+        #     row['vor_poly'].intersection(row['point'].buffer(self.service_radius))
+        #     for i, row in poly_gdf.iterrows()]
         
         poly_gdf['geometry'] = poly_gdf['service_area']
         poly_gdf.set_crs(epsg=3857, inplace=True)
@@ -371,7 +380,8 @@ class BikeDash(param.Parameterized):
             with open(f'./python_variables/union_{self.city}.pickle', 'wb') as file:
                 pickle.dump(union, file)
             print('Pickling done')
-            
+        
+        
         self.station_df['service_area'] = self.station_df['service_area'].apply(lambda area: area.intersection(union))
         
         service_area_trim = []
@@ -398,17 +408,22 @@ class BikeDash(param.Parameterized):
             
             zone_types = self.station_df['zone_type'].unique()[
                 self.station_df['zone_type'].unique() != 'road']
-
+            
+            
+            geo_sdf = self.station_df.set_geometry('service_area_no_road')
+            geo_sdf.to_crs(epsg=3857, inplace=True)
+            
+            geo_sdf['geometry'] = geo_sdf.buffer(0)
+            
             for zone_type in zone_types:
             
                 zone_percents = np.zeros(len(self.station_df))
                 
-                for i, stat in self.station_df.iterrows():
-                    
-                    if stat[f'neighborhood_{zone_type}']:
-                    
-                        zone_percents[i] = stat['service_area_no_road'].buffer(0).intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area_no_road'].area*100
-                    
+                mask = ~self.station_df[f'neighborhood_{zone_type}'].is_empty
+                
+                sdf_zone = geo_sdf[f'neighborhood_{zone_type}'].to_crs(epsg=3857)[mask]
+                zone_percents[mask] = geo_sdf[mask].intersection(sdf_zone).area/geo_sdf[mask].area*100
+                
                 self.station_df[f'percent_{zone_type}'] = zone_percents
             
         else:
@@ -436,6 +451,8 @@ class BikeDash(param.Parameterized):
         self.land_use['geometry'] = self.land_use['geometry'].to_crs(epsg=4326)
         
         self.station_df['geometry'] = self.station_df['service_area']
+        
+        print(f"total time on service areas spent = {time.time()-t_start:.2f}")
         
         # self.LR_indicator = not self.LR_indicator
     

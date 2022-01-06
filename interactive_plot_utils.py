@@ -227,6 +227,7 @@ def make_neighborhoods(city, year, station_df, land_use):
         
         for zone_type in lu_merge.keys():
             neighborhoods[f"neighborhood_{zone_type}"] = buffers.intersection(lu_merge[zone_type])
+            neighborhoods[f"neighborhood_{zone_type}"].set_crs(epsg=4326, inplace=True)
             print(".", end="")
         print(" ")
             
@@ -321,7 +322,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
          (df['easting'].min()-1000, df['northing'].max()+1000),
          (df['easting'].max()+1000, df['northing'].max()+1000),
          (df['easting'].max()+1000, df['northing'].min()-1000)])
-    print(".", end="")
+    print(". ", end="")
     
     # poly_gdf = gpd.GeoDataFrame(index=[0], columns=['poly'], geometry='poly')
     # poly_gdf.loc[0,'poly'] = land_use_extent
@@ -382,11 +383,11 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
     
     elif data.city in ['madrid', 'helsinki', 'london', 'oslo']:
         
-        land_use_df = gpd.read_file(f'data/other_data/{data.city}_UA2018_v013.gpkg')
-        land_use_df = land_use_df[['code_2018', 'class_2018', 'area', 'Pop2018', 'geometry']].to_crs('EPSG:4326')
+        land_use = gpd.read_file(f'data/other_data/{data.city}_UA2018_v013.gpkg')
+        land_use = land_use[['code_2018', 'class_2018', 'area', 'Pop2018', 'geometry']].to_crs('EPSG:4326')
         print(".", end="")
         df = gpd.GeoDataFrame(df, geometry='coords', crs='EPSG:4326')
-        df = gpd.tools.sjoin(df, land_use_df, op='within', how='left')
+        df = gpd.tools.sjoin(df, land_use, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
         df['Pop2018'].fillna(0, inplace=True)
         df['area'].fillna(0.1, inplace=True)
@@ -394,11 +395,13 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         df['zone_type'] = df['code_2018'].apply(lambda x: zone_dist_transform(data.city, x))
         df.loc[df['zone_type'] == 'water', 'zone_type'] = "UNKNOWN"
         print(".", end="")
-        land_use = land_use_df[['code_2018', 'geometry']]
+        land_use = land_use[['code_2018', 'geometry']]
+        print(".", end="")
         land_use.to_crs(epsg=3857, inplace=True)
+        print(".", end="")
         land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
                                df['northing'].min()-1000:df['northing'].max()+1000]
-        
+        print(".", end="")
         land_use['geometry'] = land_use['geometry'].apply(lambda area: area.intersection(land_use_extent))
         land_use.to_crs(epsg=4326, inplace=True)
         print(".", end="")
@@ -851,9 +854,9 @@ color_num_dict = {
 
     
 if __name__ == "__main__":
-    import time
+
     
-    create_all_pickles('london', 2019, overwrite=True)
+    #create_all_pickles('london', 2019, overwrite=True)
 
     data = bs.Data('london', 2019, 9)
 
