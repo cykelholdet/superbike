@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-q"""
+"""
 Created on Tue Oct 19 21:22:19 2021
 
 @author: nweinr
@@ -66,6 +66,8 @@ def df_key(city):
     
     
 def zone_dist_transform(city, zone_dist):
+    
+    # TODO: Change manufacturing to industrial?
     
     if pd.notnull(zone_dist):
         
@@ -145,20 +147,32 @@ def zone_dist_transform(city, zone_dist):
                          'R-1-A', 'ARTS-2', 'CG-1', 'CG-2', 'D-1-R', 'D-4-R',
                          'MU-15', 'MU-16', 'MU-18', 'MU-19', 'MU-23', 'MU-5A',
                          'MU-5B', 'MU-6', 'NC-10', 'NC-11', 'NC-13', 'NC-5',
-                         'NC-9']
+                         'NC-9', 'R-10', 'R-10T', 'R-20', 'R-5', 'R-6', 'R-8',
+                         'R15-30T', 'R2-7', 'RA-H', 'RA-H-3.2', 'RA14-26', 
+                         'RA4.8', 'RA6-15', 'RA7-15', 'RA7-16', 'RA8-18',
+                         'R12', 'R2-5', 'R20', 'R5', 'R8', 'RA', 'RB', 'RC',
+                         'RCX', 'RD', 'RM', 'RT']
             
             com_zones = ['ARTS-3', 'CG-3', 'D-3', 'D-4', 'D-5', 'D-6-R', 'D-7',
                          'MU-20', 'MU-21', 'MU-28', 'MU-8', 'M-9', 'NC-16', 
-                         'NC-17', 'NC-8']
+                         'NC-17', 'NC-8', 'C-1', 'C-1-0', 'C-1-R', 'C-2', 'C-3',
+                         'C-R', 'C-TH', 'CC', 'CD', 'CDX', 'CG', 'CL', 'CSL',
+                         'OC', 'OCH', 'OCM(100)', 'OCM(50)']
             
             mix_zones = ['ARTS-1', 'ARTS-4', 'CG-5', 'D-5-R', 'D-6', 'MU-1',
                          'MU-10', 'MU-12', 'MU-13', 'MU-14', 'MU-17', 'MU-2',
                          'MU-22', 'MU-24', 'MU-25', 'MU-26', 'MU-27', 'MU-29',
                          'MU-3A', 'MU-3B', 'MU-4', 'MU-7', 'NC-1', 'NC-2',
                          'NC-3', 'NC-4', 'NC-6', 'NC-7', 'NHR', 'SEFC-1A',
-                         'SEFC-1B', 'SEFC-2', 'SEFC-3', 'SEFC-4']
+                         'SEFC-1B', 'SEFC-2', 'SEFC-3', 'SEFC-4', 'C-0', 
+                         'C-0-1.0', 'C-0-1.5', 'C-0-2.5', 'C-0-A', 'C-0-CC',
+                         'C-0-ROSS', 'CP-FBC', 'MU-VS', 'RC', 'CRMU/H', 
+                         'CRMU/L', 'CRMU/M', 'CRMU/X', 'KR', 'NR', 'W-1']
             
-            rec_zones = ['MU-11', 'NC-14', 'NC-15', 'UNZONED']
+            rec_zones = ['MU-11', 'NC-14', 'NC-15', 'POS', 'WPR', 'UNZONED']
+            
+            man_zones = ['CM', 'M-1', 'M-2', 'I']
+            
             
             if zone_dist in res_zones:
                 zone_type = 'residential'
@@ -166,12 +180,14 @@ def zone_dist_transform(city, zone_dist):
                 zone_type = 'commercial'
             elif zone_dist in rec_zones:
                 zone_type = 'recreational'
-            elif 'PDR' in zone_dist:
+            elif zone_dist in man_zones or 'PDR' in zone_dist:
                 zone_type = 'manufacturing'
-            elif zone_dist in mix_zones or 'WR' in zone_dist:
+            elif zone_dist in mix_zones or 'WR' in zone_dist or 'CDD' in zone_dist:
                 zone_type = 'mixed'
             elif 'StE' in zone_dist:
                 zone_type = 'educational'
+            elif zone_dist == 'UT':
+                zone_type = 'transportation'
             
             else:
                 zone_type = 'UNKNOWN'
@@ -313,6 +329,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
     
     df['coords'] = list(zip(df['long'], df['lat']))
     df['coords'] = df['coords'].apply(Point)
+    
     
     df['label'] = np.nan
     df['color'] = "gray"
@@ -468,13 +485,20 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
     elif data.city == 'washDC':
         
         zoning_DC = gpd.read_file('./data/other_data/washDC_zoning_data.geojson')
-        zoning_arlington = gpd.read_file('./data/other_data/Arlington_zoning_data.geojson')
-        zoning_alexandria = gpd.read_file('./data/other_data/Alexandria_zoning_data.geojson')
+        zoning_DC = zoning_DC[['ZONING_LABEL', 'geometry']]
         
-        zoning_df = gpd.GeoDataFrame( pd.concat([zoning_DC, zoning_arlington, zoning_alexandria], 
-                                                ignore_index=True) )
+        zoning_arlington = gpd.read_file('./data/other_data/arlington_zoning_data.geojson')
+        zoning_arlington = zoning_arlington[['ZN_DESIG', 'geometry']]
+        zoning_arlington = zoning_arlington.rename({'ZN_DESIG' : 'ZONING_LABEL'}, axis=1)
         
-        zoning_df = zoning_df[['ZONING_LABEL', 'geometry']]
+        zoning_alexandria = gpd.read_file('./data/other_data/alexandria_zoning_data.geojson')
+        zoning_alexandria = zoning_alexandria[['ZONING', 'geometry']]
+        zoning_alexandria = zoning_alexandria.rename({'ZONING' : 'ZONING_LABEL'}, axis=1)
+        
+        zoning_df = gpd.GeoDataFrame(pd.concat([zoning_DC, 
+                                                zoning_arlington, 
+                                                zoning_alexandria], ignore_index=True),
+                                     geometry='geometry', crs='EPSG:4326')
         
         land_use = zoning_df[['ZONING_LABEL', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
@@ -864,7 +888,7 @@ if __name__ == "__main__":
     
     # create_all_pickles('london', 2019, overwrite=True)
 
-    data = bs.Data('washDC', 2019, 9)
+    data = bs.Data('minn', 2019, 9)
 
     pre = time.time()
     station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)

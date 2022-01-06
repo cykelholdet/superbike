@@ -6,6 +6,9 @@ Created on Thu Sep 30 11:36:11 2021
 @author: dbvd
 """
 
+# TODO: Find out what to do with stations outside of zoning and their 
+#       service areas within the zoning
+
 import pickle
 import time
 
@@ -41,7 +44,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'washDC'
+CITY = 'minn'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -114,7 +117,7 @@ class BikeDash(param.Parameterized):
     Variables for the dashboard are introduced as param objects with their
     possible values. In addition, the plotting functions are defined.
     """
-    city = param.Selector(default=CITY, objects=['nyc', 'chic', 'washDC', 'london', 'helsinki', 'madrid', 'edinburgh'])
+    city = param.Selector(default=CITY, objects=['nyc', 'chic', 'washDC', 'minn', 'london', 'helsinki', 'madrid', 'edinburgh'])
     if MONTH == None:
         month = param.Selector(default=MONTH, objects=[None, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
     else:
@@ -388,9 +391,16 @@ class BikeDash(param.Parameterized):
         service_area_trim = []
         for i, row in self.station_df.iterrows():
             if isinstance(row['service_area'], shapely.geometry.multipolygon.MultiPolygon):
+                count=1
                 for poly in row['service_area']:
                     if poly.contains(row['coords']):
                         service_area_trim.append(poly)
+                    else:
+                        service_area_trim.append(row['service_area']) # hotfix, find better solution
+                        
+                        if count != len(row['service_area']):
+                            service_area_trim = service_area_trim[:-1]
+                    count+=1
             else:
                 service_area_trim.append(row['service_area'])
         
@@ -839,7 +849,8 @@ tooltips_service_area = [
     ('% manufacturing', '@percent_manufacturing'),
     ('% recreational', '@percent_recreational'),
     ('% mixed', '@percent_mixed'),
-    ('% road', '@percent_road')]
+    ('% road', '@percent_road'),
+    ('% unknown', '@percent_UNKNOWN')]
 
 hover_zone = HoverTool(tooltips=tooltips_zone)
 hover_service_area = HoverTool(tooltips=tooltips_service_area)
