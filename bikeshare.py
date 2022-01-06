@@ -1371,10 +1371,10 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
 
             df.replace('', np.nan, inplace=True)
             df.dropna(inplace=True)
-            
+
             merge_id_dict = {361: 154, 374: 154,
-                              280: 250, 819: 273, 328: 327, 336: 334,
-                              421: 420, 816: 812}    
+                             280: 250, 819: 273, 328: 327, 336: 334,
+                             421: 420, 816: 812}
             waterloo_dict = {f"Waterloo Station {i}, Waterloo": "Waterloo Station, Waterloo" for i in range(1, 4)}
             royal_dict = {f"Royal Avenue {i}, Chelsea": "Royal Avenue, Chelsea" for i in range(1, 3)}
             belvedere_dict = {f"Belvedere Road {i}, South Bank": "Belvedere Road, South Bank" for i in range(1, 3)}
@@ -3702,7 +3702,7 @@ class Data:
                     matrix_b, matrix_w = pickle.load(file)
                 return matrix_b, matrix_w
             except FileNotFoundError:
-                print("File not found")
+                print("Daily traffic pickle not found")
         print('Pickling average daily traffic for all stations... \nSit back and relax, this might take a while...')
         pre = time.time()
         departures_b, arrivals_b = self.daily_traffic_average_all(
