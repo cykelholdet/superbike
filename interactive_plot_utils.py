@@ -201,7 +201,41 @@ def zone_dist_transform(city, zone_dist):
             elif 'C' in zone_dist or 'B' in zone_dist:
                 zone_type = 'commercial'
             elif 'I' in zone_dist:
-                zone_type = 'industrial'
+                zone_type = 'manufacturing'
+            
+            else:
+                zone_type = 'UNKNOWN'
+        
+        elif city == 'boston':
+            
+            res_zones = ['A-1', 'A-2', 'B', 'C', 'C-1', 'C-1A', 'C-2', 'C-2A',
+                         'C-2B', 'C-3', 'C-3A', 'C-3B', 'SD-10(H)', 'SD-12',
+                         'SD-13', 'SD-14', 'SD-2', 'SD-4A', 'SD-6', 'SD-9']
+        
+            com_zones = ['BA', 'BA-1', 'BA-2', 'BA-3', 'BA-4', 'BB', 'BB-1',
+                         'BB-2', 'O-1', 'O-2', 'O-2A', 'O-3', 'O-3A', 'SD-1',
+                         'SD-10(F)', 'SD-11', 'SD-4', 'SD-5', 'SD-7']
+            
+            mix_zones = ['ASD', 'CRDD', 'MXD', 'NP', 'SD-3', 'SD-8', 'SD-8A']
+        
+            rec_zones = ['OS']
+            
+            man_zones = ['IA', 'IA-1', 'IA-2', 'IB', 'IB-1', 'IB-2', 'SD-15']
+            
+            if zone_dist in res_zones:
+                zone_type = 'residential'
+            
+            elif zone_dist in com_zones:
+                zone_type = 'commercial'
+            
+            elif zone_dist in mix_zones:
+                zone_type = 'mixed'
+            
+            elif zone_dist in rec_zones:
+                zone_type = 'recreational'
+            
+            elif zone_dist in man_zones:
+                zone_type = 'manufacturing'
             
             else:
                 zone_type = 'UNKNOWN'
@@ -583,10 +617,19 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
     
     elif data.city == 'boston':
         
-        zoning_df = gpd.read_file('./data/other_data/boston_zoning_data.geojson')
-        zoning_df = zoning_df[['ZONE_', 'SUBDISTRIC', 'geometry']]
+        zoning_boston = gpd.read_file('./data/other_data/boston_zoning_data.geojson')
+        zoning_boston = zoning_boston[['ZONE_', 'geometry']]
         
-        land_use = zoning_df[['ZONE_',  'SUBDISTRIC', 'geometry']]
+        zoning_cambridge = gpd.read_file('./data/other_data/Cambridge_zoning_data.shp')
+        zoning_cambridge = zoning_cambridge[['ZONE_TYPE', 'geometry']]
+        zoning_cambridge = zoning_cambridge.rename({'ZONE_TYPE' : 'ZONE_'}, axis=1)
+        
+        zoning_df = gpd.GeoDataFrame(pd.concat([zoning_boston, 
+                                                zoning_cambridge], ignore_index=True),
+                                     geometry='geometry', crs='EPSG:4326')
+        
+        
+        land_use = zoning_df[['ZONE_', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         #land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
         
@@ -888,7 +931,7 @@ if __name__ == "__main__":
     
     # create_all_pickles('london', 2019, overwrite=True)
 
-    data = bs.Data('minn', 2019, 9)
+    data = bs.Data('boston', 2019, 9)
 
     pre = time.time()
     station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
