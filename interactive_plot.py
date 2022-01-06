@@ -185,7 +185,7 @@ class BikeDash(param.Parameterized):
         # self.boolean_ = not self.boolean_
     
     
-    @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', watch=False)
+    @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 'city', 'month', watch=False)
     def plot_clusters_full(self):
         self.station_df, self.clusters, self.labels = ipu.get_clusters(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, self.clustering, self.k, self.random_state)
         
@@ -348,7 +348,6 @@ class BikeDash(param.Parameterized):
         
         poly_gdf = gpd.GeoDataFrame()
         poly_gdf['vor_poly'] = [poly for poly in shapely.ops.polygonize(lines)]
-        #poly_gdf.set_geometry('vor_poly', inplace=True)
         poly_gdf['geometry'] = poly_gdf['vor_poly']
         poly_gdf.set_crs(epsg=3857, inplace=True)
         
@@ -359,9 +358,6 @@ class BikeDash(param.Parameterized):
         buffers = poly_gdf['point'].buffer(self.service_radius)
         
         poly_gdf['service_area'] = poly_gdf.intersection(buffers)
-        # poly_gdf['service_area'] = [
-        #     row['vor_poly'].intersection(row['point'].buffer(self.service_radius))
-        #     for i, row in poly_gdf.iterrows()]
         
         poly_gdf['geometry'] = poly_gdf['service_area']
         poly_gdf.set_crs(epsg=3857, inplace=True)
@@ -376,12 +372,17 @@ class BikeDash(param.Parameterized):
                 union = pickle.load(file)
         except FileNotFoundError:
             print(f'No union for {self.city} found. Pickling union...')
+            self.land_use.to_crs(epsg=3857, inplace=True)
             union = shapely.ops.unary_union(self.land_use.geometry)
+            union_gpd = gpd.GeoSeries(union)
+            union_gpd.set_crs(epsg=3857, inplace=True)
+            union_gpd = union_gpd.to_crs(epsg=4326)
+            union = union_gpd.loc[0].buffer(0)
+            self.land_use.to_crs(epsg=4326, inplace=True)
             with open(f'./python_variables/union_{self.city}.pickle', 'wb') as file:
                 pickle.dump(union, file)
             print('Pickling done')
-        
-        
+            
         self.station_df['service_area'] = self.station_df['service_area'].apply(lambda area: area.intersection(union))
         
         service_area_trim = []
@@ -450,8 +451,14 @@ class BikeDash(param.Parameterized):
         self.station_df['service_area'] = self.station_df['service_area'].to_crs(epsg=4326)
         self.land_use['geometry'] = self.land_use['geometry'].to_crs(epsg=4326)
         
-        self.station_df['geometry'] = self.station_df['service_area']
+        self.station_df['service_area'] = self.station_df['service_area'].apply(
+            lambda poly: Point(0,0).buffer(0.0001) if poly.area==0 else poly)
         
+        # serv = gpd.GeoSeries(self.station_df.service_area)
+        # mask = serv.area == 0
+        # self.station_df = self.station_df[~mask]
+        
+        self.station_df['geometry'] = self.station_df['service_area']
         print(f"total time on service areas spent = {time.time()-t_start:.2f}")
         
         # self.LR_indicator = not self.LR_indicator
@@ -463,8 +470,6 @@ class BikeDash(param.Parameterized):
                    'road', 'transportation', 'unknown', 'n_trips',
                    'pop_density', 'nearest_subway_dist', watch=False)
     def make_logistic_regression(self):
-        
-        #TODO: make UNKNOWN checkbox
         
         df = self.station_df.copy()
         df = df[~df['label'].isna()]
@@ -665,9 +670,10 @@ def land_use_plot(show_land_use, city):
             use_road=bike_params.param.use_road)
 def service_area_plot(show_service_area, service_radius, service_area_color, city, use_road):
     bike_params.make_service_areas()
+    
     if show_service_area == 'True':
         zone_percents_columns = [column for column in bike_params.station_df.columns
-                                 if 'percent_' in column]
+                                  if 'percent_' in column]
         
         # bike_params.station_df['service_color'] = ['#808080' for i in range(len(bike_params.station_df))]
         
@@ -687,8 +693,8 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
             else:
                 return gv.Polygons([])
         
-    else:
-        return gv.Polygons([])
+    
+    return gv.Polygons([])
 
 
 @pn.depends(service_radius=bike_params.param.service_radius,
@@ -729,7 +735,7 @@ def update_extent(city):
     extremes = [bike_params.station_df['easting'].max(), bike_params.station_df['easting'].min(), 
                 bike_params.station_df['northing'].max(), bike_params.station_df['northing'].min()]
     tileview.opts(xlim=(extremes[1], extremes[0]), ylim=(extremes[3], extremes[2]))
-    panel_column[1][1].object.data[()].Points.I.data = bike_params.station_df
+    panel_column[1][1][0].object.data[()].Points.I.data = bike_params.station_df
     print(f"update city = {city}")
 
 
@@ -855,16 +861,18 @@ LR_row = pn.Row(LR_params.layout, print_logistic_regression)
 
 mid_column = pn.Column(views, LR_row)
 
-linecol = pn.Column(plot_daily_traffic, plot_centroid_callback)
+line_column = pn.Column(plot_daily_traffic, plot_centroid_callback)
 
-panel_param = pn.Row(param_column, mid_column, linecol)
+business_row = pn.Row(param_column, mid_column, line_column)
 text = '#Bikesharing Clustering Analysis'
 title_row = pn.Row(text, indicator)
 title_row[0].width=400
-panel_column = pn.Column(title_row, panel_param)
+panel_column = pn.Column(title_row, business_row)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
 # bokeh_server = panel_column.show(port=12345)
+
+# bike_params.make_service_areas()
 
 #%%
 # bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
