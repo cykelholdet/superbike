@@ -38,7 +38,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'nyc'
+CITY = 'washDC'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -452,7 +452,7 @@ class BikeDash(param.Parameterized):
         # self.station_df = self.station_df[~mask]
         
         self.station_df['geometry'] = self.station_df['service_area']
-        
+        print('make_service_areas() is done!')
         # self.LR_indicator = not self.LR_indicator
     
     @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 

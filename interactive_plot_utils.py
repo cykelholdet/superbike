@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
+q"""
 Created on Tue Oct 19 21:22:19 2021
 
 @author: nweinr
@@ -158,7 +158,7 @@ def zone_dist_transform(city, zone_dist):
                          'NC-3', 'NC-4', 'NC-6', 'NC-7', 'NHR', 'SEFC-1A',
                          'SEFC-1B', 'SEFC-2', 'SEFC-3', 'SEFC-4']
             
-            rec_zones = ['MU-11', 'NC-14', 'NC-15']
+            rec_zones = ['MU-11', 'NC-14', 'NC-15', 'UNZONED']
             
             if zone_dist in res_zones:
                 zone_type = 'residential'
@@ -229,7 +229,7 @@ def make_neighborhoods(city, year, station_df, land_use):
             neighborhoods[f"neighborhood_{zone_type}"] = buffers.intersection(lu_merge[zone_type])
             print(".", end="")
         print(" ")
-            
+        
         neighborhoods.drop(columns=['coords'], inplace=True)
         
         with open(f'./python_variables/neighborhoods_{city}{year}.pickle', 'wb') as file:
@@ -464,7 +464,13 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
     
     elif data.city == 'washDC':
         
-        zoning_df = gpd.read_file('./data/other_data/washDC_zoning_data.geojson')
+        zoning_DC = gpd.read_file('./data/other_data/washDC_zoning_data.geojson')
+        zoning_arlington = gpd.read_file('./data/other_data/Arlington_zoning_data.geojson')
+        zoning_alexandria = gpd.read_file('./data/other_data/Alexandria_zoning_data.geojson')
+        
+        zoning_df = gpd.GeoDataFrame( pd.concat([zoning_DC, zoning_arlington, zoning_alexandria], 
+                                                ignore_index=True) )
+        
         zoning_df = zoning_df[['ZONING_LABEL', 'geometry']]
         
         land_use = zoning_df[['ZONING_LABEL', 'geometry']]
@@ -853,14 +859,14 @@ color_num_dict = {
 if __name__ == "__main__":
     import time
     
-    create_all_pickles('london', 2019, overwrite=True)
+    # create_all_pickles('london', 2019, overwrite=True)
 
-    data = bs.Data('london', 2019, 9)
+    data = bs.Data('washDC', 2019, 9)
 
     pre = time.time()
     station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
     print(f'station_df took {time.time() - pre:.2f} seconds')
     
-    for i, station in station_df.iterrows():
-        a = geodesic_point_buffer(station['lat'], station['long'], 1000)
+    # for i, station in station_df.iterrows():
+    #     a = geodesic_point_buffer(station['lat'], station['long'], 1000)
     

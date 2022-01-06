@@ -1,0 +1,33 @@
+New York:
+
+3 clusters (AVG (ref), high morning source, high morning sink):
+
+High morning source:
+
+Positive coefficients: 
+
+- %residential
+- %recreational 
+- pop density *
+- nearest subway dist *
+
+
+Negative coefficients: 
+- %manufacturing
+- %commercial *
+
+High morning sink:
+
+Positive coefficients:
+
+- %manufacturing
+- %commercial
+- %recreational
+
+Negative coefficients:
+
+- %residential
+- pop density *
+- nearest subway dist *
+
+coefficient for %recreational is substantially smaller than in high morning source -> less relevancy.
