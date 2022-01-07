@@ -44,7 +44,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'minn'
+CITY = 'oslo'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -117,7 +117,7 @@ class BikeDash(param.Parameterized):
     Variables for the dashboard are introduced as param objects with their
     possible values. In addition, the plotting functions are defined.
     """
-    city = param.Selector(default=CITY, objects=['nyc', 'chic', 'washDC', 'minn', 'london', 'helsinki', 'madrid', 'edinburgh'])
+    city = param.Selector(default=CITY, objects=['nyc', 'chic', 'washDC', 'minn', 'london', 'helsinki', 'madrid', 'edinburgh', 'oslo'])
     if MONTH == None:
         month = param.Selector(default=MONTH, objects=[None, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
     else:
@@ -395,12 +395,12 @@ class BikeDash(param.Parameterized):
                 for poly in row['service_area']:
                     if poly.contains(row['coords']):
                         service_area_trim.append(poly)
-                    else:
-                        service_area_trim.append(row['service_area']) # hotfix, find better solution
+                    # else:
+                    #     service_area_trim.append(row['service_area']) # hotfix, find better solution
                         
-                        if count != len(row['service_area']):
-                            service_area_trim = service_area_trim[:-1]
-                    count+=1
+                    #     if count != len(row['service_area']):
+                    #         service_area_trim = service_area_trim[:-1]
+                    # count+=1
             else:
                 service_area_trim.append(row['service_area'])
         
