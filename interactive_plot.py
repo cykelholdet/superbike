@@ -44,7 +44,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'oslo'
+CITY = 'boston'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -117,7 +117,7 @@ class BikeDash(param.Parameterized):
     Variables for the dashboard are introduced as param objects with their
     possible values. In addition, the plotting functions are defined.
     """
-    city = param.Selector(default=CITY, objects=['nyc', 'chic', 'washDC', 'minn', 'london', 'helsinki', 'madrid', 'edinburgh', 'oslo'])
+    city = param.Selector(default=CITY, objects=['nyc', 'chic', 'washDC', 'minn', 'boston', 'london', 'helsinki', 'madrid', 'edinburgh', 'oslo'])
     if MONTH == None:
         month = param.Selector(default=MONTH, objects=[None, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
     else:
@@ -238,7 +238,10 @@ class BikeDash(param.Parameterized):
         else:
             title = f"{self.clustering} clustering in {month_dict[self.month]} {YEAR} in {bs.name_dict[self.city]}"
 
-        plot = gv.Points(self.station_df, kdims=['long', 'lat'], vdims=['stat_id', 'color', 'n_trips', 'b_trips', 'w_trips', 'zone_type', 'name', ])
+        plot = gv.Points(self.station_df, 
+                         kdims=['long', 'lat'], 
+                         vdims=['stat_id', 'color', 'n_trips', 'b_trips', 
+                                'w_trips', 'zone_type', 'name', ])
         plot.opts(gv.opts.Points(fill_color='color', size=10, line_color='black'))
         
         # self.LR_indicator = not self.LR_indicator
@@ -401,6 +404,10 @@ class BikeDash(param.Parameterized):
                     #     if count != len(row['service_area']):
                     #         service_area_trim = service_area_trim[:-1]
                     # count+=1
+            
+            elif isinstance(row['service_area'], shapely.geometry.collection.GeometryCollection):
+                service_area_trim.append(shapely.ops.unary_union(row['service_area']))
+            
             else:
                 service_area_trim.append(row['service_area'])
         

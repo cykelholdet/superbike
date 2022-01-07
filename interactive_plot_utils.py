@@ -51,13 +51,18 @@ def df_key(city):
     
     elif city == 'washDC':
         key = {'ZONING LABEL' : 'zone_dist',
-               'GEOID' : 'census_tract',
-               'P0010001' : 'population'}
+               'GEO_ID' : 'census_tract',
+               'B01001_001E' : 'population'}
     
     elif city == 'minn':
         key = {'ZONE_CODE' : 'zone_dist',
                'GEOID20' : 'census_tract',
                'ALAND20' : 'CT_area'}
+    
+    elif city == 'boston':
+        key = {'ZONE_' : 'zone_dist',
+               'GEO_ID' : 'census_tract',
+               'B01001_001E' : 'population'}
     
     else:
         key = {}
@@ -236,6 +241,22 @@ def zone_dist_transform(city, zone_dist):
             
             elif zone_dist in man_zones:
                 zone_type = 'manufacturing'
+                
+            
+            # TODO: Make boston zone_types mre precise using Zone_Desc
+            
+            elif zone_dist == 'Residential':
+                zone_type = 'residential'
+            elif zone_dist == 'Open Space':
+                zone_type = 'recreational'
+            elif zone_dist == 'Business':
+                zone_type = 'commercial'
+            elif zone_dist == 'Mixed use':
+                zone_type = 'mixed'
+            elif zone_dist == 'Industrial':
+                zone_type = 'manufacturing'
+            elif zone_dist == 'Comm/Instit':
+                zone_type = 'educational'
             
             else:
                 zone_type = 'UNKNOWN'
@@ -551,19 +572,42 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
     
         df['zone_type'] = df['ZONING_LABEL'].apply(lambda x: zone_dist_transform(data.city, x))
         
-        census_df = gpd.read_file('./data/other_data/washDC_census_data.geojson')
-        census_df = census_df[['GEOID', 'P0010001', 'geometry']]
         
-        census_df_cart = census_df.copy()
-        census_df_cart = census_df_cart.to_crs({'proj': 'cea'})
-        census_df['CT_area'] = census_df_cart['geometry'].area
+        census_df = pd.read_csv('./data/other_data/washDC_census_data.csv', 
+                                usecols=['B01001_001E', 'GEO_ID'],
+                                skiprows=[1])
         
-        census_df = census_df[['GEOID', 'CT_area', 'P0010001', 'geometry']]
+        census_df['GEO_ID'] = census_df['GEO_ID'].apply(lambda x: x[9:]) # remove state code from GEO_ID
+        
+        DC_CTracts_df = gpd.read_file('./data/other_data/washDC_CT_data.shp')
+        DC_CTracts_df = DC_CTracts_df[['GEOID', 'geometry']]
+        
+        VA_CTracts_df = gpd.read_file('./data/other_data/VA_CT_data.shp')
+        VA_CTracts_df = VA_CTracts_df[['GEOID', 'geometry']]
+        
+        CTracts_df = DC_CTracts_df.append(VA_CTracts_df)
+        CTracts_df = CTracts_df.rename({'GEOID' : 'GEO_ID'}, axis=1)
+        
+        census_df = gpd.GeoDataFrame(census_df.merge(CTracts_df, on='GEO_ID'),
+                                     geometry='geometry', crs='EPSG:4326')
+        
+        census_df.to_crs(epsg=3857, inplace=True)
+        census_df['CT_area'] = census_df['geometry'].area/1000000
+        census_df.to_crs(epsg=4326, inplace=True)
+        
+        # census_df = gpd.read_file('./data/other_data/washDC_census_data.geojson')
+        # census_df = census_df[['GEOID', 'P0010001', 'geometry']]
+        
+        # census_df_cart = census_df.copy()
+        # census_df_cart = census_df_cart.to_crs({'proj': 'cea'})
+        # census_df['CT_area'] = census_df_cart['geometry'].area
+        
+        # census_df = census_df[['GEOID', 'CT_area', 'P0010001', 'geometry']]
         
         df = gpd.tools.sjoin(df, census_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
     
-        df['pop_density'] = df['P0010001'] / df['CT_area']
+        df['pop_density'] = df['B01001_001E'] / df['CT_area']
     
         subways_df = gpd.read_file('./data/other_data/washDC_subways_data.geojson')
         
@@ -618,18 +662,24 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
     elif data.city == 'boston':
         
         zoning_boston = gpd.read_file('./data/other_data/boston_zoning_data.geojson')
+        zoning_boston = zoning_boston[['ZONE_', 'SUBDISTRIC', 'Zone_Desc','geometry']]
+        zoning_boston['zone_type'] = zoning_boston['SUBDISTRIC'].apply(lambda x: zone_dist_transform(data.city, x))
         zoning_boston = zoning_boston[['ZONE_', 'geometry']]
+        
         
         zoning_cambridge = gpd.read_file('./data/other_data/Cambridge_zoning_data.shp')
         zoning_cambridge = zoning_cambridge[['ZONE_TYPE', 'geometry']]
         zoning_cambridge = zoning_cambridge.rename({'ZONE_TYPE' : 'ZONE_'}, axis=1)
+
+        zoning_cambridge['zone_type'] = zoning_cambridge['ZONE_'].apply(lambda x: zone_dist_transform(data.city, x))
+        zoning_cambridge.to_crs(epsg=4326, inplace=True)
         
         zoning_df = gpd.GeoDataFrame(pd.concat([zoning_boston, 
                                                 zoning_cambridge], ignore_index=True),
                                      geometry='geometry', crs='EPSG:4326')
         
         
-        land_use = zoning_df[['ZONE_', 'geometry']]
+        land_use = zoning_df[['zone_type', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         #land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
         
@@ -641,27 +691,52 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         land_use.to_crs(epsg=4326, inplace=True)
         
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
-        df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
+        df = gpd.tools.sjoin(df, zoning_df, op='within', how='left') # TODO: adds more stations for some reason
         df.drop('index_right', axis=1, inplace=True)
     
         # df['zone_type'] = df['ZONE_CODE'].apply(lambda x: zone_dist_transform(data.city, x))
-    
-        CTracts_df = gpd.read_file('./data/other_data/boston_CT_data.shp')
-        CTracts_df = CTracts_df.to_crs(epsg=4326)
-        CTracts_df = CTracts_df[['GEOID20', 'ALAND20', 'geometry']]
         
-        df = gpd.tools.sjoin(df, CTracts_df, op='within', how='left')
-        df['GEOID20'] = df['GEOID20'].apply(lambda x: int(x) if pd.notnull(x) else x)
+        census_df = pd.read_csv('./data/other_data/boston_census_data.csv', 
+                                usecols=['B01001_001E', 'GEO_ID'],
+                                skiprows=[1])
+        
+        census_df['GEO_ID'] = census_df['GEO_ID'].apply(lambda x: x[9:]) # remove state code from GEO_ID
+        
+        
+        CTracts_df = gpd.read_file('./data/other_data/boston_CT_data.shp')
+        CTracts_df = CTracts_df[['GEOID', 'geometry']]
+        
+        CTracts_df = CTracts_df.rename({'GEOID' : 'GEO_ID'}, axis=1)
+        
+        census_df = gpd.GeoDataFrame(census_df.merge(CTracts_df, on='GEO_ID'),
+                                     geometry='geometry', crs='EPSG:4326')
+        
+        census_df.to_crs(epsg=3857, inplace=True)
+        census_df['CT_area'] = census_df['geometry'].area/1000000
+        census_df.to_crs(epsg=4326, inplace=True)
+        
+        # census_df = pd.read_file('./data/other_data/boston_census_data.csv')
+        
+        
+        
+        # CTracts_df.set_crs(epsg=4326)
+        
+        
+        
+        # CTracts_df = CTracts_df[['GEOID20', 'ALAND20', 'geometry']]
+        
+        df = gpd.tools.sjoin(df, census_df, op='within', how='left')
+        # df['GEOID20'] = df['GEOID20'].apply(lambda x: int(x) if pd.notnull(x) else x)
         df.drop('index_right', axis=1, inplace=True)
         
-        census_df = pd.read_csv('./data/other_data/boston_census_data.csv')
-        census_df = census_df[['GEOCODE', 'P0020001']].iloc[1:]
-        census_df['GEOCODE'] = census_df['GEOCODE'].apply(lambda x: int(x) if pd.notnull(x) else x)
+        # census_df = pd.read_csv('./data/other_data/boston_census_data.csv')
+        # census_df = census_df[['GEOCODE', 'P0020001']].iloc[1:]
+        # census_df['GEOCODE'] = census_df['GEOCODE'].apply(lambda x: int(x) if pd.notnull(x) else x)
         
-        pop_map = dict(zip(census_df['GEOCODE'], census_df['P0020001']))
+        # pop_map = dict(zip(census_df['GEOCODE'], census_df['P0020001']))
         
-        df['population'] = df['GEOID20'].map(pop_map).apply(lambda x: int(x) if pd.notnull(x) else x)
-        df['pop_density'] = df['population'] / df['ALAND20']
+        # df['population'] = df['GEOID20'].map(pop_map).apply(lambda x: int(x) if pd.notnull(x) else x)
+        df['pop_density'] = df['B01001_001E'] / df['CT_area']
         
         
         subways_df = gpd.read_file('./data/other_data/boston_subways_data.shp').to_crs(epsg = 4326)
@@ -736,7 +811,7 @@ def mask_traffic_matrix(traffic_matrices, station_df, day_type, min_trips, holid
         x_trips = 'w_trips'
     else:
         raise ValueError("Please enter 'business_days' or 'weekend'.")
-    mask = station_df[x_trips] > min_trips
+    mask = station_df[x_trips] >= min_trips
     if return_mask:
         return traffic_matrix[mask], mask, x_trips
     else:
@@ -929,7 +1004,7 @@ color_num_dict = {
 if __name__ == "__main__":
 
     
-    # create_all_pickles('london', 2019, overwrite=True)
+    # create_all_pickles('washDC', 2019, overwrite=True)
 
     data = bs.Data('boston', 2019, 9)
 
@@ -937,6 +1012,6 @@ if __name__ == "__main__":
     station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
     print(f'station_df took {time.time() - pre:.2f} seconds')
     
-    # for i, station in station_df.iterrows():
-    #     a = geodesic_point_buffer(station['lat'], station['long'], 1000)
+    for i, station in station_df.iterrows():
+        a = geodesic_point_buffer(station['lat'], station['long'], 1000)
     
