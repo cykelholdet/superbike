@@ -31,6 +31,8 @@ import skimage.color as skcolor
 import bikeshare as bs
 import dataframe_key
 
+# TODO: zone_dist makes no sense, change to zone_code
+
 def df_key(city):
     
     if city == 'nyc':
@@ -664,7 +666,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         zoning_boston = gpd.read_file('./data/other_data/boston_zoning_data.geojson')
         zoning_boston = zoning_boston[['ZONE_', 'SUBDISTRIC', 'Zone_Desc','geometry']]
         zoning_boston['zone_type'] = zoning_boston['SUBDISTRIC'].apply(lambda x: zone_dist_transform(data.city, x))
-        zoning_boston = zoning_boston[['ZONE_', 'geometry']]
+        zoning_boston = zoning_boston[['ZONE_', 'zone_type', 'geometry']]
         
         
         zoning_cambridge = gpd.read_file('./data/other_data/Cambridge_zoning_data.shp')
@@ -679,7 +681,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
                                      geometry='geometry', crs='EPSG:4326')
         
         
-        land_use = zoning_df[['zone_type', 'geometry']]
+        land_use = zoning_df[['ZONE_', 'zone_type', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         #land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
         
@@ -1012,6 +1014,18 @@ if __name__ == "__main__":
     station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
     print(f'station_df took {time.time() - pre:.2f} seconds')
     
-    for i, station in station_df.iterrows():
-        a = geodesic_point_buffer(station['lat'], station['long'], 1000)
+    # for i, station in station_df.iterrows():
+    #     a = geodesic_point_buffer(station['lat'], station['long'], 1000)
+    
+    # TODO: Undersøg zone 571, 567, 566, 568, 569 for overlap
+    
+    # overlaps = []
+    
+    # for i in range(len(land_use)):
+    #     for j in range(i+1, len(land_use)):
+    #         if land_use.iloc[i].geometry.intersection(land_use.iloc[j].geometry).area > 0:
+    #             overlap_perc = land_use.iloc[i].geometry.intersection(land_use.iloc[j].geometry).area/land_use.iloc[i].geometry.union(land_use.iloc[j].geometry).area*100
+    #             print(f'Zone {land_use.iloc[i].name} overlaps with zone {land_use.iloc[j].name}. Pecentage overlap: {overlap_perc:.2f}%')
+    #             overlaps.append([overlap_perc,(land_use.iloc[i].name, land_use.iloc[j].name)])
+    
     
