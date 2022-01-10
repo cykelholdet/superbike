@@ -217,17 +217,22 @@ def zone_dist_transform(city, zone_dist):
             
             res_zones = ['A-1', 'A-2', 'B', 'C', 'C-1', 'C-1A', 'C-2', 'C-2A',
                          'C-2B', 'C-3', 'C-3A', 'C-3B', 'SD-10(H)', 'SD-12',
-                         'SD-13', 'SD-14', 'SD-2', 'SD-4A', 'SD-6', 'SD-9']
+                         'SD-13', 'SD-14', 'SD-2', 'SD-4A', 'SD-6', 'SD-9',
+                         'NR', 'UR']
         
             com_zones = ['BA', 'BA-1', 'BA-2', 'BA-3', 'BA-4', 'BB', 'BB-1',
                          'BB-2', 'O-1', 'O-2', 'O-2A', 'O-3', 'O-3A', 'SD-1',
-                         'SD-10(F)', 'SD-11', 'SD-4', 'SD-5', 'SD-7']
+                         'SD-10(F)', 'SD-11', 'SD-4', 'SD-5', 'SD-7', 'FAB',
+                         'CI', 'CB', 'CC4', 'CC5', 'C3']
             
-            mix_zones = ['ASD', 'CRDD', 'MXD', 'NP', 'SD-3', 'SD-8', 'SD-8A']
+            mix_zones = ['ASD', 'CRDD', 'MXD', 'NP', 'SD-3', 'SD-8', 'SD-8A',
+                         'MR3', 'MR4', 'MR5', 'MR6', 'ASMD', 'HR', 'PS']
         
-            rec_zones = ['OS']
+            rec_zones = ['OS', 'CIV']
             
             man_zones = ['IA', 'IA-1', 'IA-2', 'IB', 'IB-1', 'IB-2', 'SD-15']
+            
+            edu_zones = ['TU']
             
             if zone_dist in res_zones:
                 zone_type = 'residential'
@@ -243,6 +248,9 @@ def zone_dist_transform(city, zone_dist):
             
             elif zone_dist in man_zones:
                 zone_type = 'manufacturing'
+            
+            elif zone_dist in edu_zones:
+                zone_type = 'educational'
                 
             
             # TODO: Make boston zone_types mre precise using Zone_Desc
@@ -259,10 +267,23 @@ def zone_dist_transform(city, zone_dist):
                 zone_type = 'manufacturing'
             elif zone_dist == 'Comm/Instit':
                 zone_type = 'educational'
+    
+            
+            elif zone_dist in ['APARTMENT HOUSE', 'SINGLE-FAMILY', 
+                               'TWO-FAMILY & ATTACHED SINGLE-FAMILY',
+                               'SINGLE-FAMILY & CONVERTED FOR TWO-FAMILY',
+                               'THREE-FAMILY', 'SPECIAL DISTRICT']:
+                zone_type = 'residential'
+            elif zone_dist in ['GENERAL BUSINESS', 'LOCAL BUSINESS',
+                               'BUSINESS AND PROFFESSIONAL OFFICE',
+                               'LIMITED SERVICE HOTEL',
+                               'GENERAL BUSINESS AND MEDICAL RESEARCH']:
+                zone_type = 'commercial'
+            elif zone_dist == 'INDUSTRIAL SERVICES':
+                zone_type = 'manufacturing'
             
             else:
                 zone_type = 'UNKNOWN'
-            
             
         else:
             raise KeyError('city transform not found')
@@ -674,12 +695,48 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         zoning_cambridge = zoning_cambridge.rename({'ZONE_TYPE' : 'ZONE_'}, axis=1)
 
         zoning_cambridge['zone_type'] = zoning_cambridge['ZONE_'].apply(lambda x: zone_dist_transform(data.city, x))
+        crs = zoning_cambridge.crs
         zoning_cambridge.to_crs(epsg=4326, inplace=True)
         
+        zoning_brookline = gpd.read_file('./data/other_data/brookline_zoning_data.geojson')
+        zoning_brookline = zoning_brookline[['ZONECLASS', 'ZONEDESC' ,'geometry']]
+        zoning_brookline['zone_type'] = zoning_brookline['ZONEDESC'].apply(lambda x: zone_dist_transform(data.city, x))
+        zoning_brookline = zoning_brookline.rename({'ZONECLASS' : 'ZONE_'}, axis=1)
+        zoning_brookline = zoning_brookline[['ZONE_', 'zone_type', 'geometry']]
+        
+        zoning_somerville = gpd.read_file('./data/other_data/somerville_zoning_data.shp')
+        zoning_somerville.set_crs(crs, inplace=True)
+        zoning_somerville.to_crs(epsg=4326, inplace=True)
+        zoning_somerville = zoning_somerville[['ZoneCode', 'geometry']]
+        zoning_somerville['zone_type'] = zoning_somerville['ZoneCode'].apply(lambda x: zone_dist_transform(data.city, x))
+        zoning_somerville = zoning_somerville.rename({'ZoneCode' : 'ZONE_'}, axis=1)
+        
         zoning_df = gpd.GeoDataFrame(pd.concat([zoning_boston, 
-                                                zoning_cambridge], ignore_index=True),
+                                                zoning_cambridge,
+                                                zoning_brookline,
+                                                zoning_somerville], ignore_index=True),
                                      geometry='geometry', crs='EPSG:4326')
         
+        # Transform splitted zones
+        
+        zoning_df.loc[566, 'geometry'] = zoning_df.loc[566, 'geometry'].difference(
+            shapely.ops.unary_union([zoning_df.loc[777, 'geometry'],
+                                     zoning_df.loc[757, 'geometry'],
+                                     zoning_df.loc[762, 'geometry'],
+                                     zoning_df.loc[775, 'geometry']])) 
+                                     
+        zoning_df.loc[569, 'geometry'] = zoning_df.loc[569, 'geometry'].difference(
+            shapely.ops.unary_union([zoning_df.loc[766, 'geometry'],
+                                     zoning_df.loc[772, 'geometry'],
+                                     zoning_df.loc[769, 'geometry'],
+                                     zoning_df.loc[773, 'geometry'],
+                                     zoning_df.loc[774, 'geometry'],
+                                     zoning_df.loc[768, 'geometry']])) 
+            
+        
+        zoning_df.drop([770, 761, 570, 568], inplace=True) # drop redundant zones
+        
+        # zoning_df['zone_type'] = zoning_df['zone_type'].apply(lambda x: x if pd.notnull(x) else 'UNKNOWN')
         
         land_use = zoning_df[['ZONE_', 'zone_type', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
@@ -693,7 +750,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         land_use.to_crs(epsg=4326, inplace=True)
         
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
-        df = gpd.tools.sjoin(df, zoning_df, op='within', how='left') # TODO: adds more stations for some reason
+        df = gpd.tools.sjoin(df, zoning_df, op='within', how='left') 
         df.drop('index_right', axis=1, inplace=True)
     
         # df['zone_type'] = df['ZONE_CODE'].apply(lambda x: zone_dist_transform(data.city, x))
@@ -757,6 +814,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
     print(".")
         
     df.rename(mapper=df_key(data.city), axis=1, inplace=True)  
+    df['zone_type'] = df['zone_type'].apply(lambda x: x if pd.notnull(x) else 'UNKNOWN')
     
     land_use['color'] = land_use['zone_type'].map(color_dict).fillna("pink")
     
@@ -1006,18 +1064,17 @@ color_num_dict = {
 if __name__ == "__main__":
 
     
-    # create_all_pickles('washDC', 2019, overwrite=True)
+    create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('boston', 2019, 9)
+    # data = bs.Data('boston', 2019, 9)
 
-    pre = time.time()
-    station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
-    print(f'station_df took {time.time() - pre:.2f} seconds')
+    # pre = time.time()
+    # station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
+    # print(f'station_df took {time.time() - pre:.2f} seconds')
     
     # for i, station in station_df.iterrows():
     #     a = geodesic_point_buffer(station['lat'], station['long'], 1000)
     
-    # TODO: Undersøg zone 571, 567, 566, 568, 569 for overlap
     
     # overlaps = []
     
