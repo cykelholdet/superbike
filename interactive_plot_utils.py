@@ -64,7 +64,7 @@ def df_key(city):
     elif city == 'boston':
         key = {'ZONE_' : 'zone_dist',
                'GEO_ID' : 'census_tract',
-               'B01001_001E' : 'population'}
+               'P1_001N' : 'population'}
     
     else:
         key = {}
@@ -756,13 +756,14 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         # df['zone_type'] = df['ZONE_CODE'].apply(lambda x: zone_dist_transform(data.city, x))
         
         census_df = pd.read_csv('./data/other_data/boston_census_data.csv', 
-                                usecols=['B01001_001E', 'GEO_ID'],
+                                usecols=['P1_001N', 'GEO_ID'],
                                 skiprows=[1])
         
         census_df['GEO_ID'] = census_df['GEO_ID'].apply(lambda x: x[9:]) # remove state code from GEO_ID
         
         
         CTracts_df = gpd.read_file('./data/other_data/boston_CT_data.shp')
+        CTracts_df.set_crs(epsg=4326, allow_override=True, inplace=True)
         CTracts_df = CTracts_df[['GEOID', 'geometry']]
         
         CTracts_df = CTracts_df.rename({'GEOID' : 'GEO_ID'}, axis=1)
@@ -795,7 +796,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         # pop_map = dict(zip(census_df['GEOCODE'], census_df['P0020001']))
         
         # df['population'] = df['GEOID20'].map(pop_map).apply(lambda x: int(x) if pd.notnull(x) else x)
-        df['pop_density'] = df['B01001_001E'] / df['CT_area']
+        df['pop_density'] = df['P1_001N'] / df['CT_area']
         
         
         subways_df = gpd.read_file('./data/other_data/boston_subways_data.shp').to_crs(epsg = 4326)
@@ -1064,13 +1065,13 @@ color_num_dict = {
 if __name__ == "__main__":
 
     
-    create_all_pickles('boston', 2019, overwrite=True)
+    # create_all_pickles('boston', 2019, overwrite=True)
 
-    # data = bs.Data('boston', 2019, 9)
+    data = bs.Data('boston', 2019, 9)
 
-    # pre = time.time()
-    # station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
-    # print(f'station_df took {time.time() - pre:.2f} seconds')
+    pre = time.time()
+    station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
+    print(f'station_df took {time.time() - pre:.2f} seconds')
     
     # for i, station in station_df.iterrows():
     #     a = geodesic_point_buffer(station['lat'], station['long'], 1000)
