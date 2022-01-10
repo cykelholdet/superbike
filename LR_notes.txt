@@ -31,3 +31,41 @@ Negative coefficients:
 - nearest subway dist *
 
 coefficient for %recreational is substantially smaller than in high morning source -> less relevancy.
+
+Chicago:
+
+3 clusters (AVG (ref), high morning source, high morning sink):
+
+High morning source:
+
+
+High morning sink:
+
+
+
+London:
+
+3 clusters (AVG(ref), high morning source, high morning sink)
+
+High morning source:
+
+Positive coefficients:
+
+- pop density
+- nearest subway dist
+
+Negative coefficients:
+- %residential
+- %commercial
+- %recreational
+
+
+
+
+
+
+
+
+
+
+

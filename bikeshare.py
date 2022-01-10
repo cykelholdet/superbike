@@ -3569,7 +3569,6 @@ class Data:
             if self.month == None:
                     day_hour_count = day_hour_count.loc[day_hour_count.index.year == self.year]
             else:
-                #day_hour_count = day_hour_count.loc[day_hour_count.index.year == self.year]
                 day_hour_count = day_hour_count.loc[(day_hour_count.index.month == self.month) & (day_hour_count.index.year == self.year)]
 
             shap = day_hour_count.shape

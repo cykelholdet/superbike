@@ -413,7 +413,7 @@ class BikeDash(param.Parameterized):
             else:
                 service_area_trim.append(row['service_area'])
         
-        self.station_df['service_area'] = service_area_trim
+        # self.station_df['service_area'] = service_area_trim
         self.station_df.set_geometry('service_area', inplace=True)
         
 

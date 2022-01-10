@@ -256,9 +256,9 @@ def get_land_use_key(city):
     elif city == 'chic':
         key = {'zone_class': 'zone_type',
                'geometry': 'geometry',}
-    elif city == 'boston':
-        key = {'ZONE_': 'zone_type',
-               'geometry': 'geometry',}
+    # elif city == 'boston':
+        # key = {'ZONE_': 'zone_type',
+        #        'geometry': 'geometry',}
     elif city == 'minn':
         key = {'ZONE_CODE': 'zone_type',
                'geometry': 'geometry'}
@@ -268,4 +268,6 @@ def get_land_use_key(city):
     elif city in ['helsinki', 'madrid', 'oslo', 'london']:
         key = {'code_2018': 'zone_type',
                'geometry': 'geometry',}
+    else:
+        key = {}
     return key
