@@ -455,7 +455,8 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
     
     elif data.city in ['madrid', 'helsinki', 'london', 'oslo']:
         
-        land_use = gpd.read_file(f'data/other_data/{data.city}_UA2018_v013.gpkg')
+        bbox = gpd.GeoDataFrame([land_use_extent], geometry=0).set_crs(epsg=3857)
+        land_use = gpd.read_file(f'data/other_data/{data.city}_UA2018_v013.gpkg', bbox=bbox)
         land_use = land_use[['code_2018', 'class_2018', 'area', 'Pop2018', 'geometry']].to_crs('EPSG:4326')
         print(".", end="")
         df = gpd.GeoDataFrame(df, geometry='coords', crs='EPSG:4326')
@@ -854,22 +855,22 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
     if clustering == 'k_means':
         clusters = KMeans(k, random_state=random_state).fit(traffic_matrix)
         labels = clusters.predict(traffic_matrix)
-        station_df['label'].loc[mask] = labels
-        station_df['label'].loc[~mask] = np.nan
+        station_df.loc[mask, 'label'] = labels
+        station_df.loc[~mask, 'label'] = np.nan
         station_df['color'] = station_df['label'].map(cluster_color_dict)
 
     elif clustering == 'k_medoids':
         clusters = KMedoids(k, random_state=random_state).fit(traffic_matrix)
         labels = clusters.predict(traffic_matrix)
-        station_df['label'].loc[mask] = labels
-        station_df['label'].loc[~mask] = np.nan
+        station_df.loc[mask, 'label'] = labels
+        station_df.loc[~mask, 'label'] = np.nan
         station_df['color'] = station_df['label'].map(cluster_color_dict)
         
     elif clustering == 'h_clustering':
         clusters = None
         labels = AgglomerativeClustering(k).fit_predict(traffic_matrix)
-        station_df['label'].loc[mask] = labels
-        station_df['label'].loc[~mask] = np.nan
+        station_df.loc[mask, 'label'] = labels
+        station_df.loc[~mask, 'label'] = np.nan
         station_df['color'] = station_df['label'].map(cluster_color_dict)
     
     elif clustering == 'gaussian_mixture':
@@ -878,10 +879,10 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         lab_mat = np.array(lab_color_list[:k]).T
         lab_cols = [np.sum(labels[i] * lab_mat, axis=1) for i in range(len(traffic_matrix))]
         labels_rgb = skcolor.lab2rgb(lab_cols)
-        station_df['label'].loc[mask] = pd.Series(list(labels), index=mask[mask].index)
-        station_df['label'].loc[~mask] = np.nan
-        station_df['color'].loc[mask] = ['#%02x%02x%02x' % tuple(label.astype(int)) for label in labels_rgb*255]
-        station_df['color'].loc[~mask] = 'gray'
+        station_df.loc[mask, 'label'] = pd.Series(list(labels), index=mask[mask].index)
+        station_df.loc[~mask, 'label'] = np.nan
+        station_df.loc[mask, 'color'] = ['#%02x%02x%02x' % tuple(label.astype(int)) for label in labels_rgb*255]
+        station_df.loc[~mask, 'color'] = 'gray'
         
     elif clustering == 'none':
         clusters = None
@@ -1006,7 +1007,7 @@ if __name__ == "__main__":
     
     # create_all_pickles('washDC', 2019, overwrite=True)
 
-    data = bs.Data('boston', 2019, 9)
+    data = bs.Data('madrid', 2019, 9)
 
     pre = time.time()
     station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)

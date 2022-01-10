@@ -3569,7 +3569,8 @@ class Data:
             if self.month == None:
                     day_hour_count = day_hour_count.loc[day_hour_count.index.year == self.year]
             else:
-                day_hour_count = day_hour_count.loc[day_hour_count.index.month == self.month]
+                #day_hour_count = day_hour_count.loc[day_hour_count.index.year == self.year]
+                day_hour_count = day_hour_count.loc[(day_hour_count.index.month == self.month) & (day_hour_count.index.year == self.year)]
 
             shap = day_hour_count.shape
             end_mean.append(day_hour_count.sum(axis=0).rename(station) / n_days)
@@ -4388,7 +4389,7 @@ name_dict = {
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('london', 2019, 1, overwrite=True)
+    data = Data('boston', 2019, 7, overwrite=True)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)
