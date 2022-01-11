@@ -18,7 +18,6 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 from matplotlib import cm
-from scipy.spatial import Voronoi
 import shapely.ops
 from shapely.geometry import Point, LineString
 
@@ -149,7 +148,7 @@ class BikeDash(param.Parameterized):
     manufacturing = param.Boolean(True)
     recreational = param.Boolean(True)
     mixed = param.Boolean(True)
-    road= param.Boolean(True)
+    road = param.Boolean(True)
     transportation = param.Boolean(True)
     unknown = param.Boolean(True)
     n_trips = param.Boolean(True)
@@ -328,159 +327,11 @@ class BikeDash(param.Parameterized):
     @param.depends('service_radius', 'use_road', watch=True)
     def make_service_areas(self):
         print("Making Service Areas")
-        t_start = time.time()
-        if 'service_area' in self.station_df.columns:
-            self.station_df.drop(columns='service_area', inplace=True)
-            self.station_df.set_geometry('coords', inplace=True)
         
-        points = self.station_df[['easting', 'northing']].to_numpy()
-        points_gdf = gpd.GeoDataFrame(geometry = [Point(self.station_df.iloc[i]['easting'], 
-                                                      self.station_df.iloc[i]['northing'])
-                               for i in range(len(self.station_df))], crs='EPSG:3857')
-
-        points_gdf['point'] = points_gdf['geometry']
-        
-        mean_point= np.mean(points, axis=0)
-        edge_dist = 1000000
-        edge_points = np.array([[mean_point[0]-edge_dist, mean_point[1]-edge_dist],
-                                [mean_point[0]-edge_dist, mean_point[1]+edge_dist],
-                                [mean_point[0]+edge_dist, mean_point[1]+edge_dist],
-                                [mean_point[0]+edge_dist, mean_point[1]-edge_dist]])
-
-        vor = Voronoi(np.concatenate([points, edge_points], axis=0))
-        
-        lines = [LineString(vor.vertices[line])
-            for line in vor.ridge_vertices
-            if -1 not in line]
-        
-        poly_gdf = gpd.GeoDataFrame()
-        poly_gdf['vor_poly'] = [poly for poly in shapely.ops.polygonize(lines)]
-        poly_gdf['geometry'] = poly_gdf['vor_poly']
-        poly_gdf.set_crs(epsg=3857, inplace=True)
-
-        poly_gdf = gpd.tools.sjoin(points_gdf, poly_gdf, op='within', how='left')
-        poly_gdf.drop('index_right', axis=1, inplace=True)
-        poly_gdf['geometry'] = poly_gdf['vor_poly']
-        
-        buffers = poly_gdf['point'].buffer(self.service_radius)
-        
-        poly_gdf['service_area'] = poly_gdf.intersection(buffers)
-
-        poly_gdf['geometry'] = poly_gdf['service_area']
-        poly_gdf.set_crs(epsg=3857, inplace=True)
-        poly_gdf.to_crs(epsg=4326, inplace=True)
-        poly_gdf['service_area'] = poly_gdf['geometry']
-        
-        self.station_df = gpd.tools.sjoin(self.station_df, poly_gdf, op='within', how='left')
-        self.station_df.drop(columns=['index_right', 'vor_poly', 'point'], inplace=True)
-        
-        try:
-            with open(f'./python_variables/union_{self.city}.pickle', 'rb') as file:
-                union = pickle.load(file)
-        except FileNotFoundError:
-            print(f'No union for {self.city} found. Pickling union...')
-            self.land_use.to_crs(epsg=3857, inplace=True)
-            union = shapely.ops.unary_union(self.land_use.geometry)
-            union_gpd = gpd.GeoSeries(union)
-            union_gpd.set_crs(epsg=3857, inplace=True)
-            union_gpd = union_gpd.to_crs(epsg=4326)
-            union = union_gpd.loc[0].buffer(0)
-            self.land_use.to_crs(epsg=4326, inplace=True)
-            with open(f'./python_variables/union_{self.city}.pickle', 'wb') as file:
-                pickle.dump(union, file)
-            print('Pickling done')
-            
-        self.station_df['service_area'] = self.station_df['service_area'].apply(lambda area: area.intersection(union))
-        
-        service_area_trim = []
-        for i, row in self.station_df.iterrows():
-            if isinstance(row['service_area'], shapely.geometry.multipolygon.MultiPolygon):
-                count=1
-                for poly in row['service_area'].geoms:
-
-                    if poly.contains(row['coords']):
-                        service_area_trim.append(poly)
-                    # else:
-                    #     service_area_trim.append(row['service_area']) # hotfix, find better solution
-                        
-                    #     if count != len(row['service_area']):
-                    #         service_area_trim = service_area_trim[:-1]
-                    # count+=1
-
-            elif isinstance(row['service_area'], shapely.geometry.collection.GeometryCollection):
-                service_area_trim.append(shapely.ops.unary_union(row['service_area']))
-            
-            else:
-                service_area_trim.append(row['service_area'])
-        
-        # self.station_df['service_area'] = service_area_trim
-        self.station_df.set_geometry('service_area', inplace=True)
-        
-
-        # self.station_df['service_area'] = self.station_df['service_area'].to_crs(epsg=3857)
-        # self.land_use['geometry'] = self.land_use['geometry'].to_crs(epsg=3857)
-        
-        if 'road' in self.station_df['zone_type'].unique() and self.use_road == 'False':
-
-            self.station_df['service_area_no_road'] = [
-                stat['service_area'].difference(stat['neighborhood_road'])
-                for i, stat in self.station_df.iterrows()] # ShapelyDeprecationWarning for 2.0 here. Probably needs geopandas to fix it
-
-            zone_types = self.station_df['zone_type'].unique()[
-                self.station_df['zone_type'].unique() != 'road']
-
-            
-            geo_sdf = self.station_df.set_geometry('service_area_no_road')
-            geo_sdf.to_crs(epsg=3857, inplace=True)
-            
-            geo_sdf['geometry'] = geo_sdf.buffer(0)
-
-            for zone_type in zone_types:
-            
-                zone_percents = np.zeros(len(self.station_df))
-                
-                mask = ~self.station_df[f'neighborhood_{zone_type}'].is_empty
-                
-                sdf_zone = geo_sdf[f'neighborhood_{zone_type}'].to_crs(epsg=3857)[mask]
-                zone_percents[mask] = geo_sdf[mask].intersection(sdf_zone).area/geo_sdf[mask].area*100
-                
-                self.station_df[f'percent_{zone_type}'] = zone_percents
-            
-        else:
-                
-            for zone_type in self.station_df['zone_type'].unique(): #This is where all the time goes
-                
-                zone_percents = np.zeros(len(self.station_df))
-                
-                for i, stat in self.station_df.iterrows():
-                    
-                    if stat['service_area']:
-                        
-                        if stat[f'neighborhood_{zone_type}']:
-                            
-                            zone_percents[i] = stat['service_area'].buffer(0).intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area'].area*100
-                        
-                    else:
-                        zone_percents[i] = np.nan
-                        
-                self.station_df[f'percent_{zone_type}'] = zone_percents
-
-        self.station_df['service_area_size'] = self.station_df['service_area'].apply(lambda area: area.area/1000000)
-        
-        self.station_df['service_area'] = self.station_df['service_area'].to_crs(epsg=4326)
-        self.land_use['geometry'] = self.land_use['geometry'].to_crs(epsg=4326)
-        
-        self.station_df['service_area'] = self.station_df['service_area'].apply(
-            lambda poly: Point(0,0).buffer(0.0001) if poly.area==0 else poly)
-        
-        # serv = gpd.GeoSeries(self.station_df.service_area)
-        # mask = serv.area == 0
-        # self.station_df = self.station_df[~mask]
-        
-        self.station_df['geometry'] = self.station_df['service_area']
-        print(f"total time on service areas spent = {time.time()-t_start:.2f}")
+        self.station_df = ipu.service_areas(self.city, self.station_df, self.land_use, self.service_radius, self.use_road)
         
         self.LR_indicator = not self.LR_indicator
+
     
     @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 
                    'service_radius', 'use_road', 'LR_indicator', 'use_points_or_percents',
@@ -490,102 +341,33 @@ class BikeDash(param.Parameterized):
                    'pop_density', 'nearest_subway_dist', watch=False)
     def make_logistic_regression(self):
         print("Making Logistic Regression")
-
-        df = self.station_df[~self.station_df['label'].isna()]
         
-        X=pd.DataFrame()
+        zones_params = {'percent_residential': self.residential,
+                        'percent_commercial': self.commercial,
+                        'percent_manufacturing': self.manufacturing,
+                        'percent_recreational': self.recreational,
+                        'percent_mixed': self.mixed,
+                        'percent_road': self.road,
+                        'percent_transportation': self.transportation,
+                        'percent_UNKNOWN': self.unknown,
+                        'percent_educational': True}
         
-        print(self.station_df)
+        zone_columns = [column for column in self.station_df.columns 
+                        if (('percent_' in column) and (zones_params[column]))]
         
-        p_columns = [column for column in df.columns 
-                      if 'percent_' in column]
-        
-        if self.use_points_or_percents == 'points':
-            
-            if self.make_points_by == 'station location':
-                X = pd.get_dummies(df['zone_type'])
-                
-            elif self.make_points_by == 'station land use':
-                
-                p_df = df[p_columns]
-                
-                # get the zonetype with the largest percentage
-                zone_types = [p_df.iloc[i].index[p_df.iloc[i].argmax()][8:] 
-                              for i in range(len(p_df))]
-        
-                df['zone_type_by_percent'] = zone_types
-            
-                X = pd.get_dummies(df['zone_type_by_percent'])
-        
-        elif self.use_points_or_percents == 'percents':
-            X = df[p_columns]
-        
-        zones_params = [('residential', self.residential),
-                        ('commercial', self.commercial),
-                        ('manufacturing', self.manufacturing),
-                        ('recreational', self.recreational),
-                        ('mixed', self.mixed),
-                        ('road', self.road),
-                        ('transportation', self.transportation),
-                        ('UNKNOWN', self.unknown)]
-        
-        drop_columns = []
-        
-        for zone_type in zones_params:
-            if not zone_type[1]:
-                
-                if zone_type[0] in X.columns:
-                    drop_columns.append(zone_type[0])
-                    
-                elif 'percent_'+zone_type[0] in X.columns:
-                    drop_columns.append('percent_'+zone_type[0])
-        
+        p_columns = [column for column in self.station_df.columns 
+                         if 'percent_' in column]
         
         other_params = [('n_trips', self.n_trips),
                         ('pop_density', self.pop_density),
                         ('nearest_subway_dist', self.nearest_subway_dist)]
         
-        add_columns = [param[0] for param in other_params if param[1]]
+        other_columns = [param[0] for param in other_params if param[1]]
         
-        X.drop(columns=drop_columns, inplace=True)
-       
-        for column in add_columns:
-            try:
-                X[column] = df[column]
-            except KeyError:
-                pass
-        
-        if self.const:
-            X = sm.add_constant(X)
-        
-        y = df['label'][~X.isna().any(axis=1)]
-
-        X = X[~X.isna().any(axis=1)]
-        
-        X_scaled = X.copy()
-        X_scaled['n_trips'] = X_scaled['n_trips']/X_scaled['n_trips'].sum()
-        X_scaled['nearest_subway_dist'] = X_scaled['nearest_subway_dist']/1000
-        
-        param_names = {'percent_manufacturing' : '% manufacturing',
-                       'percent_commercial' : '% commercial',
-                       'percent_residential' : '% residential',
-                       'percent_recreational' : '% recreational',
-                       'percent_mixed' : '% mixed',
-                       'pop_density' : 'pop density',
-                       'nearest_subway_dist' : 'nearest subway dist'}
-        
-        
-        
-        LR_model = MNLogit(y, X_scaled.rename(param_names))
-        
-        try:
-            LR_results = LR_model.fit_regularized(maxiter=10000)
-            #print(LR_model.loglikeobs(LR_results.params.to_numpy()))
-        except np.linalg.LinAlgError:
-            print("Singular matrix")
-            LR_results = None
-        
-        return LR_results, X, y
+        return ipu.stations_logistic_regression(self.station_df, zone_columns, other_columns,
+                                                use_points_or_percents=self.use_points_or_percents,
+                                                make_points_by=self.make_points_by,
+                                                const=self.const)
     
     
 bike_params = BikeDash(None)
