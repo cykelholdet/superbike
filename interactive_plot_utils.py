@@ -218,21 +218,60 @@ def zone_dist_transform(city, zone_dist):
             res_zones = ['A-1', 'A-2', 'B', 'C', 'C-1', 'C-1A', 'C-2', 'C-2A',
                          'C-2B', 'C-3', 'C-3A', 'C-3B', 'SD-10(H)', 'SD-12',
                          'SD-13', 'SD-14', 'SD-2', 'SD-4A', 'SD-6', 'SD-9',
-                         'NR', 'UR']
+                         'NR', 'UR', 'Apartment Residential', 
+                         'Multifamily Residential',
+                         'Multifamiy Residential/Local Services',
+                         'Neighborhood Development Area', 
+                         'One-Family Residential', 'Residential', 
+                         'Row House Residential', 'Three-Family Residential',
+                         'Two-Family Residential', 'Waterfront Residential']
         
             com_zones = ['BA', 'BA-1', 'BA-2', 'BA-3', 'BA-4', 'BB', 'BB-1',
                          'BB-2', 'O-1', 'O-2', 'O-2A', 'O-3', 'O-3A', 'SD-1',
                          'SD-10(F)', 'SD-11', 'SD-4', 'SD-5', 'SD-7', 'FAB',
-                         'CI', 'CB', 'CC4', 'CC5', 'C3']
+                         'CI', 'CB', 'CC4', 'CC5', 'C3', 'Chalestown Gateway',
+                         'Commercial', 'Community Commercial', 
+                         'Economic Development Area', 'General Business', 
+                         'Local Business', 'Local Convenience',
+                         'Neighborhood Shopping', 
+                         'New Boston Garden Development Area',
+                         'Parcel-to-Parcel Linkage Development Area', 
+                         'Pilot House Extension', 'Protection Area',
+                         'Transition Zone', 'Waterfront Commercial', 
+                         'Waterfront Service', 'Waterfront Transition Zone']
             
             mix_zones = ['ASD', 'CRDD', 'MXD', 'NP', 'SD-3', 'SD-8', 'SD-8A',
-                         'MR3', 'MR4', 'MR5', 'MR6', 'ASMD', 'HR', 'PS']
+                         'MR3', 'MR4', 'MR5', 'MR6', 'ASMD', 'HR', 'PS', 
+                         'Central Artery Area', 'General Area', 
+                         'Huntington Avenue Boulevard Area', 
+                         'Institutional', 'Leather District', 
+                         'Medium Density Area', 'Mixed Use Area 1',
+                         'Mixed use Area 2', 'Mixed use Area 3', 
+                         'Mixed use Area 4', 'Restricted Growth Area',
+                         'Turnpike Air-Rights Special Study Area']
         
-            rec_zones = ['OS', 'CIV']
+            rec_zones = ['OS', 'CIV', 'Air-Right Open Space', 
+                         'Botanical/Zoological Garden Open Space',
+                         'Cemetery Open Space', 'Charlestown Navy Yard',
+                         'Chestnut Hill Waterworks Protection', 
+                         'Community Garden Open Space', 'Conservation Protection',
+                         'Corridor Enhancement', 'Cultural Facilities',
+                         'Enterprise Protection', 'Open Space', 
+                         'Parkland Open Space', 'Recreation Open Space',
+                         'Shoreland Open Space', 'Urban Plaza Open Space',
+                         'Urban Wild Open Space', 'Waterfront', 
+                         'Waterfront Access Open Space', 
+                         'Waterfront Community Facilities']
             
-            man_zones = ['IA', 'IA-1', 'IA-2', 'IB', 'IB-1', 'IB-2', 'SD-15']
+            man_zones = ['IA', 'IA-1', 'IA-2', 'IB', 'IB-1', 'IB-2', 'SD-15',
+                         'General Industrial', 'Industrial Commercial',
+                         'Industrial Development Area', 'Local Industrial', 
+                         'Maritime Economy Reserve', 'Restricted Manufacturing',
+                         'Waterfront Manufacturing']
             
-            edu_zones = ['TU']
+            edu_zones = ['TU', 'Community Facilities', 
+                         'Neighborhood Institutional', 
+                         'Special Study Area']
             
             if zone_dist in res_zones:
                 zone_type = 'residential'
@@ -254,6 +293,7 @@ def zone_dist_transform(city, zone_dist):
                 
             
             # TODO: Make boston zone_types mre precise using Zone_Desc
+            
             
             elif zone_dist == 'Residential':
                 zone_type = 'residential'
@@ -686,8 +726,8 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
     elif data.city == 'boston':
         
         zoning_boston = gpd.read_file('./data/other_data/boston_zoning_data.geojson')
-        zoning_boston = zoning_boston[['ZONE_', 'SUBDISTRIC', 'Zone_Desc','geometry']]
-        zoning_boston['zone_type'] = zoning_boston['SUBDISTRIC'].apply(lambda x: zone_dist_transform(data.city, x))
+        zoning_boston = zoning_boston[['ZONE_', 'Zone_Desc','geometry']]
+        zoning_boston['zone_type'] = zoning_boston['Zone_Desc'].apply(lambda x: zone_dist_transform(data.city, x))
         zoning_boston = zoning_boston[['ZONE_', 'zone_type', 'geometry']]
         
         
@@ -1067,13 +1107,13 @@ if __name__ == "__main__":
 
     
 
-    create_all_pickles('boston', 2019, overwrite=True)
+    # create_all_pickles('boston', 2019, overwrite=True)
 
-    # data = bs.Data('boston', 2019, 9)
+    data = bs.Data('boston', 2019, 9)
 
-    # pre = time.time()
-    # station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
-    # print(f'station_df took {time.time() - pre:.2f} seconds')
+    pre = time.time()
+    station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
+    print(f'station_df took {time.time() - pre:.2f} seconds')
 
     
     # for i, station in station_df.iterrows():
