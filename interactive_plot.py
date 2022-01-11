@@ -45,7 +45,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'london'
+CITY = 'washDC'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -394,12 +394,12 @@ class BikeDash(param.Parameterized):
         
         service_area_trim = []
         for i, row in self.station_df.iterrows():
-            if isinstance(row['service_area'], shapely.geometry.multipolygon.MultiPolygon):
-                count=1
-                for poly in row['service_area'].geoms:
+            # if isinstance(row['service_area'], shapely.geometry.multipolygon.MultiPolygon):
+            #     count=1
+            #     for poly in row['service_area'].geoms:
 
-                    if poly.contains(row['coords']):
-                        service_area_trim.append(poly)
+            #         if poly.contains(row['coords']):
+            #             service_area_trim.append(poly)
                     # else:
                     #     service_area_trim.append(row['service_area']) # hotfix, find better solution
                         
@@ -407,13 +407,13 @@ class BikeDash(param.Parameterized):
                     #         service_area_trim = service_area_trim[:-1]
                     # count+=1
 
-            elif isinstance(row['service_area'], shapely.geometry.collection.GeometryCollection):
+            if isinstance(row['service_area'], shapely.geometry.collection.GeometryCollection):
                 service_area_trim.append(shapely.ops.unary_union(row['service_area']))
             
             else:
                 service_area_trim.append(row['service_area'])
         
-        # self.station_df['service_area'] = service_area_trim
+        self.station_df['service_area'] = service_area_trim
         self.station_df.set_geometry('service_area', inplace=True)
         
 
