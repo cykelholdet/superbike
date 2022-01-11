@@ -31,14 +31,14 @@ import skimage.color as skcolor
 import bikeshare as bs
 import dataframe_key
 
-# TODO: zone_dist makes no sense, change to zone_code
+# TODO: zone_code makes no sense, change to zone_code
 
 def df_key(city):
     
     if city == 'nyc':
         
         key = {'index' : 'stat_id',
-               'ZONEDIST' : 'zone_dist',
+               'ZONEDIST' : 'zone_code',
                'BoroCT2020' : 'census_tract',
                'Shape__Area' : 'CT_area',
                'Pop_20' : 'population'}
@@ -47,22 +47,22 @@ def df_key(city):
     
     elif city == 'chic':
         key = {'index' : 'stat_id',
-               'zone_class' : 'zone_dist',
+               'zone_class' : 'zone_code',
                'geoid10' : 'census_block',
                'TOTAL POPULATION' : 'population'}
     
     elif city == 'washDC':
-        key = {'ZONING LABEL' : 'zone_dist',
+        key = {'ZONING LABEL' : 'zone_code',
                'GEO_ID' : 'census_tract',
                'B01001_001E' : 'population'}
     
     elif city == 'minn':
-        key = {'ZONE_CODE' : 'zone_dist',
+        key = {'ZONE_CODE' : 'zone_code',
                'GEOID20' : 'census_tract',
                'ALAND20' : 'CT_area'}
     
     elif city == 'boston':
-        key = {'ZONE_' : 'zone_dist',
+        key = {'ZONE_' : 'zone_code',
                'GEO_ID' : 'census_tract',
                'P1_001N' : 'population'}
     
@@ -72,44 +72,44 @@ def df_key(city):
     return key
     
     
-def zone_dist_transform(city, zone_dist):
+def zone_code_transform(city, zone_code):
     
     # TODO: Change manufacturing to industrial?
     
-    if pd.notnull(zone_dist):
+    if pd.notnull(zone_code):
         
         if city == 'nyc':
             
-            if 'PARK' in zone_dist or 'PLAYGROUND' in zone_dist:
+            if 'PARK' in zone_code or 'PLAYGROUND' in zone_code:
                 zone_type = 'recreational'
-            elif 'R' in zone_dist and '/' not in zone_dist:
+            elif 'R' in zone_code and '/' not in zone_code:
                 zone_type = 'residential'
-            elif 'C' in zone_dist and '/' not in zone_dist:
+            elif 'C' in zone_code and '/' not in zone_code:
                 zone_type = 'commercial'
-            elif 'M' in zone_dist and '/' not in zone_dist:
+            elif 'M' in zone_code and '/' not in zone_code:
                 zone_type = 'manufacturing'
-            elif '/' in zone_dist:
+            elif '/' in zone_code:
                 zone_type = 'mixed'
             else:
                 zone_type = 'UNKNOWN'
         
         elif city in ['madrid', 'helsinki', 'london', 'oslo']:
             
-            if zone_dist in ['11100', '11210', '11220', '11230']: # Continuous urban fabric (S.L. : > 80%), Discontinuous dense urban fabric (S.L. : 50% -  80%), Discontinuous medium density urban fabric (S.L. : 30% - 50%), Discontinuous low density urban fabric (S.L. : 10% - 30%)
+            if zone_code in ['11100', '11210', '11220', '11230']: # Continuous urban fabric (S.L. : > 80%), Discontinuous dense urban fabric (S.L. : 50% -  80%), Discontinuous medium density urban fabric (S.L. : 30% - 50%), Discontinuous low density urban fabric (S.L. : 10% - 30%)
                 zone_type = 'residential' 
-            elif zone_dist in ['12220', '12210']: # Other roads and associated land, Fast transit roads and associated land
+            elif zone_code in ['12220', '12210']: # Other roads and associated land, Fast transit roads and associated land
                 zone_type = 'road'
-            elif zone_dist in ['12100']: # Industrial, commercial, public, military and private units
+            elif zone_code in ['12100']: # Industrial, commercial, public, military and private units
                 zone_type = 'commercial'
-            elif zone_dist in ['14100', '14200', '31000', '32000']: # Green urban areas, Sports and leisure facilities, Forests, Herbaceous vegetation associations (natural grassland, moors...)
+            elif zone_code in ['14100', '14200', '31000', '32000']: # Green urban areas, Sports and leisure facilities, Forests, Herbaceous vegetation associations (natural grassland, moors...)
                 zone_type = 'recreational'
-            elif zone_dist in ['12230']: # Railways and associated land
+            elif zone_code in ['12230']: # Railways and associated land
                 zone_type = 'transportation'
-            elif zone_dist in ['12300']: # Port areas
+            elif zone_code in ['12300']: # Port areas
                 zone_type = 'port'
-            elif zone_dist in ['13100', 'Construction sites']: # Mineral extraction and dump sites
+            elif zone_code in ['13100', 'Construction sites']: # Mineral extraction and dump sites
                 zone_type = 'manufacturing'
-            elif zone_dist in ['50000']:
+            elif zone_code in ['50000']:
                 zone_type = 'water'
             else:
                 zone_type = 'UNKNOWN'
@@ -129,17 +129,17 @@ def zone_dist_transform(city, zone_dist):
             
             rec_zones = ['POS-1', 'POS-2']
         
-            if zone_dist in com_zones: # Business and commercial zones and downtown core and services
+            if zone_code in com_zones: # Business and commercial zones and downtown core and services
                 zone_type = 'commercial'
-            elif zone_dist in res_zones: # Residential and downtown residential
+            elif zone_code in res_zones: # Residential and downtown residential
                 zone_type = 'residential'
-            elif zone_dist in man_zones: # Manufacturing and planned manufactoring development
+            elif zone_code in man_zones: # Manufacturing and planned manufactoring development
                 zone_type = 'manufacturing'
-            elif zone_dist == 'T': # Transportation
+            elif zone_code == 'T': # Transportation
                 zone_type = 'transportation'
-            elif zone_dist in rec_zones: # Green areas
+            elif zone_code in rec_zones: # Green areas
                 zone_type = 'recreational'
-            elif 'DX' in zone_dist or 'PD' in zone_dist: # Mixed downtown and planned development
+            elif 'DX' in zone_code or 'PD' in zone_code: # Mixed downtown and planned development
                 zone_type = 'mixed'
             else:
                 zone_type = 'UNKNOWN'
@@ -181,19 +181,19 @@ def zone_dist_transform(city, zone_dist):
             man_zones = ['CM', 'M-1', 'M-2', 'I']
             
             
-            if zone_dist in res_zones:
+            if zone_code in res_zones:
                 zone_type = 'residential'
-            elif zone_dist in com_zones:
+            elif zone_code in com_zones:
                 zone_type = 'commercial'
-            elif zone_dist in rec_zones:
+            elif zone_code in rec_zones:
                 zone_type = 'recreational'
-            elif zone_dist in man_zones or 'PDR' in zone_dist:
+            elif zone_code in man_zones or 'PDR' in zone_code:
                 zone_type = 'manufacturing'
-            elif zone_dist in mix_zones or 'WR' in zone_dist or 'CDD' in zone_dist:
+            elif zone_code in mix_zones or 'WR' in zone_code or 'CDD' in zone_code:
                 zone_type = 'mixed'
-            elif 'StE' in zone_dist:
+            elif 'StE' in zone_code:
                 zone_type = 'educational'
-            elif zone_dist == 'UT':
+            elif zone_code == 'UT':
                 zone_type = 'transportation'
             
             else:
@@ -201,13 +201,13 @@ def zone_dist_transform(city, zone_dist):
         
         elif city == 'minn':
             
-            if 'OR' in zone_dist:
+            if 'OR' in zone_code:
                 zone_type = 'mixed'
-            elif 'R' in zone_dist:
+            elif 'R' in zone_code:
                 zone_type = 'residential'
-            elif 'C' in zone_dist or 'B' in zone_dist:
+            elif 'C' in zone_code or 'B' in zone_code:
                 zone_type = 'commercial'
-            elif 'I' in zone_dist:
+            elif 'I' in zone_code:
                 zone_type = 'manufacturing'
             
             else:
@@ -273,53 +273,49 @@ def zone_dist_transform(city, zone_dist):
                          'Neighborhood Institutional', 
                          'Special Study Area']
             
-            if zone_dist in res_zones:
+            if zone_code in res_zones:
                 zone_type = 'residential'
             
-            elif zone_dist in com_zones:
+            elif zone_code in com_zones:
                 zone_type = 'commercial'
             
-            elif zone_dist in mix_zones:
+            elif zone_code in mix_zones:
                 zone_type = 'mixed'
             
-            elif zone_dist in rec_zones:
+            elif zone_code in rec_zones:
                 zone_type = 'recreational'
             
-            elif zone_dist in man_zones:
+            elif zone_code in man_zones:
                 zone_type = 'manufacturing'
             
-            elif zone_dist in edu_zones:
+            elif zone_code in edu_zones:
                 zone_type = 'educational'
-                
             
-            # TODO: Make boston zone_types mre precise using Zone_Desc
-            
-            
-            elif zone_dist == 'Residential':
+            elif zone_code == 'Residential':
                 zone_type = 'residential'
-            elif zone_dist == 'Open Space':
+            elif zone_code == 'Open Space':
                 zone_type = 'recreational'
-            elif zone_dist == 'Business':
+            elif zone_code == 'Business':
                 zone_type = 'commercial'
-            elif zone_dist == 'Mixed use':
+            elif zone_code == 'Mixed use':
                 zone_type = 'mixed'
-            elif zone_dist == 'Industrial':
+            elif zone_code == 'Industrial':
                 zone_type = 'manufacturing'
-            elif zone_dist == 'Comm/Instit':
+            elif zone_code == 'Comm/Instit':
                 zone_type = 'educational'
     
             
-            elif zone_dist in ['APARTMENT HOUSE', 'SINGLE-FAMILY', 
+            elif zone_code in ['APARTMENT HOUSE', 'SINGLE-FAMILY', 
                                'TWO-FAMILY & ATTACHED SINGLE-FAMILY',
                                'SINGLE-FAMILY & CONVERTED FOR TWO-FAMILY',
                                'THREE-FAMILY', 'SPECIAL DISTRICT']:
                 zone_type = 'residential'
-            elif zone_dist in ['GENERAL BUSINESS', 'LOCAL BUSINESS',
+            elif zone_code in ['GENERAL BUSINESS', 'LOCAL BUSINESS',
                                'BUSINESS AND PROFFESSIONAL OFFICE',
                                'LIMITED SERVICE HOTEL',
                                'GENERAL BUSINESS AND MEDICAL RESEARCH']:
                 zone_type = 'commercial'
-            elif zone_dist == 'INDUSTRIAL SERVICES':
+            elif zone_code == 'INDUSTRIAL SERVICES':
                 zone_type = 'manufacturing'
             
             else:
@@ -476,7 +472,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         
         land_use = zoning_df[['ZONEDIST', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
-        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
+        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
         
         land_use.to_crs(epsg=3857, inplace=True)
         land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
@@ -489,7 +485,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
         
-        df['zone_type'] = df['ZONEDIST'].apply(lambda x: zone_dist_transform(data.city, x))
+        df['zone_type'] = df['ZONEDIST'].apply(lambda x: zone_code_transform(data.city, x))
         
         
         CTracts_df = gpd.read_file('./data/other_data/nyc_CT_data.json')
@@ -528,7 +524,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         df['Pop2018'].fillna(0, inplace=True)
         df['area'].fillna(0.1, inplace=True)
         print(".", end="")
-        df['zone_type'] = df['code_2018'].apply(lambda x: zone_dist_transform(data.city, x))
+        df['zone_type'] = df['code_2018'].apply(lambda x: zone_code_transform(data.city, x))
         df.loc[df['zone_type'] == 'water', 'zone_type'] = "UNKNOWN"
         print(".", end="")
         land_use = land_use[['code_2018', 'geometry']]
@@ -543,7 +539,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         print(".", end="")
         
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
-        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
+        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
         # land_use = land_use[land_use['zone_type'] != 'road']
         land_use = land_use[land_use['zone_type'] != 'water']
         print(".", end="")
@@ -561,7 +557,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         
         land_use = zoning_df[['zone_class', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
-        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
+        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
     
         land_use.to_crs(epsg=3857, inplace=True)
         land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
@@ -574,7 +570,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
     
-        df['zone_type'] = df['zone_class'].apply(lambda x: zone_dist_transform(data.city, x))
+        df['zone_type'] = df['zone_class'].apply(lambda x: zone_code_transform(data.city, x))
         
         CBlocks_df = gpd.read_file('./data/other_data/chic_CB_data.geojson')
         CBlocks_df = CBlocks_df[['geoid10', 'geometry']]
@@ -621,7 +617,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         
         land_use = zoning_df[['ZONING_LABEL', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
-        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
+        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
         
         land_use.to_crs(epsg=3857, inplace=True)
         land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
@@ -634,7 +630,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
     
-        df['zone_type'] = df['ZONING_LABEL'].apply(lambda x: zone_dist_transform(data.city, x))
+        df['zone_type'] = df['ZONING_LABEL'].apply(lambda x: zone_code_transform(data.city, x))
         
         
         census_df = pd.read_csv('./data/other_data/washDC_census_data.csv', 
@@ -686,7 +682,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         
         land_use = zoning_df[['ZONE_CODE', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
-        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
+        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
         
         land_use.to_crs(epsg=3857, inplace=True)
         land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
@@ -699,7 +695,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
     
-        df['zone_type'] = df['ZONE_CODE'].apply(lambda x: zone_dist_transform(data.city, x))
+        df['zone_type'] = df['ZONE_CODE'].apply(lambda x: zone_code_transform(data.city, x))
     
         CTracts_df = gpd.read_file('./data/other_data/minn_CT_data.shp')
         CTracts_df.to_crs(crs = zoning_df.crs, inplace=True)
@@ -727,7 +723,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         
         zoning_boston = gpd.read_file('./data/other_data/boston_zoning_data.geojson')
         zoning_boston = zoning_boston[['ZONE_', 'Zone_Desc','geometry']]
-        zoning_boston['zone_type'] = zoning_boston['Zone_Desc'].apply(lambda x: zone_dist_transform(data.city, x))
+        zoning_boston['zone_type'] = zoning_boston['Zone_Desc'].apply(lambda x: zone_code_transform(data.city, x))
         zoning_boston = zoning_boston[['ZONE_', 'zone_type', 'geometry']]
         
         
@@ -735,13 +731,13 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         zoning_cambridge = zoning_cambridge[['ZONE_TYPE', 'geometry']]
         zoning_cambridge = zoning_cambridge.rename({'ZONE_TYPE' : 'ZONE_'}, axis=1)
 
-        zoning_cambridge['zone_type'] = zoning_cambridge['ZONE_'].apply(lambda x: zone_dist_transform(data.city, x))
+        zoning_cambridge['zone_type'] = zoning_cambridge['ZONE_'].apply(lambda x: zone_code_transform(data.city, x))
         crs = zoning_cambridge.crs
         zoning_cambridge.to_crs(epsg=4326, inplace=True)
         
         zoning_brookline = gpd.read_file('./data/other_data/brookline_zoning_data.geojson')
         zoning_brookline = zoning_brookline[['ZONECLASS', 'ZONEDESC' ,'geometry']]
-        zoning_brookline['zone_type'] = zoning_brookline['ZONEDESC'].apply(lambda x: zone_dist_transform(data.city, x))
+        zoning_brookline['zone_type'] = zoning_brookline['ZONEDESC'].apply(lambda x: zone_code_transform(data.city, x))
         zoning_brookline = zoning_brookline.rename({'ZONECLASS' : 'ZONE_'}, axis=1)
         zoning_brookline = zoning_brookline[['ZONE_', 'zone_type', 'geometry']]
         
@@ -749,7 +745,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         zoning_somerville.set_crs(crs, inplace=True)
         zoning_somerville.to_crs(epsg=4326, inplace=True)
         zoning_somerville = zoning_somerville[['ZoneCode', 'geometry']]
-        zoning_somerville['zone_type'] = zoning_somerville['ZoneCode'].apply(lambda x: zone_dist_transform(data.city, x))
+        zoning_somerville['zone_type'] = zoning_somerville['ZoneCode'].apply(lambda x: zone_code_transform(data.city, x))
         zoning_somerville = zoning_somerville.rename({'ZoneCode' : 'ZONE_'}, axis=1)
         
         zoning_df = gpd.GeoDataFrame(pd.concat([zoning_boston, 
@@ -781,7 +777,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         
         land_use = zoning_df[['ZONE_', 'zone_type', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
-        #land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_dist_transform(data.city, x))
+        #land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
         
         land_use.to_crs(epsg=3857, inplace=True)
         land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
@@ -794,7 +790,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left') 
         df.drop('index_right', axis=1, inplace=True)
     
-        # df['zone_type'] = df['ZONE_CODE'].apply(lambda x: zone_dist_transform(data.city, x))
+        # df['zone_type'] = df['ZONE_CODE'].apply(lambda x: zone_code_transform(data.city, x))
         
         census_df = pd.read_csv('./data/other_data/boston_census_data.csv', 
                                 usecols=['P1_001N', 'GEO_ID'],
@@ -1107,13 +1103,13 @@ if __name__ == "__main__":
 
     
 
-    # create_all_pickles('boston', 2019, overwrite=True)
+    create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('boston', 2019, 9)
+    # data = bs.Data('boston', 2019, 9)
 
-    pre = time.time()
-    station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
-    print(f'station_df took {time.time() - pre:.2f} seconds')
+    # pre = time.time()
+    # station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)
+    # print(f'station_df took {time.time() - pre:.2f} seconds')
 
     
     # for i, station in station_df.iterrows():
