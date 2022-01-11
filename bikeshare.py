@@ -236,13 +236,16 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
     if not os.path.exists('python_variables/big_data'):
         os.makedirs('python_variables/big_data')
     if not overwrite:
+        month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
+              7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
+        print(f'Loading pickle {name_dict[city]} {year:d} {month_dict[month]}... ', end="")
         try:
             with open(f'./python_variables/big_data/{city}{year:d}{month:02d}_dataframe_blcklst={blacklist}.pickle', 'rb') as file:
                 df = pickle.load(file)
-            print('Pickle loaded')
+            print("Done")
 
         except FileNotFoundError:
-            print('No dataframe pickle found. ', end="")
+            print('\n No dataframe pickle found. ', end="")
             overwrite = True
 
     if overwrite:
@@ -1079,16 +1082,17 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
     
     if not overwrite:
         try:
+            print(f'Loading pickle {name_dict[city]} {year:d}... ', end="")
             with open(f'./python_variables/big_data/{city}{year:d}_dataframe.pickle', 'rb') as file:
                 df = pickle.load(file)
-            print('Pickle loaded')
+            print('Done')
     
         except FileNotFoundError:
-            print('Pickle not found. ', end="")
+            print('\n Pickle not found. ', end="")
             overwrite = True
     
     if overwrite:
-        print("Pickling dataframe...")
+        print("Pickling dataframe", end="")
         if city == "nyc":
 
             files = [file for file in os.listdir(
@@ -1104,6 +1108,7 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
             for file in files[1:]:
                 df_temp = pd.read_csv('data/' + file)
                 df = pd.concat([df, df_temp], sort=False)
+                print(".", end="")
 
             df = df.rename(columns=dataframe_key.get_key(city))
 
@@ -1139,6 +1144,7 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
             for file in files[1:]:
                 df_temp = pd.read_csv('data/' + file)
                 df = pd.concat([df, df_temp], sort=False)
+                print(".", end="")
 
             df.reset_index(inplace=True, drop=True)
 
@@ -1220,6 +1226,7 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
                     df_temp = pd.read_csv('data/' + file)
 
                 df = pd.concat([df, df_temp], sort=False)
+                print(".", end="")
 
             df = df.rename(columns=dataframe_key.get_key(city))
 
@@ -1260,6 +1267,7 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
             for q in range(1, 4+1):
                 try:
                     df.append(pd.read_csv(f'./data/metro-bike-share-trips-{year:d}-q{q}.csv'))
+                    print(".", end="")
     
                 except FileNotFoundError as exc:
                     raise FileNotFoundError(
@@ -1314,6 +1322,7 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
             for file in files:
                 df_temp = pd.read_csv('data/' + file)[col_list]
                 df = pd.concat([df, df_temp], sort=False)
+                print(".", end="")
 
             df = df.rename(columns=dataframe_key.get_key(city))
             df.dropna(inplace=True)
@@ -1347,6 +1356,7 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
             for file in data_files[1:]:
                 df_temp = pd.read_csv('./data/' + file)
                 df = pd.concat([df, df_temp], sort=False)
+                print(".", end="")
 
             df.rename(columns=dataframe_key.get_key(city), inplace=True)
 
@@ -1411,6 +1421,7 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
 
             for file in files:
                 dfs.append(pd.read_csv('data/' + file))
+                print(".", end="")
 
             if year == 2019:
                 dfs[2].drop(index=dfs[2].loc[dfs[2]['Fecha_Arribo'] == '10'].index, inplace=True) # Remove datapoint from march
@@ -1500,12 +1511,13 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
             dfs = []
             for month in get_valid_months(city, year):
                 dfs.append(get_data_month(city, year, month, overwrite=overwrite)[0])
+                print(".", end="")
             df = pd.concat(dfs)
 
         with open(f'./python_variables/big_data/{city}{year:d}_dataframe.pickle', 'wb') as file:
             pickle.dump(df, file)
 
-        print('Pickling done.')
+        print(' Pickling done.')
 
     if blacklist:
         df = df[~df['start_stat_id'].isin(blacklist)]

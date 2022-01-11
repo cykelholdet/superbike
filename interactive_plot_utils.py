@@ -1065,16 +1065,16 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
             pickle.dump(union, file)
         print('Pickling done')
         
-    station_df['service_area'] = station_df['service_area'].apply(lambda area: area.intersection(union))
+    station_df['service_area'] = station_df['service_area'].apply(lambda area: area.intersection(union) if area else shapely.geometry.Polygon())
     
     service_area_trim = []
     for i, row in station_df.iterrows():
-        if isinstance(row['service_area'], shapely.geometry.multipolygon.MultiPolygon):
-            count=1
-            for poly in row['service_area'].geoms:
+        # if isinstance(row['service_area'], shapely.geometry.multipolygon.MultiPolygon):
+        #     count=1
+        #     for poly in row['service_area'].geoms:
 
-                if poly.contains(row['coords']):
-                    service_area_trim.append(poly)
+        #         if poly.contains(row['coords']):
+        #             service_area_trim.append(poly)
                 # else:
                 #     service_area_trim.append(row['service_area']) # hotfix, find better solution
                     
@@ -1082,13 +1082,13 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
                 #         service_area_trim = service_area_trim[:-1]
                 # count+=1
 
-        elif isinstance(row['service_area'], shapely.geometry.collection.GeometryCollection):
+        if isinstance(row['service_area'], shapely.geometry.collection.GeometryCollection):
             service_area_trim.append(shapely.ops.unary_union(row['service_area']))
         
         else:
             service_area_trim.append(row['service_area'])
     
-    # station_df['service_area'] = service_area_trim
+    station_df['service_area'] = service_area_trim
     station_df.set_geometry('service_area', inplace=True)
     
 
@@ -1108,7 +1108,7 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
         geo_sdf = station_df.set_geometry('service_area_no_road')
         geo_sdf.to_crs(epsg=3857, inplace=True)
         
-        geo_sdf['geometry'] = geo_sdf.buffer(0)
+        geo_sdf.geometry = geo_sdf.buffer(0)
 
         for zone_type in zone_types:
         
@@ -1117,6 +1117,8 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
             mask = ~station_df[f'neighborhood_{zone_type}'].is_empty
             
             sdf_zone = geo_sdf[f'neighborhood_{zone_type}'].to_crs(epsg=3857)[mask]
+            
+            print(zone_type)
             zone_percents[mask] = geo_sdf[mask].intersection(sdf_zone).area/geo_sdf[mask].area*100
             
             station_df[f'percent_{zone_type}'] = zone_percents
