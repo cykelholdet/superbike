@@ -474,9 +474,9 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                 raise FileNotFoundError(
                     'No station data found. All relevant files can be found at https://bikeshare.metro.net/about/data/') from exc
 
-            name_dict = dict(zip(stations['stat_id'], stations['stat_name']))
-            df['start_stat_name'] = df['start_stat_id'].map(name_dict)
-            df['end_stat_name'] = df['end_stat_id'].map(name_dict)
+            stat_name_dict = dict(zip(stations['stat_id'], stations['stat_name']))
+            df['start_stat_name'] = df['start_stat_id'].map(stat_name_dict)
+            df['end_stat_name'] = df['end_stat_id'].map(stat_name_dict)
             
             df['duration'] = df['duration']*60
             
@@ -856,7 +856,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             stations = pd.DataFrame(pd.read_json("./data/stations_mexico.json",
                                                  lines=True)['stations'][0])
 
-            name_dict = dict(zip(stations['id'], stations['address']))
+            stat_name_dict = dict(zip(stations['id'], stations['address']))
             locations = stations['location'].apply(pd.Series)
             long_dict = dict(
                 zip(stations['id'], locations['lon'].astype(float)))
@@ -864,11 +864,11 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                 zip(stations['id'], locations['lat'].astype(float)))
             type_dict = dict(zip(stations['id'], stations['stationType']))
 
-            df['start_stat_name'] = df['start_stat_id'].map(name_dict)
+            df['start_stat_name'] = df['start_stat_id'].map(stat_name_dict)
             df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
             df['start_stat_long'] = df['start_stat_id'].map(long_dict)
 
-            df['end_stat_name'] = df['end_stat_id'].map(name_dict)
+            df['end_stat_name'] = df['end_stat_id'].map(stat_name_dict)
             df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
             df['end_stat_long'] = df['end_stat_id'].map(long_dict)
             df['station_type'] = df['end_stat_id'].map(type_dict)
@@ -900,15 +900,15 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                 raise FileNotFoundError(
                     'No trip data found. All relevant files can be found at https://www.mibici.net/en/open-data/') from exc
 
-            name_dict = dict(zip(stations['id'], stations['name']))
+            stat_name_dict = dict(zip(stations['id'], stations['name']))
             long_dict = dict(zip(stations['id'], stations['longitude']))
             lat_dict = dict(zip(stations['id'], stations['latitude']))
 
-            df['start_stat_name'] = df['start_stat_id'].map(name_dict)
+            df['start_stat_name'] = df['start_stat_id'].map(stat_name_dict)
             df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
             df['start_stat_long'] = df['start_stat_id'].map(long_dict)
 
-            df['end_stat_name'] = df['end_stat_id'].map(name_dict)
+            df['end_stat_name'] = df['end_stat_id'].map(stat_name_dict)
             df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
             df['end_stat_long'] = df['end_stat_id'].map(long_dict)
 
@@ -937,15 +937,15 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                 raise FileNotFoundError(
                     'No trip data found. All relevant files can be found at https://bixi.com/en/open-data') from exc
 
-            name_dict = dict(zip(stations['Code'], stations['name']))
+            stat_name_dict = dict(zip(stations['Code'], stations['name']))
             long_dict = dict(zip(stations['Code'], stations['longitude']))
             lat_dict = dict(zip(stations['Code'], stations['latitude']))
 
-            df['start_stat_name'] = df['start_stat_id'].map(name_dict)
+            df['start_stat_name'] = df['start_stat_id'].map(stat_name_dict)
             df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
             df['start_stat_long'] = df['start_stat_id'].map(long_dict)
 
-            df['end_stat_name'] = df['end_stat_id'].map(name_dict)
+            df['end_stat_name'] = df['end_stat_id'].map(stat_name_dict)
             df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
             df['end_stat_long'] = df['end_stat_id'].map(long_dict)
 
@@ -1008,7 +1008,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df['start_stat_id'] = df['start_stat_name_zh'].map(id_dict)
             df['end_stat_id'] = df['end_stat_name_zh'].map(id_dict)
 
-            name_dict = dict(zip(stations['sno'], stations['snaen']))
+            stat_name_dict = dict(zip(stations['sno'], stations['snaen']))
             long_dict = dict(zip(stations['sno'], stations['lng']))
             lat_dict = dict(zip(stations['sno'], stations['lat']))
             addr_dict = dict(zip(stations['sno'], stations['aren']))
@@ -1023,12 +1023,12 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             # lat_dict = {**lat_dict_tp, **lat_dict_ntpc}
             # addr_dict = {**addr_dict_tp, **addr_dict_ntpc}
 
-            df['start_stat_name'] = df['start_stat_id'].map(name_dict)
+            df['start_stat_name'] = df['start_stat_id'].map(stat_name_dict)
             df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
             df['start_stat_long'] = df['start_stat_id'].map(long_dict)
             df['start_stat_desc'] = df['start_stat_id'].map(addr_dict)
 
-            df['end_stat_name'] = df['end_stat_id'].map(name_dict)
+            df['end_stat_name'] = df['end_stat_id'].map(stat_name_dict)
             df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
             df['end_stat_long'] = df['end_stat_id'].map(long_dict)
             df['end_stat_desc'] = df['end_stat_id'].map(addr_dict)
@@ -1290,9 +1290,9 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
                 raise FileNotFoundError(
                     'No station data found. All relevant files can be found at https://bikeshare.metro.net/about/data/') from exc
 
-            name_dict = dict(zip(stations['stat_id'], stations['stat_name']))
-            df['start_stat_name'] = df['start_stat_id'].map(name_dict)
-            df['end_stat_name'] = df['end_stat_id'].map(name_dict)
+            stat_name_dict = dict(zip(stations['stat_id'], stations['stat_name']))
+            df['start_stat_name'] = df['start_stat_id'].map(stat_name_dict)
+            df['end_stat_name'] = df['end_stat_id'].map(stat_name_dict)
             
             df['duration'] = df['duration']*60
             
@@ -1445,7 +1445,7 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
             stations = pd.DataFrame(pd.read_json("./data/stations_mexico.json",
                                                  lines=True)['stations'][0])
 
-            name_dict = dict(zip(stations['id'], stations['address']))
+            stat_name_dict = dict(zip(stations['id'], stations['address']))
             locations = stations['location'].apply(pd.Series)
             long_dict = dict(
                 zip(stations['id'], locations['lon'].astype(float)))
@@ -1453,11 +1453,11 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
                 zip(stations['id'], locations['lat'].astype(float)))
             type_dict = dict(zip(stations['id'], stations['stationType']))
 
-            df['start_stat_name'] = df['start_stat_id'].map(name_dict)
+            df['start_stat_name'] = df['start_stat_id'].map(stat_name_dict)
             df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
             df['start_stat_long'] = df['start_stat_id'].map(long_dict)
 
-            df['end_stat_name'] = df['end_stat_id'].map(name_dict)
+            df['end_stat_name'] = df['end_stat_id'].map(stat_name_dict)
             df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
             df['end_stat_long'] = df['end_stat_id'].map(long_dict)
             df['station_type'] = df['end_stat_id'].map(type_dict)
