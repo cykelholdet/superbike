@@ -807,19 +807,19 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
 
             stations = pd.DataFrame(stations)
 
-            name_dict = dict(zip(stations['id'], stations['name']))
+            stat_name_dict = dict(zip(stations['id'], stations['name']))
             long_dict = dict(
                 zip(stations['id'], stations['longitude'].astype(float)))
             lat_dict = dict(
                 zip(stations['id'], stations['latitude'].astype(float)))
             addr_dict = dict(zip(stations['id'], stations['address']))
 
-            df['start_stat_name'] = df['start_stat_id'].map(name_dict)
+            df['start_stat_name'] = df['start_stat_id'].map(stat_name_dict)
             df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
             df['start_stat_long'] = df['start_stat_id'].map(long_dict)
             df['start_stat_desc'] = df['start_stat_id'].map(addr_dict)
 
-            df['end_stat_name'] = df['end_stat_id'].map(name_dict)
+            df['end_stat_name'] = df['end_stat_id'].map(stat_name_dict)
             df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
             df['end_stat_long'] = df['end_stat_id'].map(long_dict)
             df['end_stat_desc'] = df['end_stat_id'].map(addr_dict)

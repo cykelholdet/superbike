@@ -46,7 +46,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'nyc'
+CITY = 'boston'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -147,7 +147,7 @@ class BikeDash(param.Parameterized):
     
     residential = param.Boolean(True)
     commercial = param.Boolean(True)
-    manufacturing = param.Boolean(True)
+    industrial = param.Boolean(True)
     recreational = param.Boolean(True)
     mixed = param.Boolean(True)
     road = param.Boolean(True)
@@ -338,7 +338,7 @@ class BikeDash(param.Parameterized):
     @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 
                    'service_radius', 'use_road', 'LR_indicator', 'use_points_or_percents',
                    'make_points_by', 'residential', 'commercial',
-                   'manufacturing', 'recreational', 'mixed',
+                   'industrial', 'recreational', 'mixed',
                    'road', 'transportation', 'unknown', 'n_trips',
                    'pop_density', 'nearest_subway_dist', watch=False)
     def make_logistic_regression(self):
@@ -346,7 +346,7 @@ class BikeDash(param.Parameterized):
         
         zones_params = {'percent_residential': self.residential,
                         'percent_commercial': self.commercial,
-                        'percent_manufacturing': self.manufacturing,
+                        'percent_industrial': self.industrial,
                         'percent_recreational': self.recreational,
                         'percent_mixed': self.mixed,
                         'percent_road': self.road,
@@ -520,7 +520,7 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
             make_points_by=bike_params.param.make_points_by,
             residential=bike_params.param.residential,
             commercial=bike_params.param.commercial,
-            manufacturing=bike_params.param.manufacturing,
+            industrial=bike_params.param.industrial,
             recreational=bike_params.param.recreational,
             mixed=bike_params.param.mixed,
             road=bike_params.param.road,
@@ -534,7 +534,7 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
             )
 def print_logistic_regression(use_road, clustering, k, 
                               min_trips, day_type, city, month, residential,
-                              commercial, manufacturing, recreational,
+                              commercial, industrial, recreational,
                               mixed, road, transportation, unknown, n_trips, 
                               pop_density, nearest_subway_dist, const, 
                               use_points_or_percents, make_points_by, LR_indicator):
@@ -648,7 +648,7 @@ tooltips_service_area = [
     ('area (km^2)', '@service_area_size'),
     ('% residential', '@percent_residential'),
     ('% commercial', '@percent_commercial'),
-    ('% manufacturing', '@percent_manufacturing'),
+    ('% industrial', '@percent_industrial'),
     ('% recreational', '@percent_recreational'),
     ('% mixed', '@percent_mixed'),
     ('% road', '@percent_road'),

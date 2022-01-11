@@ -87,7 +87,7 @@ def zone_code_transform(city, zone_code):
             elif 'C' in zone_code and '/' not in zone_code:
                 zone_type = 'commercial'
             elif 'M' in zone_code and '/' not in zone_code:
-                zone_type = 'manufacturing'
+                zone_type = 'industrial'
             elif '/' in zone_code:
                 zone_type = 'mixed'
             else:
@@ -105,10 +105,8 @@ def zone_code_transform(city, zone_code):
                 zone_type = 'recreational'
             elif zone_code in ['12230']: # Railways and associated land
                 zone_type = 'transportation'
-            elif zone_code in ['12300']: # Port areas
-                zone_type = 'port'
-            elif zone_code in ['13100', 'Construction sites']: # Mineral extraction and dump sites
-                zone_type = 'manufacturing'
+            elif zone_code in ['13100', 'Construction sites', '12300']: # Mineral extraction and dump sites, Construction, Port areas
+                zone_type = 'industrial'
             elif zone_code in ['50000']:
                 zone_type = 'water'
             else:
@@ -134,7 +132,7 @@ def zone_code_transform(city, zone_code):
             elif zone_code in res_zones: # Residential and downtown residential
                 zone_type = 'residential'
             elif zone_code in man_zones: # Manufacturing and planned manufactoring development
-                zone_type = 'manufacturing'
+                zone_type = 'industrial'
             elif zone_code == 'T': # Transportation
                 zone_type = 'transportation'
             elif zone_code in rec_zones: # Green areas
@@ -188,7 +186,7 @@ def zone_code_transform(city, zone_code):
             elif zone_code in rec_zones:
                 zone_type = 'recreational'
             elif zone_code in man_zones or 'PDR' in zone_code:
-                zone_type = 'manufacturing'
+                zone_type = 'industrial'
             elif zone_code in mix_zones or 'WR' in zone_code or 'CDD' in zone_code:
                 zone_type = 'mixed'
             elif 'StE' in zone_code:
@@ -208,7 +206,7 @@ def zone_code_transform(city, zone_code):
             elif 'C' in zone_code or 'B' in zone_code:
                 zone_type = 'commercial'
             elif 'I' in zone_code:
-                zone_type = 'manufacturing'
+                zone_type = 'industrial'
             
             else:
                 zone_type = 'UNKNOWN'
@@ -286,7 +284,7 @@ def zone_code_transform(city, zone_code):
                 zone_type = 'recreational'
             
             elif zone_code in man_zones:
-                zone_type = 'manufacturing'
+                zone_type = 'industrial'
             
             elif zone_code in edu_zones:
                 zone_type = 'educational'
@@ -300,7 +298,7 @@ def zone_code_transform(city, zone_code):
             elif zone_code == 'Mixed use':
                 zone_type = 'mixed'
             elif zone_code == 'Industrial':
-                zone_type = 'manufacturing'
+                zone_type = 'industrial'
             elif zone_code == 'Comm/Instit':
                 zone_type = 'educational'
     
@@ -316,7 +314,7 @@ def zone_code_transform(city, zone_code):
                                'GENERAL BUSINESS AND MEDICAL RESEARCH']:
                 zone_type = 'commercial'
             elif zone_code == 'INDUSTRIAL SERVICES':
-                zone_type = 'manufacturing'
+                zone_type = 'industrial'
             
             else:
                 zone_type = 'UNKNOWN'
@@ -1208,7 +1206,7 @@ def stations_logistic_regression(station_df, zone_columns, other_columns, use_po
     if 'nearest_subway_dist' in X_scaled.columns:
         X_scaled['nearest_subway_dist'] = X_scaled['nearest_subway_dist']/1000
     
-    param_names = {'percent_manufacturing' : '% manufacturing',
+    param_names = {'percent_industrial' : '% industrial',
                    'percent_commercial' : '% commercial',
                    'percent_residential' : '% residential',
                    'percent_recreational' : '% recreational',
@@ -1307,7 +1305,7 @@ color_dict = {
     'residential': mpl_colors.to_hex('tab:purple'), # 4
     'commercial': mpl_colors.to_hex('tab:orange'),  # 1
     'recreational': mpl_colors.to_hex('tab:green'),  # 2
-    'manufacturing': mpl_colors.to_hex('tab:red'), # 3
+    'industrial': mpl_colors.to_hex('tab:red'), # 3
     'mixed': mpl_colors.to_hex('tab:blue'), # 0
     'educational': mpl_colors.to_hex('tab:brown'), # 5
     'UNKNOWN': mpl_colors.to_hex('gray'), # 7
@@ -1320,7 +1318,7 @@ color_num_dict = {
     'residential': 4, # 4
     'commercial': 1,  # 1
     'recreational': 2,  # 2
-    'manufacturing': 3, # 3
+    'industrial': 3, # 3
     'mixed': 0, # 0
     'educational': 5, # 5
     'UNKNOWN': 7 # 7
