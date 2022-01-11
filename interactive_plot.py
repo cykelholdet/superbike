@@ -45,7 +45,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'nyc'
+CITY = 'london'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -433,7 +433,7 @@ class BikeDash(param.Parameterized):
             geo_sdf = self.station_df.set_geometry('service_area_no_road')
             geo_sdf.to_crs(epsg=3857, inplace=True)
             
-            geo_sdf['geometry'] = geo_sdf.buffer(0)
+            geo_sdf.geometry = geo_sdf.buffer(0)
 
             for zone_type in zone_types:
             
@@ -442,6 +442,8 @@ class BikeDash(param.Parameterized):
                 mask = ~self.station_df[f'neighborhood_{zone_type}'].is_empty
                 
                 sdf_zone = geo_sdf[f'neighborhood_{zone_type}'].to_crs(epsg=3857)[mask]
+                
+                print(zone_type)
                 zone_percents[mask] = geo_sdf[mask].intersection(sdf_zone).area/geo_sdf[mask].area*100
                 
                 self.station_df[f'percent_{zone_type}'] = zone_percents
