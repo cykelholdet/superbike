@@ -31,8 +31,6 @@ import skimage.color as skcolor
 import bikeshare as bs
 import dataframe_key
 
-# TODO: zone_code makes no sense, change to zone_code
-
 def df_key(city):
     
     if city == 'nyc':
@@ -1105,7 +1103,7 @@ if __name__ == "__main__":
 
     create_all_pickles('boston', 2019, overwrite=True)
 
-    # data = bs.Data('boston', 2019, 9)
+    # data = bs.Data('boston', 2019, 7)
 
     # pre = time.time()
     # station_df, land_use = make_station_df(data, return_land_use=True, overwrite=True)

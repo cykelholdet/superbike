@@ -7,7 +7,9 @@ Created on Thu Sep 30 11:36:11 2021
 """
 
 # TODO: Find out what to do with stations outside of zoning and their 
-#       service areas within the zoning
+#       service areas within the zoning. Maybe nothing
+#
+#       Maype show a plot of census tracts and their population?
 
 import pickle
 import time
@@ -45,7 +47,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'washDC'
+CITY = 'london'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -134,7 +136,7 @@ class BikeDash(param.Parameterized):
     show_land_use = param.Selector(objects=['False', 'True'])
     show_service_area = param.Selector(objects=['False', 'True'])
     service_radius = param.Integer(default=500, bounds=(0,1000))
-    service_area_color = param.Selector(objects=['residential', 'commercial', 'recreational'])
+    service_area_color = param.Selector(objects=['residential', 'commercial', 'recreational', 'pop_density'])
     use_road = param.Selector(objects=['False', 'True'])
     random_state = param.Integer(default=42, bounds=(0, 10000))
     min_trips = param.Integer(default=100, bounds=(0, 800))
@@ -390,7 +392,7 @@ class BikeDash(param.Parameterized):
                 pickle.dump(union, file)
             print('Pickling done')
             
-        self.station_df['service_area'] = self.station_df['service_area'].apply(lambda area: area.intersection(union))
+        self.station_df['service_area'] = self.station_df['service_area'].apply(lambda area: area.intersection(union) if area else shapely.geometry.Polygon())
         
         service_area_trim = []
         for i, row in self.station_df.iterrows():
@@ -838,7 +840,7 @@ LR_params = pn.Param(bike_params.param, widgets={
     name="Logistic Regression Parameters",
     )
 
-LR_params.parameters = LR_params.parameters[param_split:]
+LR_params.parameters = LR_params.parameters[param_split:-1]
 
 LR_params.layout.insert(2, 'Make points by:')
 LR_params.layout.insert(1, 'Use station points or percents:')

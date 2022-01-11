@@ -365,6 +365,9 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
 
             df = df.rename(columns=dataframe_key.get_key(city))
 
+            df = df[~df['start_stat_id'].isin([382, 383, 223, 230])] # Filter out virtual stations
+            df = df[~df['end_stat_id'].isin([382, 383, 223, 230])]
+            
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
 
