@@ -9,7 +9,7 @@ Created on Thu Sep 30 11:36:11 2021
 # TODO: Find out what to do with stations outside of zoning and their 
 #       service areas within the zoning. Maybe nothing
 #
-#       Maype show a plot of census tracts and their population?
+#       Show a plot of census tracts and their population/population_density
 
 import pickle
 import time
@@ -46,7 +46,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'boston'
+CITY = 'nyc'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -133,6 +133,7 @@ class BikeDash(param.Parameterized):
     dist_func = param.Selector(objects=['norm'])
     plot_all_clusters = param.Selector(objects=['False', 'True'])
     show_land_use = param.Selector(objects=['False', 'True'])
+    show_census = param.Selector(objects=['False', 'True'])
     show_service_area = param.Selector(objects=['False', 'True'])
     service_radius = param.Integer(default=500, bounds=(0,1000))
     service_area_color = param.Selector(objects=['residential', 'commercial', 'recreational', 'pop_density'])
@@ -169,7 +170,7 @@ class BikeDash(param.Parameterized):
         self.labels_dict = None
         self.index = index
         self.data = bs.Data(self.city, YEAR, self.month)
-        self.station_df, self.land_use = ipu.make_station_df(self.data, holidays=False, return_land_use=True)
+        self.station_df, self.land_use, self.census_df = ipu.make_station_df(self.data, holidays=False, return_land_use=True, return_census=True)
         self.traffic_matrices = self.data.pickle_daily_traffic(holidays=False)
         
         self.plot_clusters_full()
@@ -181,7 +182,7 @@ class BikeDash(param.Parameterized):
     def get_data(self):
         print(f'getting {self.month}')
         self.data = bs.Data(self.city, YEAR, self.month)
-        self.station_df, self.land_use = ipu.make_station_df(self.data, holidays=False, return_land_use=True)
+        self.station_df, self.land_use, self.census_df = ipu.make_station_df(self.data, holidays=False, return_land_use=True, return_census=True)
         self.traffic_matrices = self.data.pickle_daily_traffic(holidays=False)
         print(len(self.station_df))
         
@@ -507,6 +508,16 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
     
     return gv.Polygons([])
 
+# TODO: Make this work
+
+@pn.depends(show_census=bike_params.param.show_census,
+            city=bike_params.param.city)
+def census_plot(show_census, city):
+    if show_census == 'True' and city in ['nyc', 'chic', 'washDC', 'boston', 'minn']:
+        return gv.Polygons(bike_params.census_df).opts(color='pop_density', cmap='YlGnBu')
+    else:
+        return gv.Polygons([])
+
 
 @pn.depends(#service_radius=bike_params.param.service_radius,
             use_road=bike_params.param.use_road,
@@ -584,7 +595,7 @@ gif_pane = pn.pane.GIF('Loading_Key.gif')
 # Parameters
 # =============================================================================
 
-param_split = 17 # add to this number if additional parameters are added in the first column
+param_split = 18 # add to this number if additional parameters are added in the first column
 
 params = pn.Param(bike_params.param, widgets={
     'clustering': pn.widgets.RadioBoxGroup,
@@ -596,6 +607,7 @@ params = pn.Param(bike_params.param, widgets={
     'min_trips': pn.widgets.IntInput,
     'k': pn.widgets.IntSlider,
     'show_land_use': pn.widgets.RadioButtonGroup,
+    'show_census': pn.widgets.RadioButtonGroup,
     'show_service_area': pn.widgets.RadioButtonGroup,
     'service_radius': pn.widgets.IntInput,
     'use_road': pn.widgets.RadioButtonGroup,
@@ -608,7 +620,8 @@ params = pn.Param(bike_params.param, widgets={
 params.parameters = params.parameters[:param_split]
 
 params.layout.insert(15, 'Use roads:')
-params.layout.insert(12, 'Show service area:')
+params.layout.insert(13, 'Show service area:')
+params.layout.insert(12, 'Show census:')
 params.layout.insert(11, 'Show land use:')
 params.layout.insert(10, 'Plot all clusters:')
 params.layout.insert(5, 'Clustering method:')
@@ -638,6 +651,10 @@ zoneview.opts(alpha=0.5, apply_ranges=False)
 service_area_view = hv.DynamicMap(service_area_plot)
 service_area_view.opts(alpha=0.5, apply_ranges=False)
 
+census_view = hv.DynamicMap(census_plot)
+census_view.opts(alpha=0.5, apply_ranges=False)
+
+
 #tileview.opts(framewise=True, apply_ranges=False)
 
 tooltips_zone = [
@@ -654,13 +671,23 @@ tooltips_service_area = [
     ('% road', '@percent_road'),
     ('% unknown', '@percent_UNKNOWN')]
 
+tooltips_census = [
+    ('population', '@population'),
+    ('area (km^2)', '@census_area'),
+    ('pop_density', '@pop_density')
+]
+
 hover_zone = HoverTool(tooltips=tooltips_zone)
 hover_service_area = HoverTool(tooltips=tooltips_service_area)
+hover_census = HoverTool(tooltips=tooltips_census)
+
 zoneview.opts(tools=[hover_zone])
 service_area_view.opts(tools=[hover_service_area])
+census_view.opts(tools=[hover_census])
+
 # selection_stream.param.values()['index']
 
-views = tileview*zoneview*service_area_view*pointview
+views = tileview*zoneview*census_view*service_area_view*pointview
 
 
 # =============================================================================

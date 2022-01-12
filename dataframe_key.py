@@ -271,3 +271,40 @@ def get_land_use_key(city):
     else:
         key = {}
     return key
+
+
+def get_census_key(city):
+    if city == 'nyc':
+        key = {'BCT2020': 'census_geo_id',
+               'Pop_20': 'population',}
+    elif city == 'chic':
+        key = {'CENSUS BLOCK FULL': 'census_geo_id',
+               'TOTAL POPULATION': 'population',}
+    elif city == 'boston':
+        key = {'GEO_ID': 'census_geo_id',
+                'P1_001N': 'population',}
+    elif city == 'minn':
+        key = {'GEOID2': 'census_geo_id',
+               'POPTOTAL': 'population'}
+    elif city == 'washDC':
+        key = {'GEOID': 'census_geo_id',
+               'B01001_001E': 'population',}
+    elif city in ['helsinki', 'madrid', 'oslo', 'london']:
+        key = {'code_2018': 'zone_type',
+               'geometry': 'geometry',}
+    else:
+        key = {}
+    return key
+
+
+
+
+
+
+
+
+
+
+
+
+

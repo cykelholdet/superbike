@@ -165,7 +165,7 @@ plt.tight_layout()
 plt.savefig(f'./figures/zone_distributions/{city}{year}_{period}_zone_distributions.pdf')
 
 # plt.savefig(f'./figures/zone_distributions/test.pdf')
-plt.close()
+# plt.close()
 
 
 
