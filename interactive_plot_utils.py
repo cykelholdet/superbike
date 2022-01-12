@@ -636,14 +636,16 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     elif data.city == 'washDC':
         
-        zoning_DC = gpd.read_file('./data/other_data/washDC_zoning_data.geojson')
+        bbox = gpd.GeoDataFrame([land_use_extent], geometry=0).set_crs(epsg=3857)
+        
+        zoning_DC = gpd.read_file('./data/other_data/washDC_zoning_data.geojson', bbox=bbox)
         zoning_DC = zoning_DC[['ZONING_LABEL', 'geometry']]
         
-        zoning_arlington = gpd.read_file('./data/other_data/arlington_zoning_data.geojson')
+        zoning_arlington = gpd.read_file('./data/other_data/arlington_zoning_data.geojson', bbox=bbox)
         zoning_arlington = zoning_arlington[['ZN_DESIG', 'geometry']]
         zoning_arlington = zoning_arlington.rename({'ZN_DESIG' : 'ZONING_LABEL'}, axis=1)
         
-        zoning_alexandria = gpd.read_file('./data/other_data/alexandria_zoning_data.geojson')
+        zoning_alexandria = gpd.read_file('./data/other_data/alexandria_zoning_data.geojson', bbox=bbox)
         zoning_alexandria = zoning_alexandria[['ZONING', 'geometry']]
         zoning_alexandria = zoning_alexandria.rename({'ZONING' : 'ZONING_LABEL'}, axis=1)
         
@@ -658,12 +660,12 @@ def make_station_df(data, holidays=True, return_land_use=False,
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_code'].apply(lambda x: zone_code_transform(data.city, x))
         
-        land_use.to_crs(epsg=3857, inplace=True)
-        land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
-                               df['northing'].min()-1000:df['northing'].max()+1000]
+        # land_use.to_crs(epsg=3857, inplace=True)
+        # land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
+        #                        df['northing'].min()-1000:df['northing'].max()+1000]
         
-        land_use['geometry'] = land_use['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
-        land_use.to_crs(epsg=4326, inplace=True)
+        # land_use['geometry'] = land_use['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
+        # land_use.to_crs(epsg=4326, inplace=True)
         
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
@@ -678,10 +680,10 @@ def make_station_df(data, holidays=True, return_land_use=False,
         
         census_df['GEO_ID'] = census_df['GEO_ID'].apply(lambda x: x[9:]) # remove state code from GEO_ID
         
-        DC_CTracts_df = gpd.read_file('./data/other_data/washDC_CT_data.shp')
+        DC_CTracts_df = gpd.read_file('./data/other_data/washDC_CT_data.shp', bbox=bbox)
         DC_CTracts_df = DC_CTracts_df[['GEOID', 'geometry']]
         
-        VA_CTracts_df = gpd.read_file('./data/other_data/VA_CT_data.shp')
+        VA_CTracts_df = gpd.read_file('./data/other_data/VA_CT_data.shp', bbox=bbox)
         VA_CTracts_df = VA_CTracts_df[['GEOID', 'geometry']]
         
         CTracts_df = DC_CTracts_df.append(VA_CTracts_df)
@@ -708,19 +710,21 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     elif data.city == 'minn':
         
-        zoning_df = gpd.read_file('./data/other_data/minn_zoning_data.geojson')
+        bbox = gpd.GeoDataFrame([land_use_extent], geometry=0).set_crs(epsg=3857)
+        
+        zoning_df = gpd.read_file('./data/other_data/minn_zoning_data.geojson', bbox=bbox)
         zoning_df = zoning_df[['ZONE_CODE', 'geometry']]
         
         land_use = zoning_df[['ZONE_CODE', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
         
-        land_use.to_crs(epsg=3857, inplace=True)
-        land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
-                               df['northing'].min()-1000:df['northing'].max()+1000]
+        # land_use.to_crs(epsg=3857, inplace=True)
+        # land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
+        #                        df['northing'].min()-1000:df['northing'].max()+1000]
         
-        land_use['geometry'] = land_use['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
-        land_use.to_crs(epsg=4326, inplace=True)
+        # land_use['geometry'] = land_use['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
+        # land_use.to_crs(epsg=4326, inplace=True)
         
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
@@ -731,7 +735,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
         census_df = pd.read_excel('./data/other_data/minn_census_data.xlsx')
         census_df = census_df[['GEOID2', 'POPTOTAL']]
     
-        CTracts_df = gpd.read_file('./data/other_data/minn_CT_data.shp')
+        CTracts_df = gpd.read_file('./data/other_data/minn_CT_data.shp', bbox=bbox)
         CTracts_df = CTracts_df[['GEOID20', 'geometry']]
         CTracts_df.rename(columns={'GEOID20' : 'GEOID2'}, inplace=True)
         CTracts_df.to_crs(epsg=4326, inplace=True)
@@ -757,6 +761,8 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     elif data.city == 'boston':
         
+        # bbox = gpd.GeoDataFrame([land_use_extent], geometry=0).set_crs(epsg=3857)
+        
         zoning_boston = gpd.read_file('./data/other_data/boston_zoning_data.geojson')
         zoning_boston = zoning_boston[['ZONE_', 'Zone_Desc','geometry']]
         zoning_boston['zone_type'] = zoning_boston['Zone_Desc'].apply(lambda x: zone_code_transform(data.city, x))
@@ -776,6 +782,8 @@ def make_station_df(data, holidays=True, return_land_use=False,
         zoning_brookline['zone_type'] = zoning_brookline['ZONEDESC'].apply(lambda x: zone_code_transform(data.city, x))
         zoning_brookline = zoning_brookline.rename({'ZONECLASS' : 'ZONE_'}, axis=1)
         zoning_brookline = zoning_brookline[['ZONE_', 'zone_type', 'geometry']]
+        
+        # bbox = gpd.GeoDataFrame([land_use_extent], geometry=0).set_crs(epsg=3857).to_crs(crs)
         
         zoning_somerville = gpd.read_file('./data/other_data/somerville_zoning_data.shp')
         zoning_somerville.set_crs(crs, inplace=True)
@@ -813,11 +821,11 @@ def make_station_df(data, holidays=True, return_land_use=False,
         
         land_use = zoning_df[['ZONE_', 'zone_type', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
-        #land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
+        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
         
         land_use.to_crs(epsg=3857, inplace=True)
         land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
-                               df['northing'].min()-1000:df['northing'].max()+1000]
+                                df['northing'].min()-1000:df['northing'].max()+1000]
         
         land_use['geometry'] = land_use['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
         land_use.to_crs(epsg=4326, inplace=True)
@@ -835,10 +843,20 @@ def make_station_df(data, holidays=True, return_land_use=False,
         census_df['GEO_ID'] = census_df['GEO_ID'].apply(lambda x: x[9:]) # remove state code from GEO_ID
         
         
+        # bbox = gpd.GeoDataFrame([land_use_extent], geometry=0).set_crs(epsg=3857).to_crs(epsg=4326)
+        
         CTracts_df = gpd.read_file('./data/other_data/boston_CT_data.shp')
         CTracts_df.set_crs(epsg=4326, allow_override=True, inplace=True)
         CTracts_df = CTracts_df[['GEOID', 'geometry']]
         CTracts_df = CTracts_df.rename({'GEOID' : 'GEO_ID'}, axis=1)
+        
+        CTracts_df.to_crs(epsg=3857, inplace=True)
+        CTracts_df = CTracts_df.cx[df['easting'].min()-1000:df['easting'].max()+1000,
+                                   df['northing'].min()-1000:df['northing'].max()+1000]
+        
+        CTracts_df['geometry'] = CTracts_df['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
+        CTracts_df.to_crs(epsg=4326, inplace=True)
+        
         
         census_df = gpd.GeoDataFrame(census_df.merge(CTracts_df, on='GEO_ID'),
                                      geometry='geometry', crs='EPSG:4326')
@@ -1443,7 +1461,7 @@ if __name__ == "__main__":
 
     
 
-    create_all_pickles('nyc', 2019, overwrite=True)
+    create_all_pickles('washDC', 2019, overwrite=True)
 
     # data = bs.Data('london', 2019, 9)
 
