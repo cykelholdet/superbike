@@ -395,7 +395,7 @@ def make_station_df(data, holidays=True, return_land_use=False, overwrite=False)
             else:
                 return df
         except FileNotFoundError:
-            print("Pickle does not exist. Pickling station_df...")
+            print("Pickle does not exist. ", end="")
     
     print("Making Station DataFrame", end="")
     
@@ -952,6 +952,7 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         labels = clusters.predict(traffic_matrix)
         station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
+        station_df, clusters, labels = sort_clusters(station_df, clusters, labels, traffic_matrices, day_type, k)
         station_df['color'] = station_df['label'].map(cluster_color_dict)
 
     elif clustering == 'k_medoids':
@@ -959,6 +960,7 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         labels = clusters.predict(traffic_matrix)
         station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
+        station_df, clusters, labels = sort_clusters(station_df, clusters, labels, traffic_matrices, day_type, k)
         station_df['color'] = station_df['label'].map(cluster_color_dict)
         
     elif clustering == 'h_clustering':
@@ -996,6 +998,67 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         labels = None
         station_df['label'] = np.nan
         station_df['color'] = None
+    
+
+    return station_df, clusters, labels
+
+
+def sort_clusters(station_df, clusters, labels, traffic_matrices, day_type, k):
+    # Order the clusters by setting cluster 0 to be closest to the mean traffic.
+    
+    if day_type == 'business_days':
+        mean = np.mean(traffic_matrices[0][station_df.index], axis=0)
+    elif day_type == 'weekend':
+        mean = np.mean(traffic_matrices[1][station_df.index], axis=0)
+    
+    morning_hours = np.array([6,7,8,9,10])
+    afternoon_hours = np.array([15,16,17,18,19])
+    
+    #mean = mean/np.max(mean)
+    
+    peakiness = [] # Distance to mean
+    rush_houriness = [] # difference between arrivals and departures
+    for center in clusters.cluster_centers_:
+        dist_from_mean = np.linalg.norm(center-mean)
+        peakiness.append(dist_from_mean)
+        rhn = np.sum((center[morning_hours] - center[morning_hours+24]) - (center[afternoon_hours] - center[afternoon_hours+24]))
+        rush_houriness.append(rhn)
+    
+    rush_houriness = np.array(rush_houriness)
+    first = np.argmin(np.array(peakiness)*0.5 + np.abs(rush_houriness))
+    order = np.argsort(rush_houriness)
+    
+    for i, item in enumerate(order):
+        if item == first:
+            order[i] = order[0]
+            order[0] = first
+       
+    # print(order)
+    # print(f"rush-houriness = {rush_houriness}")
+    # print(f"peakiness = {peakiness}")
+    
+    # for i in range(k):
+    #     if abs(rush_houriness[i]) < 0.05:
+    #         print(f"small_rushouriness {i}")
+    #     if peakiness[i] > 0.1:
+    #         print(f'large peakiness {i}')
+    
+    # for i in range(k):
+    #     if abs(rush_houriness[i]) < 0.05 and peakiness[i] > 0.1:
+    #         temp = order[i]
+    #         order[i] = order[-1]
+    #         order[-1] = temp
+    #         print(f'swapped {order[-1]} for {order[i]}')
+       
+    
+    labels_dict = dict(zip(range(len(order)), order))
+    station_df = station_df.replace({'label' : labels_dict})
+    labels = np.array(station_df['label'])
+    
+    centers = np.zeros_like(clusters.cluster_centers_)
+    for i in range(k):
+        centers[i] = clusters.cluster_centers_[labels_dict[i]]
+    clusters.cluster_centers_ = centers
     
     return station_df, clusters, labels
 
@@ -1160,6 +1223,9 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
 def stations_logistic_regression(station_df, zone_columns, other_columns, use_points_or_percents='points', make_points_by='station location', const=False):
     df = station_df[~station_df['label'].isna()]
     
+    if len(df) == 0:
+        raise ValueError("station_df['label'] is empty")
+    
     X = df[zone_columns]
     
     p_columns = [column for column in X.columns 
@@ -1184,6 +1250,9 @@ def stations_logistic_regression(station_df, zone_columns, other_columns, use_po
             df['zone_type_by_percent'] = zone_types
         
             X = pd.get_dummies(df['zone_type_by_percent'])
+        
+        else:
+            print('"station location" or "station land use"')
         
         X = X[nop_columns]
     
