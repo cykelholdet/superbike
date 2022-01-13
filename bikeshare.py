@@ -4372,6 +4372,8 @@ def get_valid_months(city, year):
         return range(4, 12+1)
     elif city in ['helsinki', 'montreal']:
         return range(4, 10+1)
+    elif city == 'minn':
+        return range(4,11+1)
     else:
         return range(1, 12+1)
 
