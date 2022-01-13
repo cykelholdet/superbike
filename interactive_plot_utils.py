@@ -530,7 +530,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
         df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
         df['nearest_subway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]).meters, axis=1)
     
-    elif data.city in ['madrid', 'helsinki', 'london', 'oslo']:
+    elif data.city in ['madrid', 'helsinki', 'london', 'oslo', 'bergen', 'trondheim', 'edinburgh']:
         
         bbox = gpd.GeoDataFrame([land_use_extent], geometry=0).set_crs(epsg=3857)
         land_use = gpd.read_file(f'data/other_data/{data.city}_UA2018_v013.gpkg', bbox=bbox)
