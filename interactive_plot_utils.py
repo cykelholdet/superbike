@@ -1397,7 +1397,22 @@ def geodesic_point_buffer(lat, lon, m):
 def create_all_pickles(city, year, holidays=False, overwrite=False):
     if isinstance(city, str): # If city is a str (therefore not a list)
         data = bs.Data(city, year, overwrite=overwrite)
-        make_station_df(data, holidays=holidays, overwrite=overwrite)
+        land_use = make_station_df(data, return_land_use=True, holidays=holidays, overwrite=overwrite)[1]
+        
+        if overwrite:
+            
+            print(f'Pickling union for {city}...', end='')
+            land_use.to_crs(epsg=3857, inplace=True)
+            union = shapely.ops.unary_union(land_use.geometry)
+            union_gpd = gpd.GeoSeries(union)
+            union_gpd.set_crs(epsg=3857, inplace=True)
+            union_gpd = union_gpd.to_crs(epsg=4326)
+            union = union_gpd.loc[0].buffer(0)
+            land_use.to_crs(epsg=4326, inplace=True)
+            with open(f'./python_variables/union_{city}.pickle', 'wb') as file:
+                pickle.dump(union, file)
+            print('Done')
+            
         data.pickle_daily_traffic(holidays=holidays, overwrite=overwrite)
         
         for month in bs.get_valid_months(city, year):
@@ -1464,7 +1479,7 @@ if __name__ == "__main__":
 
     
 
-    create_all_pickles('washDC', 2019, overwrite=True)
+    create_all_pickles('chic', 2019, overwrite=True)
 
     # data = bs.Data('london', 2019, 9)
 
