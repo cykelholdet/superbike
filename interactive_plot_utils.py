@@ -1374,7 +1374,7 @@ if __name__ == "__main__":
 
     
 
-    create_all_pickles('nyc', 2019, overwrite=True)
+    create_all_pickles('chic', 2019, overwrite=True)
 
     # data = bs.Data('london', 2019, 9)
 
