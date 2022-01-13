@@ -821,7 +821,6 @@ def make_station_df(data, holidays=True, return_land_use=False,
         
         land_use = zoning_df[['ZONE_', 'zone_type', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
-        land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
         
         land_use.to_crs(epsg=3857, inplace=True)
         land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
