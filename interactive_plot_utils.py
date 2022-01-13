@@ -1478,13 +1478,13 @@ if __name__ == "__main__":
 
     
 
-    create_all_pickles('boston', 2019, overwrite=True)
+    # create_all_pickles('boston', 2019, overwrite=True)
 
-    # data = bs.Data('london', 2019, 9)
+    data = bs.Data('boston', 2019, 9)
 
-    # pre = time.time()
-    # station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
-    # print(f'station_df took {time.time() - pre:.2f} seconds')
+    pre = time.time()
+    station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
+    print(f'station_df took {time.time() - pre:.2f} seconds')
 
     
     # for i, station in station_df.iterrows():

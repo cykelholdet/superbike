@@ -9,7 +9,7 @@ Created on Thu Sep 30 11:36:11 2021
 # TODO: Find out what to do with stations outside of zoning and their 
 #       service areas within the zoning. Maybe nothing
 #
-#       Show a plot of census tracts and their population/population_density
+
 
 import pickle
 import time
@@ -475,8 +475,6 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
         
     
     return gv.Polygons([])
-
-# TODO: Make this work
 
 @pn.depends(show_census=bike_params.param.show_census,
             city=bike_params.param.city)
