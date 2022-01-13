@@ -1091,11 +1091,14 @@ def sort_clusters(station_df, clusters, labels, traffic_matrices, day_type, k):
     first = np.argmin(np.array(peakiness)*0.5 + np.abs(rush_houriness))
     order = np.argsort(rush_houriness)
     
+    order_new = order.copy()
     for i, item in enumerate(order):
         if item == first:
-            order[i] = order[0]
-            order[0] = first
-       
+            order_new[i] = order[0]
+            order_new[0] = first
+    order = order_new
+    
+    # print(f"first = {first}")
     # print(order)
     # print(f"rush-houriness = {rush_houriness}")
     # print(f"peakiness = {peakiness}")
@@ -1112,17 +1115,17 @@ def sort_clusters(station_df, clusters, labels, traffic_matrices, day_type, k):
     #         order[i] = order[-1]
     #         order[-1] = temp
     #         print(f'swapped {order[-1]} for {order[i]}')
-       
+    # print(labels[0:2])
     
-    labels_dict = dict(zip(range(len(order)), order))
+    labels_dict = dict(zip(order, range(len(order))))
+    print(labels_dict)
     station_df = station_df.replace({'label' : labels_dict})
     labels = np.array(station_df['label'])
     
     centers = np.zeros_like(clusters.cluster_centers_)
     for i in range(k):
-        centers[i] = clusters.cluster_centers_[labels_dict[i]]
+        centers[labels_dict[i]] = clusters.cluster_centers_[i]
     clusters.cluster_centers_ = centers
-    
     return station_df, clusters, labels
 
 
