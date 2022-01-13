@@ -337,11 +337,8 @@ def make_neighborhoods(city, year, station_df, land_use):
                                      data_year.stat.locations[i][1]) 
                                for i in neighborhoods.index]
     neighborhoods.set_geometry('coords', inplace=True)
-    # neighborhoods.set_crs(epsg=4326, inplace=True)
-    # neighborhoods.to_crs(epsg=3857, inplace=True)        
     print("Getting the hood ready to go", end="")
     if len(land_use) > 0:
-        # land_use.to_crs(epsg=3857, inplace=True)
         
         lu_merge = {}
         for zone_type in land_use['zone_type'].unique():
@@ -413,9 +410,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
     df['n_departures'] = df['stat_id'].map(data.df['end_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
 
     df['n_trips'] = df['n_arrivals'] + df['n_departures']
-    
-    
-    
+
     df_s = data.df[['start_stat_id', 'start_dt']][data.df['start_dt'].dt.weekday <= 4]
     
     print(".", end="")
@@ -456,16 +451,6 @@ def make_station_df(data, holidays=True, return_land_use=False,
          (df['easting'].max()+1000, df['northing'].min()-1000)])
     print(". ", end="")
     
-    # poly_gdf = gpd.GeoDataFrame(index=[0], columns=['poly'], geometry='poly')
-    # poly_gdf.loc[0,'poly'] = land_use_extent
-    # poly_gdf.set_crs(epsg=3857, inplace=True)
-    # poly_gdf.to_crs(epsg=4326, inplace=True)
-    
-    # return poly_gdf
-    # print(poly_gdf.iloc.poly)
-    # extent = {'lat': [df['lat'].min(), df['lat'].max()], 
-              # 'long': [df['long'].min(), df['long'].max()]}
-    
     census_df = pd.DataFrame([])
     
     if data.city == 'nyc':
@@ -479,51 +464,56 @@ def make_station_df(data, holidays=True, return_land_use=False,
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
         
-        # land_use.to_crs(epsg=3857, inplace=True)
-        # land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
-        #                        df['northing'].min()-1000:df['northing'].max()+1000]
-        
-        # land_use['geometry'] = land_use['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
-        # land_use.to_crs(epsg=4326, inplace=True)
-        
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
         
         df['zone_type'] = df['ZONEDIST'].apply(lambda x: zone_code_transform(data.city, x))
         
+        census_df = pd.read_csv('./data/other_data/nyc_census_data.csv', 
+                                usecols=['P1_001N', 'GEO_ID'],
+                                skiprows=[1])
         
-        census_df = pd.read_excel('./data/other_data/nyc_census_data.xlsx', sheet_name=1, skiprows=[0,1,2])
-        census_df = census_df[['BCT2020', 'Pop_20']].dropna()
+        census_df['GEO_ID'] = census_df['GEO_ID'].apply(lambda x: x[9:]) # remove state code from GEO_ID
         
-        CTracts_df = gpd.read_file('./data/other_data/nyc_CT_data.json', bbox=bbox)
-        CTracts_df = CTracts_df[['BoroCT2020', 'geometry']]
-        CTracts_df.rename(columns={'BoroCT2020' : 'BCT2020'}, inplace=True)
-        CTracts_df['BCT2020'] = CTracts_df['BCT2020'].apply(int)
         
-        census_df = gpd.GeoDataFrame(census_df.merge(CTracts_df, on='BCT2020'),
-                             geometry='geometry', crs='EPSG:4326')
+        bbox = gpd.GeoDataFrame([land_use_extent], geometry=0).set_crs(epsg=3857)
+        
+        CTracts_df = gpd.read_file('./data/other_data/nyc_CT_data.shp', bbox=bbox)
+        CTracts_df.set_crs(epsg=4326, allow_override=True, inplace=True)
+        CTracts_df = CTracts_df[['GEOID', 'geometry']]
+        CTracts_df = CTracts_df.rename({'GEOID' : 'GEO_ID'}, axis=1)
+        
+        census_df = gpd.GeoDataFrame(census_df.merge(CTracts_df, on='GEO_ID'),
+                                     geometry='geometry', crs='EPSG:4326')
         
         census_df.to_crs(epsg=3857, inplace=True)
         census_df['census_area'] = census_df['geometry'].area/1000000
         census_df.to_crs(epsg=4326, inplace=True)
-        census_df['pop_density'] = census_df['Pop_20'] / census_df['census_area']
+        census_df['pop_density'] = census_df['P1_001N'] / census_df['census_area']
         
         census_df.rename(columns=dataframe_key.get_census_key(data.city), inplace=True)
         
+        # census_df = pd.read_excel('./data/other_data/nyc_census_data.xlsx', sheet_name=1, skiprows=[0,1,2])
+        # census_df = census_df[['BCT2020', 'Pop_20']].dropna()
         
-        # CTracts_df.rename({'Shape__Area':'census_area'}, axis=1, inplace=True)
+        # CTracts_df = gpd.read_file('./data/other_data/nyc_CT_data.json', bbox=bbox)
+        # CTracts_df = CTracts_df[['BoroCT2020', 'geometry']]
+        # CTracts_df.rename(columns={'BoroCT2020' : 'BCT2020'}, inplace=True)
+        # CTracts_df['BCT2020'] = CTracts_df['BCT2020'].apply(int)
+        
+        # census_df = gpd.GeoDataFrame(census_df.merge(CTracts_df, on='BCT2020'),
+        #                      geometry='geometry', crs='EPSG:4326')
+        
+        # census_df.to_crs(epsg=3857, inplace=True)
+        # census_df['census_area'] = census_df['geometry'].area/1000000
+        # census_df.to_crs(epsg=4326, inplace=True)
+        # census_df['pop_density'] = census_df['Pop_20'] / census_df['census_area']
+        
+        # census_df.rename(columns=dataframe_key.get_census_key(data.city), inplace=True)
         
         df = gpd.tools.sjoin(df, census_df, op='within', how='left')
-        # df['BoroCT2020'] = df['BoroCT2020'].apply(int)
-        # df['Shape__Area'] = df['Shape__Area']/10.764 # convert to m^2
         df.drop('index_right', axis=1, inplace=True)
-        
-        
-        # pop_map = dict(zip(census_df['BCT2020'], census_df['Pop_20']))
-        
-        # df['population'] = df['BoroCT2020'].map(pop_map)
-        # df['pop_density'] = df['population'] / df['Shape__Area']
         
         subways_df = gpd.read_file('./data/other_data/nyc_subways_data.geojson')
         
@@ -581,52 +571,43 @@ def make_station_df(data, holidays=True, return_land_use=False,
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
     
-        # land_use.to_crs(epsg=3857, inplace=True)
-        # land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
-        #                        df['northing'].min()-1000:df['northing'].max()+1000]
-        
-        # land_use['geometry'] = land_use['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
-        # land_use.to_crs(epsg=4326, inplace=True)
-    
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
     
         df['zone_type'] = df['zone_class'].apply(lambda x: zone_code_transform(data.city, x))
         
+        # CBlocks_df = gpd.read_file('./data/other_data/chic_CB_data.geojson')
+        # CBlocks_df = CBlocks_df[['geoid10', 'geometry']]
+        # CBlocks_df.rename(columns={'geoid10' : 'CENSUS BLOCK FULL'}, inplace=True)
+        # CBlocks_df['CENSUS BLOCK FULL'] = CBlocks_df['CENSUS BLOCK FULL'].apply(int)
+        
         census_df = pd.read_csv('./data/other_data/chic_census_data.csv', 
-                                usecols=['CENSUS BLOCK FULL', 
-                                         'TOTAL POPULATION'])
+                                usecols=['P1_001N', 'GEO_ID'],
+                                skiprows=[1])
         
-        CBlocks_df = gpd.read_file('./data/other_data/chic_CB_data.geojson')
-        CBlocks_df = CBlocks_df[['geoid10', 'geometry']]
-        CBlocks_df.rename(columns={'geoid10' : 'CENSUS BLOCK FULL'}, inplace=True)
-        CBlocks_df['CENSUS BLOCK FULL'] = CBlocks_df['CENSUS BLOCK FULL'].apply(int)
+        census_df['GEO_ID'] = census_df['GEO_ID'].apply(lambda x: x[9:]) # remove state code from GEO_ID
         
-        census_df = gpd.GeoDataFrame(census_df.merge(CBlocks_df, on='CENSUS BLOCK FULL'),
+        
+        bbox = gpd.GeoDataFrame([land_use_extent], geometry=0).set_crs(epsg=3857)
+        
+        CTracts_df = gpd.read_file('./data/other_data/chic_CT_data.shp', bbox=bbox)
+        CTracts_df.set_crs(epsg=4326, allow_override=True, inplace=True)
+        CTracts_df = CTracts_df[['GEOID', 'geometry']]
+        CTracts_df = CTracts_df.rename({'GEOID' : 'GEO_ID'}, axis=1)
+        
+        census_df = gpd.GeoDataFrame(census_df.merge(CTracts_df, on='GEO_ID'),
                                      geometry='geometry', crs='EPSG:4326')
         
         census_df.to_crs(epsg=3857, inplace=True)
         census_df['census_area'] = census_df['geometry'].area/1000000
         census_df.to_crs(epsg=4326, inplace=True)
-        census_df['pop_density'] = census_df['TOTAL POPULATION'] / census_df['census_area']
+        census_df['pop_density'] = census_df['P1_001N'] / census_df['census_area']
         
         census_df.rename(columns=dataframe_key.get_census_key(data.city), inplace=True)
         
-        
-        # CBlocks_df_cart = CBlocks_df.copy()
-        # CBlocks_df_cart = CBlocks_df_cart.to_crs({'proj': 'cea'})
-        # CBlocks_df['CB_area'] = CBlocks_df_cart['geometry'].area
-        
         df = gpd.tools.sjoin(df, census_df, op='within', how='left')
-        # df['geoid10'] = df['geoid10'].apply(lambda x: int(x) if pd.notnull(x) else x)
         df.drop('index_right', axis=1, inplace=True)
-        
-        
-        # pop_map = dict(zip(census_df['CENSUS BLOCK FULL'], census_df['TOTAL POPULATION']))
-        
-        # df['population'] = df['geoid10'].map(pop_map)
-        # df['pop_density'] = df['population'] / df['CB_area']
         
         gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'rw'
         subways_df = gpd.read_file('./data/other_data/chic_subways_data.kml', driver='KML')
@@ -660,13 +641,6 @@ def make_station_df(data, holidays=True, return_land_use=False,
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_code'].apply(lambda x: zone_code_transform(data.city, x))
         
-        # land_use.to_crs(epsg=3857, inplace=True)
-        # land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
-        #                        df['northing'].min()-1000:df['northing'].max()+1000]
-        
-        # land_use['geometry'] = land_use['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
-        # land_use.to_crs(epsg=4326, inplace=True)
-        
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
@@ -674,9 +648,16 @@ def make_station_df(data, holidays=True, return_land_use=False,
         df['zone_type'] = df['zone_code'].apply(lambda x: zone_code_transform(data.city, x))
         
         
-        census_df = pd.read_csv('./data/other_data/washDC_census_data.csv', 
-                                usecols=['B01001_001E', 'GEO_ID'],
+        DC_census_df = pd.read_csv('./data/other_data/washDC_census_data.csv', 
+                                usecols=['P1_001N', 'GEO_ID'],
                                 skiprows=[1])
+        
+        VA_census_df = pd.read_csv('./data/other_data/VA_census_data.csv', 
+                                usecols=['P1_001N', 'GEO_ID'],
+                                skiprows=[1])
+        
+        census_df = pd.concat([DC_census_df, VA_census_df])
+        
         
         census_df['GEO_ID'] = census_df['GEO_ID'].apply(lambda x: x[9:]) # remove state code from GEO_ID
         
@@ -695,7 +676,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
         census_df.to_crs(epsg=3857, inplace=True)
         census_df['census_area'] = census_df['geometry'].area/1000000
         census_df.to_crs(epsg=4326, inplace=True)
-        census_df['pop_density'] = census_df['B01001_001E'] / census_df['census_area']
+        census_df['pop_density'] = census_df['P1_001N'] / census_df['census_area']
         census_df.rename(columns=dataframe_key.get_census_key(data.city), inplace=True)
         
         
@@ -719,35 +700,34 @@ def make_station_df(data, holidays=True, return_land_use=False,
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
         
-        # land_use.to_crs(epsg=3857, inplace=True)
-        # land_use = land_use.cx[df['easting'].min()-1000:df['easting'].max()+1000,
-        #                        df['northing'].min()-1000:df['northing'].max()+1000]
-        
-        # land_use['geometry'] = land_use['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
-        # land_use.to_crs(epsg=4326, inplace=True)
-        
         df = gpd.GeoDataFrame(df, geometry='coords', crs=zoning_df.crs)
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
     
         df['zone_type'] = df['ZONE_CODE'].apply(lambda x: zone_code_transform(data.city, x))
-    
-        census_df = pd.read_excel('./data/other_data/minn_census_data.xlsx')
-        census_df = census_df[['GEOID2', 'POPTOTAL']]
-    
-        CTracts_df = gpd.read_file('./data/other_data/minn_CT_data.shp', bbox=bbox)
-        CTracts_df = CTracts_df[['GEOID20', 'geometry']]
-        CTracts_df.rename(columns={'GEOID20' : 'GEOID2'}, inplace=True)
-        CTracts_df.to_crs(epsg=4326, inplace=True)
-        CTracts_df['GEOID2'] = CTracts_df['GEOID2'].apply(int)
         
-        census_df = gpd.GeoDataFrame(census_df.merge(CTracts_df, on='GEOID2'),
+        census_df = pd.read_csv('./data/other_data/minn_census_data.csv', 
+                                usecols=['P1_001N', 'GEO_ID'],
+                                skiprows=[1])
+        
+        census_df['GEO_ID'] = census_df['GEO_ID'].apply(lambda x: x[9:]) # remove state code from GEO_ID
+        
+        
+        bbox = gpd.GeoDataFrame([land_use_extent], geometry=0).set_crs(epsg=3857)
+        
+        CTracts_df = gpd.read_file('./data/other_data/minn_CT_data.shp', bbox=bbox)
+        CTracts_df.set_crs(epsg=4326, allow_override=True, inplace=True)
+        CTracts_df = CTracts_df[['GEOID', 'geometry']]
+        CTracts_df = CTracts_df.rename({'GEOID' : 'GEO_ID'}, axis=1)
+        
+        census_df = gpd.GeoDataFrame(census_df.merge(CTracts_df, on='GEO_ID'),
                                      geometry='geometry', crs='EPSG:4326')
         
         census_df.to_crs(epsg=3857, inplace=True)
         census_df['census_area'] = census_df['geometry'].area/1000000
         census_df.to_crs(epsg=4326, inplace=True)
-        census_df['pop_density'] = census_df['POPTOTAL'] / census_df['census_area']
+        census_df['pop_density'] = census_df['P1_001N'] / census_df['census_area']
+        
         census_df.rename(columns=dataframe_key.get_census_key(data.city), inplace=True)
         
         df = gpd.tools.sjoin(df, census_df, op='within', how='left')
@@ -842,19 +822,19 @@ def make_station_df(data, holidays=True, return_land_use=False,
         census_df['GEO_ID'] = census_df['GEO_ID'].apply(lambda x: x[9:]) # remove state code from GEO_ID
         
         
-        # bbox = gpd.GeoDataFrame([land_use_extent], geometry=0).set_crs(epsg=3857).to_crs(epsg=4326)
+        bbox = gpd.GeoDataFrame([land_use_extent], geometry=0).set_crs(epsg=3857)
         
-        CTracts_df = gpd.read_file('./data/other_data/boston_CT_data.shp')
+        CTracts_df = gpd.read_file('./data/other_data/boston_CT_data.shp', bbox=bbox)
         CTracts_df.set_crs(epsg=4326, allow_override=True, inplace=True)
         CTracts_df = CTracts_df[['GEOID', 'geometry']]
         CTracts_df = CTracts_df.rename({'GEOID' : 'GEO_ID'}, axis=1)
         
-        CTracts_df.to_crs(epsg=3857, inplace=True)
-        CTracts_df = CTracts_df.cx[df['easting'].min()-1000:df['easting'].max()+1000,
-                                   df['northing'].min()-1000:df['northing'].max()+1000]
+        # CTracts_df.to_crs(epsg=3857, inplace=True)
+        # CTracts_df = CTracts_df.cx[df['easting'].min()-1000:df['easting'].max()+1000,
+        #                            df['northing'].min()-1000:df['northing'].max()+1000]
         
-        CTracts_df['geometry'] = CTracts_df['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
-        CTracts_df.to_crs(epsg=4326, inplace=True)
+        # CTracts_df['geometry'] = CTracts_df['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
+        # CTracts_df.to_crs(epsg=4326, inplace=True)
         
         
         census_df = gpd.GeoDataFrame(census_df.merge(CTracts_df, on='GEO_ID'),
@@ -1480,7 +1460,7 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('boston', 2019, 9)
+    data = bs.Data('washDC', 2019, 9)
 
     pre = time.time()
     station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
