@@ -46,7 +46,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'helsinki'
+CITY = 'nyc'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -127,7 +127,7 @@ class BikeDash(param.Parameterized):
     trip_type = param.Selector(objects=['departures', 'arrivals', 'all'])
     day_type = param.Selector(objects=['business_days', 'weekend', 'day'])
     clustering = param.Selector(objects=['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture', 'none', 'zoning'], doc="Which clustering to perform")
-    k = param.Integer(default=7, bounds=(1, 10))
+    k = param.Integer(default=3, bounds=(1, 10))
     cnorm = param.Selector(objects=['linear', 'log'])
     day = param.Integer(default=1, bounds=(1, 31))
     dist_func = param.Selector(objects=['norm'])

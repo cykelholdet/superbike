@@ -6,6 +6,8 @@ Created on Wed Jan 12 08:52:14 2022
 @author: dbvd
 """
 
+import numpy as np
+import pandas as pd
 
 import bikeshare as bs
 import interactive_plot_utils as ipu
@@ -19,6 +21,9 @@ day_type = 'business_days'
 min_trips = 100
 
 data = bs.Data(CITY, YEAR, MONTH)
+#%%
+import interactive_plot_utils as ipu
+
 station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
 traffic_matrices = data.pickle_daily_traffic(holidays=False)
 
@@ -40,10 +45,10 @@ lr_results, X, y = ipu.stations_logistic_regression(station_df, zone_columns, ot
 print(lr_results.summary())
 
 #%% Plot the centers
-traffic_matrix = ipu.mask_traffic_matrix(traffic_matrices, station_df, day_type, min_trips, holidays=False)
+traffic_matrix, mask, _ = ipu.mask_traffic_matrix(traffic_matrices, station_df, day_type, min_trips, holidays=False, return_mask=True)
 
 for j in range(k):
-    mean_vector = np.mean(traffic_matrix[np.where(labels == j)], axis=0)
+    mean_vector = np.mean(traffic_matrix[np.where(labels[mask] == j)], axis=0)
     
     cc_df = pd.DataFrame([mean_vector[:24], mean_vector[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
     
