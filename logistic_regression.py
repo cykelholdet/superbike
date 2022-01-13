@@ -140,7 +140,7 @@ y_test = stat_df_test['label']
 lr = LogisticRegression(max_iter=10000).fit(X_train, y_train)
 coefs = pd.DataFrame(lr.coef_, columns=X_train.columns)
 
-y_pred = lr.predict(X_test[['commercial', 'manufacturing', 'UNKNOWN', 'recreational', 'residential', 'nearest_subway_dist', 'pop_density']])
+y_pred = lr.predict(X_test[['commercial', 'industrial', 'UNKNOWN', 'recreational', 'residential', 'nearest_subway_dist', 'pop_density']])
 
 accuracy = np.sum(y_pred == y_test) / y_test.shape[0]
 

@@ -46,7 +46,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'nyc'
+CITY = 'helsinki'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -127,7 +127,7 @@ class BikeDash(param.Parameterized):
     trip_type = param.Selector(objects=['departures', 'arrivals', 'all'])
     day_type = param.Selector(objects=['business_days', 'weekend', 'day'])
     clustering = param.Selector(objects=['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture', 'none', 'zoning'], doc="Which clustering to perform")
-    k = param.Integer(default=3, bounds=(1, 10))
+    k = param.Integer(default=7, bounds=(1, 10))
     cnorm = param.Selector(objects=['linear', 'log'])
     day = param.Integer(default=1, bounds=(1, 31))
     dist_func = param.Selector(objects=['norm'])
@@ -199,38 +199,6 @@ class BikeDash(param.Parameterized):
         
         # print(self.station_df.label.iloc[0])
         
-        if self.day_type == 'business_days':
-            mean = np.mean(self.traffic_matrices[0][self.station_df.index], axis=0)
-        elif self.day_type == 'weekend':
-            mean = np.mean(self.traffic_matrices[1][self.station_df.index], axis=0)
-        
-        mean = mean/np.max(mean)
-        
-        dist1_list = []
-        for center in self.clusters.cluster_centers_:
-            dist_from_mean = np.linalg.norm(center/np.max(center)-mean)
-            dist1_list.append(dist_from_mean)
-        
-        avg_candidates = np.argsort(dist1_list)[:2]
-        
-        dist2_list=[]
-        for candidate_label in avg_candidates:
-            center = self.clusters.cluster_centers_[candidate_label]
-            dist_from_zero = np.linalg.norm(center[:24]-center[24:])
-            dist2_list.append(dist_from_zero)
-        
-        avg_label = avg_candidates[np.argmin(dist2_list)]
-        
-        new_labels = [avg_label]
-        for i in range(1,self.k):
-            if i == avg_label:
-                new_labels.append(0)
-            else:
-                new_labels.append(i)
-        
-        self.labels_dict = dict(zip(range(len(new_labels)), new_labels))
-        self.station_df = self.station_df.replace({'label' : self.labels_dict})
-        self.labels = np.array(self.station_df['label'])
         
         # print(self.station_df.label.iloc[0])
         
@@ -310,7 +278,7 @@ class BikeDash(param.Parameterized):
                     
                     # print(self.labels[0])
                     
-                    ccs = self.clusters.cluster_centers_[self.labels_dict[j]]
+                    ccs = self.clusters.cluster_centers_[j]
                     cc_plot = plot_center(self.labels, j, ccs, title_pre="Centroid")
                     cc_plot_list.append(cc_plot)
                 return pn.Column(*cc_plot_list)
@@ -320,8 +288,8 @@ class BikeDash(param.Parameterized):
                 i = index[0]
                 if ~np.isnan(self.station_df['label'][i]):
                     j = int(self.station_df['label'][i])
-                    ccs = self.clusters.cluster_centers_[self.labels_dict[j]]
-                    cc_plot = plot_center(self.station_df['label'], self.labels_dict[j], ccs, title_pre="Centroid")
+                    ccs = self.clusters.cluster_centers_[j]
+                    cc_plot = plot_center(self.station_df['label'], j, ccs, title_pre="Centroid")
                     return pn.Column(cc_plot, f"Station index {i} is in cluster {j}")
                 else:
                     return f"Station index {i} is not in a cluster due to min_trips."
@@ -365,7 +333,7 @@ class BikeDash(param.Parameterized):
                         ('pop_density', self.pop_density),
                         ('nearest_subway_dist', self.nearest_subway_dist)]
         
-        other_columns = [param[0] for param in other_params if param[1]]
+        other_columns = [param[0] for param in other_params if param[1] and (param[0] in self.station_df.columns)]
         
         return ipu.stations_logistic_regression(self.station_df, zone_columns, other_columns,
                                                 use_points_or_percents=self.use_points_or_percents,
@@ -710,9 +678,13 @@ title_row[0].width=400
 panel_column = pn.Column(title_row, business_row)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
-# bokeh_server = panel_column.show(port=12345)
+"""
+bokeh_server = panel_column.show(port=12345)
+"""
 
 # bike_params.make_service_areas()
 
 #%%
-# bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
+"""
+bokeh_server.stop() # Run with: panel serve interactive_plot.py --autoreload
+"""
