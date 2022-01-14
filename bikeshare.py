@@ -165,7 +165,7 @@ def days_index(df):
     return dict(zip(range(1, max(days)+1), d_i))
 
 
-def pickle_data(df, city, year, month):
+def pickle_day_index(df, city, year, month):
     """
     Generate pickle of days' starting indices.
 
@@ -497,6 +497,8 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                         'No trip data found. All relevant files can be found at https://www.lyft.com/bikes/bay-wheels/system-data') from exc
 
             df = df.rename(columns=dataframe_key.get_key(city))
+            df['bike_share_for_all_trip'].fillna('N', inplace=True)
+            df['rental_access_method'].fillna('N', inplace=True)
             df.dropna(inplace=True)
 
             df = df.iloc[np.where(df['start_stat_lat'] > 37.593220)]
@@ -1055,11 +1057,11 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                 days = pickle.load(file)
         except FileNotFoundError:
             print("Pickle does not exist. Pickling day indices...")
-            days = pickle_data(df, city, year, month)
+            days = pickle_day_index(df, city, year, month)
             print("Pickling done.")
         # days = days_index(df) # adds about 0.2 to 1 second to not pickle
     else:
-        days = pickle_data(df, city, year, month)
+        days = pickle_day_index(df, city, year, month)
         print("Pickling day indices done.")
         
     print(f"Data loaded: {city}{year:d}{month:02d}")
@@ -1325,6 +1327,8 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
                 print(".", end="")
 
             df = df.rename(columns=dataframe_key.get_key(city))
+            df['bike_share_for_all_trip'].fillna('N', inplace=True)
+            df['rental_access_method'].fillna('N', inplace=True)
             df.dropna(inplace=True)
 
             df = df.iloc[np.where(df['start_stat_lat'] > 37.593220)]

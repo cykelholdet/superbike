@@ -45,21 +45,27 @@ def lr_coefficients(data, min_trips=100, clustering='k_means', k=3, random_state
 
     single_index = lr_results.params[0].index
 
-    multi = np.concatenate([lr_results.params[i] for i in range(0, k-1)])
+    parameters = np.concatenate([lr_results.params[i] for i in range(0, k-1)])
+    stdev = np.concatenate([lr_results.bse[i] for i in range(0, k-1)])
+    pvalues = np.concatenate([lr_results.pvalues[i] for i in range(0, k-1)])
+    
     index = np.concatenate([lr_results.params.index for i in range(0, k-1)])
 
-    multiindex = [
-        np.concatenate([np.ones(len(single_index))*i for i in range(1, k)]), index
-        ]
+    multiindex = pd.MultiIndex.from_product([range(1,k), single_index], names=['cluster', 'coef_name'])
 
-    coefs =  pd.Series(multi, index=multiindex)
-    return coefs
+    pars = pd.Series(parameters, index=multiindex, name='coef')
+    sts = pd.Series(stdev, index=multiindex, name='stdev')
+    pvs = pd.Series(pvalues, index=multiindex, name='pvalues')
+    
+    coefs = pd.DataFrame(pars).join((sts, pvs))
+    return pd.concat({bs.name_dict[data.city]: coefs}, names=['city'], axis=1)
 
 
 #%%
 if __name__ == '__main__':
     
     YEAR = 2019
+    MONTH = 9
     
     k = 3
     day_type = 'business_days'
@@ -85,11 +91,14 @@ if __name__ == '__main__':
         
         table = pd.DataFrame([])
         for city in city_list:
-            data = bs.Data(city, YEAR, None)
+            data = bs.Data(city, YEAR, MONTH)
             
-            table[city] = lr_coefficients(
+            table = pd.concat((table, lr_coefficients(
                 data, min_trips, 'k_means', k, random_state=42,
                 day_type='business_days', service_radius=500,
                 use_points_or_percents='points', make_points_by='station_location')
+            ), axis=1)
+        
+        print(table.to_latex(multicolumn_format='c', multirow=True, formatters = {'coef': 'hej', 'stdev': 'dav', 'pvalues': 'yo'}))
             
-            
+formatters = {'coef': 'hej', 'stdev': 'dav', 'pvalues': 'yo'}
