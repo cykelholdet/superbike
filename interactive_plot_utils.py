@@ -881,7 +881,9 @@ def make_station_df(data, holidays=True, return_land_use=False,
         df['population'] = 0
         df['pop_density'] = 0
         df['zone_type'] = 0
-        land_use = pd.DataFrame([])
+        land_use = gpd.GeoDataFrame([])
+        land_use.set_geometry([], inplace=True)
+        land_use.set_crs(epsg=4326, inplace=True)
         land_use['zone_type'] = 'UNKNOWN'
     
     print(".")
