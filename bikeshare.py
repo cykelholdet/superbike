@@ -497,8 +497,10 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                         'No trip data found. All relevant files can be found at https://www.lyft.com/bikes/bay-wheels/system-data') from exc
 
             df = df.rename(columns=dataframe_key.get_key(city))
-            df['bike_share_for_all_trip'].fillna('N', inplace=True)
-            df['rental_access_method'].fillna('N', inplace=True)
+            if 'bike_share_for_all_trip' in df.columns:
+                df['bike_share_for_all_trip'].fillna('N', inplace=True)
+            if 'rental_access_method' in df.columns:
+                df['rental_access_method'].fillna('N', inplace=True)
             df.dropna(inplace=True)
 
             df = df.iloc[np.where(df['start_stat_lat'] > 37.593220)]
@@ -1327,8 +1329,10 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
                 print(".", end="")
 
             df = df.rename(columns=dataframe_key.get_key(city))
-            df['bike_share_for_all_trip'].fillna('N', inplace=True)
-            df['rental_access_method'].fillna('N', inplace=True)
+            if 'bike_share_for_all_trip' in df.columns:
+                df['bike_share_for_all_trip'].fillna('N', inplace=True)
+            if 'rental_access_method' in df.columns:
+                df['rental_access_method'].fillna('N', inplace=True)
             df.dropna(inplace=True)
 
             df = df.iloc[np.where(df['start_stat_lat'] > 37.593220)]
