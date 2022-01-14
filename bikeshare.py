@@ -983,7 +983,10 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df.replace(to_replace='捷運大坪林站(3號出口)',
                        value='捷運大坪林站(1號出口)', inplace=True)
             df.replace(to_replace='新明路321巷口', value='新明路262巷口', inplace=True)
-
+            
+            if (df.loc[0] == ['rent_time', 'rent_station', 'return_time', 'return_station', 'rent']).all():
+                df.drop(0, inplace=True)
+            
             df['start_dt'] = pd.to_datetime(
                 df['start_t'], format='%Y-%m-%d %H:%M:%S')
             df['end_dt'] = pd.to_datetime(
