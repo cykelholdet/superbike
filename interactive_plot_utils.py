@@ -1462,7 +1462,7 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('taipei', 2019, 1)
+    data = bs.Data('trondheim', 2019, 1)
 
     pre = time.time()
     station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)

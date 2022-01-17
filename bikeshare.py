@@ -657,6 +657,22 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
             df.drop(columns=['start_t', 'end_t'], inplace=True)
+        
+        elif city == "trondheim":
+
+            try:
+                df = pd.read_csv(f'./data/{year:d}{month:02d}-trondheim.csv')
+            except FileNotFoundError as exc:
+                raise FileNotFoundError(
+                    'No trip data found. All relevant files can be found at https://bergenbysykkel.no/en/open-data/historical') from exc
+
+            df = df.rename(columns=dataframe_key.get_key(city))
+            df.dropna(inplace=True)
+            df.reset_index(inplace=True, drop=True)
+
+            df['start_dt'] = pd.to_datetime(df['start_t'])
+            df['end_dt'] = pd.to_datetime(df['end_t'])
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
 
         elif city == "helsinki":
 
