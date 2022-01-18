@@ -184,7 +184,7 @@ class BikeDash(param.Parameterized):
         self.data = bs.Data(self.city, YEAR, self.month)
         self.station_df, self.land_use, self.census_df = ipu.make_station_df(self.data, holidays=False, return_land_use=True, return_census=True)
         self.traffic_matrices = self.data.pickle_daily_traffic(holidays=False)
-        print(len(self.station_df))
+        # print(len(self.station_df))
         
         self.plot_clusters_full()
         self.make_service_areas()
