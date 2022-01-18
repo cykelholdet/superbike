@@ -202,3 +202,20 @@ with open(f'./stat_results/{data.city}{data.year}{data.month:02d}_MNLogit_result
     print(LR_results.summary(), file = file)
 
 
+#%%
+import pandas as pd
+import bikeshare as bs
+import interactive_plot_utils as ipu
+YEAR = 2019
+
+month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
+      7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
+
+station_df = pd.DataFrame([])
+
+for month in range(1, 13):
+
+    data = bs.Data('nyc', YEAR, month)
+    station_df_m, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
+    station_df_m['month'] = month
+    station_df = pd.concat((station_df, station_df_m))

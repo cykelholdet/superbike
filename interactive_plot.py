@@ -46,7 +46,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'washDC'
+CITY = 'boston'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -230,7 +230,8 @@ class BikeDash(param.Parameterized):
                 traffic_matrix = ipu.mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
                 cc_plot_list = list()
                 for j in range(self.k):
-                    mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
+                    #mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
+                    mean_vector = self.clusters[j]
                     cc_plot = plot_center(self.labels, j, mean_vector)
                     cc_plot_list.append(cc_plot)
                 return pn.Column(*cc_plot_list)
@@ -252,7 +253,7 @@ class BikeDash(param.Parameterized):
                 cc_plot_list = list()
                 for j in range(self.k):
                     ccs = self.clusters.means_[j]
-                    cc_plot = plot_center(self.labels.argmax(axis=1), j, ccs)
+                    cc_plot = plot_center(self.labels, j, ccs)
                     cc_plot_list.append(cc_plot)
                 return pn.Column(*cc_plot_list)
             if not index:
