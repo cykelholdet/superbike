@@ -1267,7 +1267,7 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
     return station_df
 
 
-def stations_logistic_regression(station_df, zone_columns, other_columns, use_points_or_percents='points', make_points_by='station location', const=False):
+def stations_logistic_regression(station_df, zone_columns, other_columns, use_points_or_percents='points', make_points_by='station location', const=False, test_model=False, test_ratio=0.2, test_seed=None):
     df = station_df[~station_df['label'].isna()]
     
     if len(df) == 0:
@@ -1330,7 +1330,42 @@ def stations_logistic_regression(station_df, zone_columns, other_columns, use_po
                    'pop_density' : 'pop density',
                    'nearest_subway_dist' : 'nearest subway dist'}
     
-
+    X_scaled = X_scaled.rename(param_names)
+    
+    if test_model:
+        
+        if test_seed:
+            if isinstance(test_seed, int):
+                np.random.seed(test_seed)
+            else:
+                raise ValueError("test_seed must be an integer")
+        
+        mask = np.random.rand(len(X_scaled)) < test_ratio
+        
+        X_test = X_scaled[mask]
+        y_test = y[mask]
+        
+        X_train = X_scaled[~mask]
+        y_train = y[~mask]
+        
+        LR_model = MNLogit(y_train, X_train)
+        # LR_training_results = LR_model.fit_regularized(maxiter=10000)
+            
+        try:
+            LR_training_results = LR_model.fit_regularized(maxiter=10000)
+            #print(LR_model.loglikeobs(LR_results.params.to_numpy()))
+        except np.linalg.LinAlgError:
+            print("Singular matrix")
+            LR_training_results = None
+            return None
+        
+        predictions = LR_training_results.predict(X_test)
+        predictions['label'] = predictions.idxmax(axis=1)
+        
+        success_rate = (y_test == predictions['label']).sum()/len(y_test)
+        
+        print(f"\nTest completed.\nPercentage of data used for testing: {len(y_test)/len(y)*100:.2f}%\nTesting success rate:                {success_rate*100:.2f}%\n")
+        
     
     LR_model = MNLogit(y, X_scaled.rename(param_names))
     
@@ -1341,7 +1376,10 @@ def stations_logistic_regression(station_df, zone_columns, other_columns, use_po
         print("Singular matrix")
         LR_results = None
     
-    return LR_results, X, y
+    if test_model:
+        return LR_results, X, y, predictions
+    else:
+        return LR_results, X, y
 
 
 proj_wgs84 = pyproj.Proj('+proj=longlat +datum=WGS84')
@@ -1462,12 +1500,11 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('trondheim', 2019, 1)
+    data = bs.Data('nyc', 2019, 1)
 
     pre = time.time()
     station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
     print(f'station_df took {time.time() - pre:.2f} seconds')
-
     
     # for i, station in station_df.iterrows():
     #     a = geodesic_point_buffer(station['lat'], station['long'], 1000)
