@@ -27,6 +27,7 @@ from geopy.distance import great_circle
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.mixture import GaussianMixture
 from sklearn_extra.cluster import KMedoids
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from statsmodels.discrete.discrete_model import MNLogit
 from scipy.spatial import Voronoi
 
@@ -1334,6 +1335,10 @@ def stations_logistic_regression(station_df, zone_columns, other_columns, use_po
     
     if test_model:
         
+        if test_ratio < 0 or test_ratio > 1:
+            raise ValueError("test_ratio must be between 0 and 1")
+        
+        
         if test_seed:
             if isinstance(test_seed, int):
                 np.random.seed(test_seed)
@@ -1352,7 +1357,7 @@ def stations_logistic_regression(station_df, zone_columns, other_columns, use_po
         # LR_training_results = LR_model.fit_regularized(maxiter=10000)
             
         try:
-            LR_training_results = LR_model.fit_regularized(maxiter=10000)
+            LR_training_results = LR_model.fit_regularized(maxiter=10000, disp=0)
             #print(LR_model.loglikeobs(LR_results.params.to_numpy()))
         except np.linalg.LinAlgError:
             print("Singular matrix")
@@ -1380,6 +1385,33 @@ def stations_logistic_regression(station_df, zone_columns, other_columns, use_po
         return LR_results, X, y, predictions
     else:
         return LR_results, X, y
+
+def logistic_regression_test(X_train, y_train, X_test, y_test, plot_cm=True, normalise_cm=None):
+    
+    if (X_train_set := set(X_train.columns.to_list())) != (X_test_set := set(X_test.columns.to_list())):
+        print(f'WARNING: One or more columns are not shared between X_train and X_test and will be omitted:\n{X_train_set.symmetric_difference(X_test_set)}\n')
+        
+        columns_shared = list(X_train_set.intersection(X_test_set))
+        
+        X_train = X_train[columns_shared]
+        X_test = X_test[columns_shared]
+    
+    LR_train_res = MNLogit(y_train, X_train).fit_regularized(maxiter=10000, disp=0)
+    predictions = LR_train_res.predict(X_test)
+    predictions['label'] = predictions.idxmax(axis=1)
+    
+    success_rate = (y_test == predictions['label']).sum(0)/len(y_test)
+    cm = confusion_matrix(y_test, predictions['label'], normalize=normalise_cm)
+    
+    print(f"\nTest completed. Success rate: {success_rate*100:.2f}%\n")
+    
+    if plot_cm:
+        
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+        disp.plot()
+
+    return success_rate, cm
+
 
 
 proj_wgs84 = pyproj.Proj('+proj=longlat +datum=WGS84')
