@@ -13,7 +13,7 @@ import bikeshare as bs
 import interactive_plot_utils as ipu
 
 
-def lr_coefficients(data, name, min_trips=100, clustering='k_means', k=3, random_state=42, day_type='business_days', service_radius=500, use_points_or_percents='points', make_points_by='station_location', add_const=False, use_road=False, remove_columns=[]):
+def lr_coefficients(data, name, min_trips=100, clustering='k_means', k=3, random_state=42, day_type='business_days', service_radius=500, use_points_or_percents='points', make_points_by='station_location', add_const=False, use_road=False, remove_columns=[], title='City'):
     
     station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
     traffic_matrices = data.pickle_daily_traffic(holidays=False)
@@ -70,7 +70,7 @@ def lr_coefficients(data, name, min_trips=100, clustering='k_means', k=3, random
     pvs = pd.Series(pvalues, index=multiindex, name='pvalues')
     
     coefs = pd.DataFrame(pars).join((sts, pvs))
-    return pd.concat({name: coefs}, names=['City'], axis=1)
+    return pd.concat({name: coefs}, names=[title], axis=1)
 
 
 def formatter(x):
@@ -132,8 +132,18 @@ if __name__ == '__main__':
         'pop_density': 'Pop. Density',
         }
     
+    omit_columns = {
+        'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'chic': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'nyc': ['percent_mixed', 'n_trips'],
+        'washDC': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips'],
+        'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips'],
+        'madrid': ['n_trips'],
+        'oslo': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips'],
+        }
 
-    
+    CITY = 'oslo'
     YEAR = 2019
     MONTH = None
     
@@ -148,21 +158,23 @@ if __name__ == '__main__':
     use_road = False
     
     table_type = 'month'
-    
+# =============================================================================
+#   Table types
+# =============================================================================
     if table_type == 'month':
         month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
               7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
         
         table = pd.DataFrame([])
-        for month in range(1,13):
-            data = bs.Data('chic', YEAR, month)
+        for month in bs.get_valid_months(CITY, 2019):
+            data = bs.Data(CITY, YEAR, month)
             
             table = pd.concat((table, lr_coefficients(
                 data, month_dict[data.month], min_trips, clustering, k,
                 random_state=random_state,
                 day_type=day_type, service_radius=service_radius,
                 use_points_or_percents=use_points_or_percents, 
-                make_points_by=make_points_by, use_road=use_road, add_const=True, remove_columns=['percent_mixed']
+                make_points_by=make_points_by, use_road=use_road, add_const=True, remove_columns=omit_columns[CITY], title=f"{bs.name_dict[CITY]} {YEAR}"
                 )
             ), axis=1)
         
@@ -186,7 +198,7 @@ if __name__ == '__main__':
             }
         
         table = pd.DataFrame([])
-        data = bs.Data('nyc', YEAR, MONTH)
+        data = bs.Data(CITY, YEAR, MONTH)
         
         for pop, make_by, name in point_names:
             
@@ -209,7 +221,7 @@ if __name__ == '__main__':
         
         
         table = pd.DataFrame([])
-        data = bs.Data('nyc', YEAR, MONTH)
+        data = bs.Data(CITY, YEAR, MONTH)
         
         for pop, make_by, name in point_names:
             
@@ -291,6 +303,9 @@ if __name__ == '__main__':
         
         print_type = 'only_coefs'
     
+# =============================================================================
+#   Printing section
+# =============================================================================
     if print_type == "only_coefs":
         
         signif_table = table.xs('pvalues', level=1, axis=1) < 0.05
@@ -322,10 +337,13 @@ if __name__ == '__main__':
         tuple_table = tuple_table.rename(index=index_renamer)
         
         if table_type == 'month':
-            tuple_table = tuple_table.reindex(columns=list(month_dict.values())[:-1])
+            tuple_table = tuple_table.reindex(columns=[month_dict[i] for i in list(bs.get_valid_months(CITY, YEAR))])
         
-        print(tuple_table.to_latex(column_format='ll'+'r'*(len(coeftable.columns)), multirow=True, formatters = [tuple_formatter]*len(coeftable.columns), escape=False))
-    
+        latex_table = tuple_table.to_latex(column_format='ll'+'r'*(len(coeftable.columns)), multirow=True, formatters = [tuple_formatter]*len(coeftable.columns), escape=False)
+        print(latex_table)
+        with open('figures/coef_table.tex','a') as file:
+            file.write(latex_table + "\n")
+
     elif print_type == "pvalues":
         
         signif_table = table.xs('pvalues', level=1, axis=1) < 0.05

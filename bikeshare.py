@@ -621,7 +621,15 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df = df.rename(columns=dataframe_key.get_key(city))
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
-
+            merge_id_dict = {619: 618}
+            merge_name_dict = {f"Bak Niels Treschows hus {i}": "Bak Niels Treschows hus" for i in ['sør', 'nord']}
+            
+            df['start_stat_id'] = df['start_stat_id'].replace(merge_id_dict)
+            df['start_stat_name'] = df['start_stat_name'].replace(merge_name_dict)
+            
+            df['end_stat_id'] = df['end_stat_id'].replace(merge_id_dict)
+            df['end_stat_name'] = df['end_stat_name'].replace(merge_name_dict)
+            
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
             df.drop(columns=['start_t', 'end_t'], inplace=True)

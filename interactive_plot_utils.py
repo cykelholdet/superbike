@@ -556,7 +556,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
         df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
         df['nearest_subway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]).meters, axis=1)
         
-        df['pop_density'] = df['Pop2018'] / df['area']
+        df['pop_density'] = (df['Pop2018'] / df['area'])*1000000
         
         census_df = pd.DataFrame([])
         
@@ -1122,7 +1122,7 @@ def sort_clusters(station_df, cluster_means, labels, traffic_matrices, day_type,
         station_df['label'].loc[mask] = pd.Series(list(values), index=mask[mask].index)
     else:
         station_df = station_df.replace({'label' : labels_dict})
-    labels = list(station_df['label'])
+    labels = station_df['label']
     
     centers = np.zeros_like(cluster_means)
     for i in range(k):
@@ -1547,13 +1547,23 @@ if __name__ == "__main__":
     #     a = geodesic_point_buffer(station['lat'], station['long'], 1000)
     
     
-    # overlaps = []
+    overlaps = []
     
-    # for i in range(len(land_use)):
-    #     for j in range(i+1, len(land_use)):
-    #         if land_use.iloc[i].geometry.intersection(land_use.iloc[j].geometry).area > 0:
-    #             overlap_perc = land_use.iloc[i].geometry.intersection(land_use.iloc[j].geometry).area/land_use.iloc[i].geometry.union(land_use.iloc[j].geometry).area*100
-    #             print(f'Zone {land_use.iloc[i].name} overlaps with zone {land_use.iloc[j].name}. Pecentage overlap: {overlap_perc:.2f}%')
-    #             overlaps.append([overlap_perc,(land_use.iloc[i].name, land_use.iloc[j].name)])
+    for i in range(len(land_use)):
+        for j in range(i+1, len(land_use)):
+            if land_use.iloc[i].geometry.intersection(land_use.iloc[j].geometry).area > 0:
+                overlap_perc = land_use.iloc[i].geometry.intersection(land_use.iloc[j].geometry).area/land_use.iloc[i].geometry.union(land_use.iloc[j].geometry).area*100
+                print(f'Zone {land_use.iloc[i].name} overlaps with zone {land_use.iloc[j].name}. Pecentage overlap: {overlap_perc:.2f}%')
+                overlaps.append([overlap_perc,(land_use.iloc[i].name, land_use.iloc[j].name)])
+
+    overlaps2 = []
+    
+    for i in range(len(poly_gdf)):
+        for j in range(i+1, len(poly_gdf)):
+            if poly_gdf.iloc[i].geometry.intersection(poly_gdf.iloc[j].geometry).area > 0:
+                overlap_perc = poly_gdf.iloc[i].geometry.intersection(poly_gdf.iloc[j].geometry).area/poly_gdf.iloc[i].geometry.union(poly_gdf.iloc[j].geometry).area*100
+                print(f'Zone {poly_gdf.iloc[i].name} overlaps with zone {poly_gdf.iloc[j].name}. Pecentage overlap: {overlap_perc:.2f}%')
+                overlaps2.append([overlap_perc,(poly_gdf.iloc[i].name, poly_gdf.iloc[j].name)])
 
     
+
