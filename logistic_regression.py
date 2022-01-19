@@ -4,9 +4,15 @@ Created on Tue Jan 18 09:30:43 2022
 
 @author: Nicolai
 """
+import os
 
 import numpy as np
 import pandas as pd
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 import bikeshare as bs
 import interactive_plot_utils as ipu

@@ -13,24 +13,36 @@ import bikeshare as bs
 import interactive_plot_utils as ipu
 
 
-def lr_coefficients(data, min_trips=100, clustering='k_means', k=3, random_state=None, day_type='business_days', service_radius=500, use_points_or_percents='points', make_points_by='station_location', add_const=False):
+def lr_coefficients(data, name, min_trips=100, clustering='k_means', k=3, random_state=42, day_type='business_days', service_radius=500, use_points_or_percents='points', make_points_by='station_location', add_const=False, use_road=False, remove_columns=[]):
+    
     station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
     traffic_matrices = data.pickle_daily_traffic(holidays=False)
 
     station_df, clusters, labels = ipu.get_clusters(traffic_matrices, 
                                                     station_df, 
                                                     day_type, 
-                                                    100, 
-                                                    'k_means', 
+                                                    min_trips, 
+                                                    clustering, 
                                                     k, 
-                                                    random_state=42)
-    station_df = ipu.service_areas(data.city, station_df, land_use, service_radius=500, use_road=False)
+                                                    random_state=random_state)
+    station_df = ipu.service_areas(data.city, station_df, land_use, service_radius=service_radius, use_road=use_road)
 
     zone_columns = [column for column in station_df.columns if 'percent_' in column]
+    
+    if use_road == False and 'percent_road' in zone_columns:
+        zone_columns.remove('percent_road')
+    
+    for column in remove_columns:
+        if column in zone_columns:
+            zone_columns.remove(column)
 
     other_columns = ['n_trips', 'pop_density', 'nearest_subway_dist']
 
-    lr_results, X, y = ipu.stations_logistic_regression(station_df, zone_columns, other_columns, use_points_or_percents='points', make_points_by='station location', const=False)
+    for column in remove_columns:
+        if column in other_columns:
+            other_columns.remove(column)
+
+    lr_results, X, y = ipu.stations_logistic_regression(station_df, zone_columns, other_columns, use_points_or_percents=use_points_or_percents, make_points_by=make_points_by, const=add_const)
 
     print(lr_results.summary())
 
@@ -51,41 +63,167 @@ def lr_coefficients(data, min_trips=100, clustering='k_means', k=3, random_state
     
     index = np.concatenate([lr_results.params.index for i in range(0, k-1)])
 
-    multiindex = pd.MultiIndex.from_product([range(1,k), single_index], names=['cluster', 'coef_name'])
+    multiindex = pd.MultiIndex.from_product([range(1,k), single_index], names=['Cluster', 'Coef. name'])
 
     pars = pd.Series(parameters, index=multiindex, name='coef')
     sts = pd.Series(stdev, index=multiindex, name='stdev')
     pvs = pd.Series(pvalues, index=multiindex, name='pvalues')
     
     coefs = pd.DataFrame(pars).join((sts, pvs))
-    return pd.concat({bs.name_dict[data.city]: coefs}, names=['city'], axis=1)
+    return pd.concat({name: coefs}, names=['City'], axis=1)
 
+
+def formatter(x):
+    if x == np.inf:
+        return "inf"
+    elif np.abs(x) > 10000 or np.abs(x) < 0.001:
+        return f"$\\num{{{x:.2e}}}$"
+    else:
+        return f"${x:.4f}$"
+    
+def tuple_formatter(tup):
+    x, bold = tup
+    if x == np.inf:
+        out = "inf"
+    elif np.isnan(x):
+        out = "N/A"
+    elif np.abs(x) > 10000 or np.abs(x) < 0.001:
+        if bold:
+            out = f"$\\num[math-rm=\\mathbf]{{{x:.2e}}}$"
+        else:
+            out = f"$\\num{{{x:.2e}}}$"
+    else:
+        if bold:
+            out = f"$\\mathbf{{{x:.3f}}}$"
+        else:
+            out = f"${x:.3f}$"
+    
+    return out
 
 #%%
 if __name__ == '__main__':
     
-    YEAR = 2019
-    MONTH = 9
+    index_dict = {'UNKNOWN': 'Unknown',
+                  'residential': 'Residential',
+                  'commercial': 'Commercial',
+                  'industrial': 'Industrial',
+                  'recreational': 'Recreational',
+                  'educational': 'Educational',
+                  'mixed': 'Mixed',
+                  'road': 'Road',
+                  'transportation': 'Transportation',
+                  'n_trips': '\# Trips',
+                  'nearest_subway_dist': 'Nearest Subway',
+                  'pop_density': 'Pop. Density',
+                  }
     
+    percent_index_dict = {
+        'percent_UNKNOWN': '\% Unknown',
+        'percent_residential': '\% Residential',
+        'percent_commercial': '\% Commercial',
+        'percent_industrial': '\% Industrial',
+        'percent_recreational': '\% Recreational',
+        'percent_educational': '\% Educational',
+        'percent_mixed': '\% Mixed',
+        'percent_road': '\% Road',
+        'percent_transportation': '\% Transportation',
+        'n_trips': '\# Trips',
+        'nearest_subway_dist': 'Nearest Subway',
+        'pop_density': 'Pop. Density',
+        }
+    
+
+    
+    YEAR = 2019
+    MONTH = None
+    
+    clustering = 'k_means'
     k = 3
     day_type = 'business_days'
     min_trips = 100
+    use_points_or_percents = 'points'
+    make_points_by = 'station location'
+    random_state = 42
+    service_radius = 500
+    use_road = False
     
-    table_type = 'city'
+    table_type = 'month'
     
     if table_type == 'month':
         month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
               7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
         
-        month_table = pd.DataFrame([])
+        table = pd.DataFrame([])
         for month in range(1,13):
-            data = bs.Data('nyc', YEAR, month)
+            data = bs.Data('chic', YEAR, month)
             
-            month_table[month_dict[month]] = lr_coefficients(
-                data, min_trips, 'k_means', k, random_state=42,
-                day_type='business_days', service_radius=500,
-                use_points_or_percents='points', make_points_by='station_location')
+            table = pd.concat((table, lr_coefficients(
+                data, month_dict[data.month], min_trips, clustering, k,
+                random_state=random_state,
+                day_type=day_type, service_radius=service_radius,
+                use_points_or_percents=use_points_or_percents, 
+                make_points_by=make_points_by, use_road=use_road, add_const=True, remove_columns=['percent_mixed']
+                )
+            ), axis=1)
         
+        print_type = 'only_coefs'
+    
+    elif table_type == 'points_percentage':
+        point_names = [('points', 'station location', 'Station Location'),
+                       ('points', 'station land use', 'Service Area Max'),
+                       ('percents', 'station land use', 'Percentage Land Use')]
+        
+        remove_percent = {
+            'percent_UNKNOWN': 'UNKNOWN',
+            'percent_residential': 'residential',
+            'percent_commercial': 'commercial',
+            'percent_industrial': 'industrial',
+            'percent_recreational': 'recreational',
+            'percent_educational': 'educational',
+            'percent_mixed': 'mixed',
+            'percent_road': 'road',
+            'percent_transportation': 'transportation',
+            }
+        
+        table = pd.DataFrame([])
+        data = bs.Data('nyc', YEAR, MONTH)
+        
+        for pop, make_by, name in point_names:
+            
+            table = pd.concat((table, lr_coefficients(
+                data, name, min_trips, clustering, k,
+                random_state=random_state,
+                day_type=day_type, service_radius=service_radius,
+                use_points_or_percents=pop, 
+                make_points_by=make_by, use_road=use_road,
+                ).rename(index=remove_percent)
+            ), axis=1)
+        
+        print_type = 'pvalues'
+        
+    elif table_type == 'cluster_type':
+        clustering = [('k_means', 'K Means'),
+                      ('k_medoids', 'K Medoids'),
+                      ('h_clustering', 'Hierarchical Clustering'),
+                      ]
+        
+        
+        table = pd.DataFrame([])
+        data = bs.Data('nyc', YEAR, MONTH)
+        
+        for pop, make_by, name in point_names:
+            
+            table = pd.concat((table, lr_coefficients(
+                data, name, min_trips, clustering, k,
+                random_state=random_state,
+                day_type=day_type, service_radius=service_radius,
+                use_points_or_percents=pop, 
+                make_points_by=make_by, use_road=use_road,
+                )
+            ), axis=1)
+        
+        print_type = 'only_coefs'
+            
     elif table_type == 'city':
         city_list = ['nyc', 'boston', 'washDC', 'london']
         
@@ -94,11 +232,165 @@ if __name__ == '__main__':
             data = bs.Data(city, YEAR, MONTH)
             
             table = pd.concat((table, lr_coefficients(
-                data, min_trips, 'k_means', k, random_state=42,
-                day_type='business_days', service_radius=500,
-                use_points_or_percents='points', make_points_by='station_location')
+                data, bs.name_dict[data.city], min_trips, clustering, k, random_state=random_state,
+                day_type=day_type, service_radius=service_radius,
+                use_points_or_percents=use_points_or_percents, make_points_by=make_points_by, use_road=use_road)
             ), axis=1)
         
-        print(table.to_latex(multicolumn_format='c', multirow=True, formatters = {'coef': 'hej', 'stdev': 'dav', 'pvalues': 'yo'}))
+        
+        tables = dict()
+        for i in range(1, k):
+            tables[i] = table.loc[i].loc[list(index_dict.keys())] # Reorder according to index_dict
+        
+        table = pd.concat(tables, names=['Cluster', 'Coef. name'])
+        table = table.rename(index=index_dict)
+        
+        print(table.to_latex(multicolumn_format='c', multirow=True, formatters = [formatter]*len(table.columns), escape=False))
+        
+        print_type = None
+        
+    elif table_type == 'only_coef':
+        city_list = ['nyc', 'boston', 'washDC', 'london', 'madrid', 'helsinki']
+        
+        table = pd.DataFrame([])
+        for city in city_list:
+            data = bs.Data(city, YEAR, MONTH)
             
+            table = pd.concat((table, lr_coefficients(
+                data, bs.name_dict[data.city], min_trips, clustering, k, random_state=random_state,
+                day_type=day_type, service_radius=service_radius,
+                use_points_or_percents=use_points_or_percents, make_points_by=make_points_by, use_road=use_road)
+            ), axis=1)
+        
+        
+        signif_table = table.xs('pvalues', level=1, axis=1) < 0.05
+        
+        coeftable = table.xs('coef', level=1, axis=1)
+        
+        tuple_table = pd.concat([coeftable,signif_table]).stack(dropna=False).groupby(level=[0,1,2]).apply(tuple).unstack()
+        
+        if use_points_or_percents == 'percents':
+            index_list = list(percent_index_dict.keys())
+            if use_road == False:
+                index_list.remove('percent_road')
+            index_renamer = percent_index_dict
+        else:
+            index_list = list(index_dict.keys())
+            if use_road == False:
+                index_list.remove('road')
+            index_renamer = index_dict
+        
+        tables = dict()
+        for i in range(1, k):
+            tables[i] = tuple_table.loc[i].loc[index_list] # Reorder according to index_dict
+        
+        tuple_table = pd.concat(tables, names=['Cluster', 'Coef. name'])
+        tuple_table = tuple_table.rename(index=index_renamer)
+        
+        print(tuple_table.to_latex(column_format='ll'+'r'*(len(coeftable.columns)), multirow=True, formatters = [tuple_formatter]*len(coeftable.columns), escape=False))
+        
+        print_type = 'only_coefs'
+    
+    if print_type == "only_coefs":
+        
+        signif_table = table.xs('pvalues', level=1, axis=1) < 0.05
+        
+        coeftable = table.xs('coef', level=1, axis=1)
+        
+        tuple_table = pd.concat([coeftable,signif_table]).stack(dropna=False).groupby(level=[0,1,2]).apply(tuple).unstack()
+        
+        if use_points_or_percents == 'percents':
+            index_list = list(percent_index_dict.keys())
+            if use_road == False:
+                index_list.remove('percent_road')
+            index_renamer = percent_index_dict
+        else:
+            index_list = list(index_dict.keys())
+            if use_road == False:
+                index_list.remove('road')
+            index_renamer = index_dict
+        
+        #index_list = set(index_list).intersection(set(table.index.get_level_values(1)))
+        
+        index_list = [x for x in index_list if x in table.index.get_level_values(1)]
+        
+        tables = dict()
+        for i in range(1, k):
+            tables[i] = tuple_table.loc[i].loc[index_list] # Reorder according to index_dict
+        
+        tuple_table = pd.concat(tables, names=['Cluster', 'Coef. name'])
+        tuple_table = tuple_table.rename(index=index_renamer)
+        
+        if table_type == 'month':
+            tuple_table = tuple_table.reindex(columns=list(month_dict.values())[:-1])
+        
+        print(tuple_table.to_latex(column_format='ll'+'r'*(len(coeftable.columns)), multirow=True, formatters = [tuple_formatter]*len(coeftable.columns), escape=False))
+    
+    elif print_type == "pvalues":
+        
+        signif_table = table.xs('pvalues', level=1, axis=1) < 0.05
+        
+        tabo = table*0
+        
+        tabo.iloc[:,tabo.columns.get_level_values(1) == 'pvalues'] = signif_table
+        # coeftable = table.xs('coef', level=1, axis=1)
+        
+        #tuple_table = pd.concat([table,tabo]).stack(dropna=False).groupby(level=[0,1,2]).apply(tuple).unstack()
+        c = np.stack([table.to_numpy(), tabo.to_numpy()], axis=2)
+        tuple_table = pd.DataFrame([[(c[i, j, 0], c[i, j, 1]) for j in range(c.shape[1])] for i in range(c.shape[0])], columns=table.columns, index=table.index)
+        
+        if use_points_or_percents == 'percents':
+            index_list = list(percent_index_dict.keys())
+            if use_road == False:
+                index_list.remove('percent_road')
+            index_renamer = percent_index_dict
+        else:
+            index_list = list(index_dict.keys())
+            if use_road == False:
+                index_list.remove('road')
+            index_renamer = index_dict
+        
+        #index_list = set(index_list).intersection(set(table.index.get_level_values(1)))
+        
+        index_list = [x for x in index_list if x in table.index.get_level_values(1)]
+        
+        tables = dict()
+        for i in range(1, k):
+            tables[i] = tuple_table.loc[i].loc[index_list] # Reorder according to index_dict
+        
+        
+        tuple_table = pd.concat(tables, names=['Cluster', 'Coef. name'])
+        tuple_table = tuple_table.rename(index=index_renamer)
+        
+        print(tuple_table.to_latex(column_format='ll'+'r'*(len(coeftable.columns)), multicolumn_format='c', multirow=True, formatters = [tuple_formatter]*len(table.columns), escape=False))
+    
+    
+    else:
+        
+        if use_points_or_percents == 'percents':
+            index_list = list(percent_index_dict.keys())
+            if use_road == False:
+                index_list.remove('percent_road')
+            index_renamer = percent_index_dict
+        else:
+            index_list = list(index_dict.keys())
+            if use_road == False:
+                index_list.remove('road')
+            index_renamer = index_dict
+        
+        #index_list = set(index_list).intersection(set(table.index.get_level_values(1)))
+        
+        index_list = [x for x in index_list if x in table.index.get_level_values(1)]
+        
+        tables = dict()
+        for i in range(1, k):
+            tables[i] = table.loc[i].loc[index_list] # Reorder according to index_dict
+        
+        
+        table = pd.concat(tables, names=['Cluster', 'Coef. name'])
+        table = table.rename(index=index_renamer)
+        
+        print(table.to_latex(multicolumn_format='c', multirow=True, formatters = [formatter]*len(table.columns), escape=False))
+        
+        
 formatters = {'coef': 'hej', 'stdev': 'dav', 'pvalues': 'yo'}

@@ -997,7 +997,9 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         labels = clusters.predict(traffic_matrix)
         station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
-        station_df, clusters, labels = sort_clusters(station_df, clusters, labels, traffic_matrices, day_type, k)
+        means = clusters.cluster_centers_
+        station_df, means, labels = sort_clusters(station_df, means, labels, traffic_matrices, day_type, k)
+        clusters.cluster_centers_ = means
         station_df['color'] = station_df['label'].map(cluster_color_dict)
 
     elif clustering == 'k_medoids':
@@ -1005,7 +1007,9 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         labels = clusters.predict(traffic_matrix)
         station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
-        station_df, clusters, labels = sort_clusters(station_df, clusters, labels, traffic_matrices, day_type, k)
+        means = clusters.cluster_centers_
+        station_df, means, labels = sort_clusters(station_df, means, labels, traffic_matrices, day_type, k)
+        clusters.cluster_centers_ = means
         station_df['color'] = station_df['label'].map(cluster_color_dict)
         
     elif clustering == 'h_clustering':
@@ -1013,18 +1017,26 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         labels = AgglomerativeClustering(k).fit_predict(traffic_matrix)
         station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
+        means = cluster_mean(traffic_matrix, station_df, labels, k)
+        station_df, means, labels = sort_clusters(station_df, means, labels, traffic_matrices, day_type, k)
+        clusters = means
         station_df['color'] = station_df['label'].map(cluster_color_dict)
     
     elif clustering == 'gaussian_mixture':
         clusters = GaussianMixture(k, n_init=10, random_state=random_state).fit(traffic_matrix)
         labels = clusters.predict_proba(traffic_matrix)
+
+        station_df.loc[mask, 'label'] = pd.Series(list(labels), index=mask[mask].index)
+        station_df.loc[~mask, 'label'] = np.nan
+        means = clusters.means_
+        station_df, means, labels = sort_clusters(station_df, means, labels, traffic_matrices, day_type, k, cluster_type='gaussian_mixture', mask=mask)
+        clusters.means_ = means
         lab_mat = np.array(lab_color_list[:k]).T
         lab_cols = [np.sum(labels[i] * lab_mat, axis=1) for i in range(len(traffic_matrix))]
         labels_rgb = skcolor.lab2rgb(lab_cols)
-        station_df.loc[mask, 'label'] = pd.Series(list(labels), index=mask[mask].index)
-        station_df.loc[~mask, 'label'] = np.nan
         station_df.loc[mask, 'color'] = ['#%02x%02x%02x' % tuple(label.astype(int)) for label in labels_rgb*255]
         station_df.loc[~mask, 'color'] = 'gray'
+        station_df['label'].loc[mask] = [np.argmax(x) for x in station_df['label'].loc[mask]]
         
     elif clustering == 'none':
         clusters = None
@@ -1048,7 +1060,7 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
     return station_df, clusters, labels
 
 
-def sort_clusters(station_df, clusters, labels, traffic_matrices, day_type, k):
+def sort_clusters(station_df, cluster_means, labels, traffic_matrices, day_type, k, cluster_type=None, mask=None):
     # Order the clusters by setting cluster 0 to be closest to the mean traffic.
     
     if day_type == 'business_days':
@@ -1063,7 +1075,7 @@ def sort_clusters(station_df, clusters, labels, traffic_matrices, day_type, k):
     
     peakiness = [] # Distance to mean
     rush_houriness = [] # difference between arrivals and departures
-    for center in clusters.cluster_centers_:
+    for center in cluster_means:
         dist_from_mean = np.linalg.norm(center-mean)
         peakiness.append(dist_from_mean)
         rhn = np.sum((center[morning_hours] - center[morning_hours+24]) - (center[afternoon_hours] - center[afternoon_hours+24]))
@@ -1099,16 +1111,32 @@ def sort_clusters(station_df, clusters, labels, traffic_matrices, day_type, k):
     #         print(f'swapped {order[-1]} for {order[i]}')
     # print(labels[0:2])
     
+        
+    
     labels_dict = dict(zip(order, range(len(order))))
     print(labels_dict)
-    station_df = station_df.replace({'label' : labels_dict})
-    labels = np.array(station_df['label'])
     
-    centers = np.zeros_like(clusters.cluster_centers_)
+    if cluster_type == 'gaussian_mixture':
+        values = np.zeros_like(labels)
+        values[:,order] = labels[:,range(k)]
+        
+        station_df['label'].loc[mask] = pd.Series(list(values), index=mask[mask].index)
+    else:
+        station_df = station_df.replace({'label' : labels_dict})
+    labels = list(station_df['label'])
+    
+    centers = np.zeros_like(cluster_means)
     for i in range(k):
-        centers[labels_dict[i]] = clusters.cluster_centers_[i]
-    clusters.cluster_centers_ = centers
-    return station_df, clusters, labels
+        centers[labels_dict[i]] = cluster_means[i]
+    cluster_means = centers
+    return station_df, cluster_means, labels
+
+
+def cluster_mean(traffic_matrix, station_df, labels, k):
+    mean_vector = np.zeros((k, traffic_matrix.shape[1]))
+    for j in range(k):
+        mean_vector[j,:] = np.mean(traffic_matrix[np.where(labels == j)], axis=0)
+    return mean_vector
 
 
 def service_areas(city, station_df, land_use, service_radius=500, use_road=False):
@@ -1158,22 +1186,10 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
     station_df = gpd.tools.sjoin(station_df, poly_gdf, op='within', how='left')
     station_df.drop(columns=['index_right', 'vor_poly', 'point'], inplace=True)
     
-    try:
-        with open(f'./python_variables/union_{city}.pickle', 'rb') as file:
-            union = pickle.load(file)
-    except FileNotFoundError:
-        print(f'No union for {city} found. Pickling union...')
-        land_use.to_crs(epsg=3857, inplace=True)
-        union = shapely.ops.unary_union(land_use.geometry)
-        union_gpd = gpd.GeoSeries(union)
-        union_gpd.set_crs(epsg=3857, inplace=True)
-        union_gpd = union_gpd.to_crs(epsg=4326)
-        union = union_gpd.loc[0].buffer(0)
-        land_use.to_crs(epsg=4326, inplace=True)
-        with open(f'./python_variables/union_{city}.pickle', 'wb') as file:
-            pickle.dump(union, file)
-        print('Pickling done')
-        
+    
+    union = land_use_union(city, land_use)
+    
+    
     station_df['service_area'] = station_df['service_area'].apply(lambda area: area.intersection(union) if area else shapely.geometry.Polygon())
     
     service_area_trim = []
@@ -1266,6 +1282,26 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
     station_df['geometry'] = station_df['service_area']
     print(f"total time on service areas spent = {time.time()-t_start:.2f}")
     return station_df
+
+
+def land_use_union(city, land_use):
+    try:
+        with open(f'./python_variables/union_{city}.pickle', 'rb') as file:
+            union = pickle.load(file)
+    except FileNotFoundError:
+        print(f'No union for {city} found. Pickling union...')
+        land_use.to_crs(epsg=3857, inplace=True)
+        union = shapely.ops.unary_union(land_use.geometry)
+        union_gpd = gpd.GeoSeries(union)
+        union_gpd.set_crs(epsg=3857, inplace=True)
+        union_gpd = union_gpd.to_crs(epsg=4326)
+        union = union_gpd.loc[0].buffer(0)
+        land_use.to_crs(epsg=4326, inplace=True)
+        with open(f'./python_variables/union_{city}.pickle', 'wb') as file:
+            pickle.dump(union, file)
+        print('Pickling done')
+    
+    return union
 
 
 def stations_logistic_regression(station_df, zone_columns, other_columns, use_points_or_percents='points', make_points_by='station location', const=False, test_model=False, test_ratio=0.2, test_seed=None):
@@ -1532,11 +1568,12 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('nyc', 2019, 1)
+    data = bs.Data('boston', 2019, 1)
 
     pre = time.time()
     station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
     print(f'station_df took {time.time() - pre:.2f} seconds')
+
     
     # for i, station in station_df.iterrows():
     #     a = geodesic_point_buffer(station['lat'], station['long'], 1000)
