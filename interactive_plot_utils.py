@@ -1481,6 +1481,42 @@ def geodesic_point_buffer(lat, lon, m):
     return shapely.ops.transform(project, buf)
 
 
+def big_station_df(cities, year=2019, month=None, service_radius=500,
+                   use_road=False, day_type='business_days',
+                   min_trips=100, clustering='k_means', k=3,
+                   random_state=42):
+    station_df_list = []
+    traffic_matrix_b_list = []
+    traffic_matrix_w_list = []
+    for city in cities:
+        data = bs.Data(city, year, month)
+        station_df, land_use = make_station_df(data, holidays=False, return_land_use=True)
+        traffic_matrices = data.pickle_daily_traffic(holidays=False)
+
+        station_df = service_areas(data.city, station_df, land_use, service_radius=service_radius, use_road=use_road)
+        
+        station_df_list.append(pd.concat({city: station_df}))
+        traffic_matrix_b_list.append(traffic_matrices[0])
+        traffic_matrix_w_list.append(traffic_matrices[1])
+
+
+    big_station_df = pd.concat(station_df_list)
+    big_station_df = big_station_df.reset_index()
+
+    big_tm_b = np.concatenate(traffic_matrix_b_list)
+    big_tm_w = np.concatenate(traffic_matrix_w_list)
+    
+    traffic_matrices = [big_tm_b, big_tm_w]
+
+    big_station_df, clusters, labels = get_clusters(
+        traffic_matrices, big_station_df, day_type, min_trips, 
+        clustering, 
+        k, 
+        random_state=random_state)
+    
+    return big_station_df, traffic_matrices, labels
+
+
 def create_all_pickles(city, year, holidays=False, overwrite=False):
     if isinstance(city, str): # If city is a str (therefore not a list)
         data = bs.Data(city, year, overwrite=overwrite)
