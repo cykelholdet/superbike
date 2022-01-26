@@ -1220,7 +1220,7 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
     # station_df['service_area'] = station_df['service_area'].to_crs(epsg=3857)
     # land_use['geometry'] = land_use['geometry'].to_crs(epsg=3857)
     
-    if 'road' in station_df['zone_type'].unique() and use_road == 'False':
+    if 'road' in station_df['zone_type'].unique() and use_road == 'False': # Ignore road
 
         station_df['service_area_no_road'] = [
             stat['service_area'].difference(stat['neighborhood_road'])
@@ -1244,7 +1244,7 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
             sdf_zone = geo_sdf[f'neighborhood_{zone_type}'].to_crs(epsg=3857)[mask]
             
             print(zone_type)
-            zone_percents[mask] = geo_sdf[mask].intersection(sdf_zone).area/geo_sdf[mask].area*100
+            zone_percents[mask] = geo_sdf[mask].intersection(sdf_zone).area/geo_sdf[mask].area
             
             station_df[f'percent_{zone_type}'] = zone_percents
         
@@ -1260,7 +1260,7 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
                     
                     if stat[f'neighborhood_{zone_type}']:
                         
-                        zone_percents[i] = stat['service_area'].buffer(0).intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area'].area*100
+                        zone_percents[i] = stat['service_area'].buffer(0).intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area'].area
                     
                 else:
                     zone_percents[i] = np.nan

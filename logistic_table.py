@@ -8,6 +8,7 @@ Created on Wed Jan 12 08:52:14 2022
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 import bikeshare as bs
 import interactive_plot_utils as ipu
@@ -165,14 +166,14 @@ if __name__ == '__main__':
     k = 3
     day_type = 'business_days'
     min_trips = 100
-    use_points_or_percents = 'points'
+    use_points_or_percents = 'percents'
     make_points_by = 'station location'
     random_state = 42
     service_radius = 500
     use_road = False
     add_const = True
     
-    table_type = 'points_percentage'
+    table_type = 'month_all_cities'
 # =============================================================================
 #   Table types
 # =============================================================================
@@ -460,6 +461,8 @@ if __name__ == '__main__':
             print(latex_table)
             with open('figures/coef_table.tex','a') as file:
                 file.write(latex_table + "\n")
+            
+            coeftable.plot()
                 
         print_type = None
     
@@ -503,7 +506,7 @@ if __name__ == '__main__':
             tuple_table = tuple_table.rename(index={1: 'Morning Sink', 2: 'Morning Source'})
         
         
-        latex_table = tuple_table.to_latex(column_format='@{}ll'+('r'*len(coeftable.columns)) + '@{}', multirow=True, formatters = [tuple_formatter]*len(coeftable.columns), escape=False)
+        latex_table = tuple_table.to_latex(column_format='@{}ll'+('r'*len(tuple_table.columns)) + '@{}', multirow=True, formatters = [tuple_formatter]*len(tuple_table.columns), escape=False)
         print(latex_table)
         with open('figures/coef_table.tex','a') as file:
             file.write(latex_table + "\n")

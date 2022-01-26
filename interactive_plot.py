@@ -46,7 +46,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'oslo'
+CITY = 'boston'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
@@ -120,12 +120,12 @@ class BikeDash(param.Parameterized):
     possible values. In addition, the plotting functions are defined.
     """
     city = param.Selector(default=CITY, objects=['nyc', 'chic', 'washDC', 'minn', 'boston', 'london', 'helsinki', 'madrid', 'edinburgh', 'oslo'])
-    if MONTH == None:
-        month = param.Selector(default=MONTH, objects=[None, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
-    else:
-        month = param.Integer(default=MONTH, bounds=(1, 12))
+    #if MONTH == None:
+    month = param.Selector(default=MONTH, objects=[None, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+    #else:
+    #    month = param.Integer(default=MONTH, bounds=(1, 12))
     trip_type = param.Selector(objects=['departures', 'arrivals', 'all'])
-    day_type = param.Selector(objects=['business_days', 'weekend', 'day'])
+    day_type = param.Selector(objects=['business_days', 'weekend',])
     clustering = param.Selector(objects=['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture', 'none', 'zoning'], doc="Which clustering to perform")
     k = param.Integer(default=3, bounds=(1, 10))
     cnorm = param.Selector(objects=['linear', 'log'])
@@ -150,14 +150,14 @@ class BikeDash(param.Parameterized):
     commercial = param.Boolean(True)
     industrial = param.Boolean(True)
     recreational = param.Boolean(True)
-    mixed = param.Boolean(True)
-    road = param.Boolean(True)
-    transportation = param.Boolean(True)
-    unknown = param.Boolean(True)
-    n_trips = param.Boolean(True)
+    mixed = param.Boolean(False)
+    road = param.Boolean(False)
+    transportation = param.Boolean(False)
+    unknown = param.Boolean(False)
+    n_trips = param.Boolean(False)
     pop_density = param.Boolean(True)
     nearest_subway_dist = param.Boolean(True)
-    const = param.Boolean(False)
+    const = param.Boolean(True)
     
     LR_indicator = param.Boolean(True)
     # boolean_ = param.Boolean(True)
@@ -322,7 +322,7 @@ class BikeDash(param.Parameterized):
                         'percent_road': self.road,
                         'percent_transportation': self.transportation,
                         'percent_UNKNOWN': self.unknown,
-                        'percent_educational': True}
+                        'percent_educational': False}
         
         zone_columns = [column for column in self.station_df.columns 
                         if (('percent_' in column) and (zones_params[column]))]
@@ -336,10 +336,10 @@ class BikeDash(param.Parameterized):
         
         other_columns = [param[0] for param in other_params if param[1] and (param[0] in self.station_df.columns)]
         
-        return ipu.stations_logistic_regression(self.station_df, zone_columns, other_columns,
-                                                use_points_or_percents=self.use_points_or_percents,
-                                                make_points_by=self.make_points_by,
-                                                const=self.const)
+        return ipu.stations_logistic_regression(
+            self.station_df, zone_columns, other_columns,
+            use_points_or_percents=self.use_points_or_percents,
+            make_points_by=self.make_points_by, const=self.const)
     
     
 bike_params = BikeDash(None)
@@ -349,7 +349,11 @@ def plot_tiles(clustering):
     
     tiles = hv.element.tiles.StamenTerrainRetina()
     tiles = gv.tile_sources.StamenTerrainRetina()
-    tiles.opts(height=800, width=800, xlim=(extremes[1], extremes[0]), ylim=(extremes[3], extremes[2]), active_tools=['wheel_zoom'],  apply_ranges=False)
+    tiles.opts(
+        height=800, width=800, xlim=(extremes[1], extremes[0]),
+        ylim=(extremes[3], extremes[2]), active_tools=['wheel_zoom'],
+        apply_ranges=False)
+    
     return tiles
 
 
@@ -403,7 +407,8 @@ def plot_daily_traffic(index, day_type, city, month):
             day_type=bike_params.param.day_type,
             city=bike_params.param.city,
             month=bike_params.param.month)
-def plot_centroid_callback(index, plot_all_clusters, clustering, k, min_trips, day_type, city, month): 
+def plot_centroid_callback(index, plot_all_clusters, clustering, k, min_trips,
+                           day_type, city, month): 
     return bike_params.plot_centroid(index)
     
 
@@ -552,11 +557,16 @@ extremes = [bike_params.station_df['easting'].max(), bike_params.station_df['eas
 month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
               7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
 
+rev_month_dict = {v:k for k,v in month_dict.items()}
+
 activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'end', 'start': 'start', 'end': 'end'}
 day_type_dict = {'weekend': 'w', 'business_days': 'b'}
 
 gif_pane = pn.pane.GIF('Loading_Key.gif')
 
+city_list = ['boston', 'chic', 'minn', 'nyc', 'washDC', 'edinburgh', 'helsinki', 'london', 'madrid', 'oslo']
+
+city_dict = dict(zip([bs.name_dict[city] for city in city_list], city_list))
 
 # =============================================================================
 # Parameters
@@ -565,7 +575,9 @@ gif_pane = pn.pane.GIF('Loading_Key.gif')
 param_split = 18 # add to this number if additional parameters are added in the first column
 
 params = pn.Param(bike_params.param, widgets={
+    'city': {'widget_type': pn.widgets.Select, 'options': city_dict},
     'clustering': pn.widgets.RadioBoxGroup,
+    'month': {'widget_type': pn.widgets.RadioButtonGroup, 'button_type': 'success', 'css_classes': ['month-button']},
     'trip_type': {'widget_type': pn.widgets.RadioButtonGroup, 'button_type': 'success'},
     'day_type': pn.widgets.RadioButtonGroup,
     'plot_all_clusters': {'widget_type': pn.widgets.RadioButtonGroup, 'title': 'Hello'},
@@ -584,14 +596,80 @@ params = pn.Param(bike_params.param, widgets={
     name="Bikeshare Parameters",
     )
 
+css = '''
+.bk.bk-btn.bk-btn-success {
+    padding: 6pt 0pt 6pt 0pt;    
+}
+.missing_labels p{
+    line-height: 1;
+    padding-left: 5px;
+}
+''' # Reduce padding
+
+pn.extension(raw_css=[css])
+
 params.parameters = params.parameters[:param_split]
 
-params.layout.insert(15, 'Use roads:')
-params.layout.insert(13, 'Show service area:')
-params.layout.insert(12, 'Show census:')
-params.layout.insert(11, 'Show land use:')
-params.layout.insert(10, 'Plot all clusters:')
-params.layout.insert(5, 'Clustering method:')
+# Change None to Year in month selector
+params.layout[1].options = city_dict
+
+params.layout[2].options.pop('None')
+params.layout[2].options['Year'] = None
+
+
+# params.layout.insert(15, 'Use roads:')
+# params.layout[15].css_classes=['missing_labels'] 
+# params.layout[15].margin = (5,5,-12,5)
+# params.layout.insert(13, 'Show service area:')
+# params.layout[13].css_classes=['missing_labels'] 
+# params.layout[13].margin = (5,5,-12,5)
+# params.layout.insert(12, 'Show census:')
+# params.layout[12].css_classes=['missing_labels'] 
+# params.layout[12].margin = (5,5,-12,5)
+# params.layout.insert(11, 'Show land use:')
+# params.layout[11].css_classes=['missing_labels'] 
+# params.layout[11].margin = (5,5,-12,5)
+# params.layout.insert(10, 'Plot all clusters:')
+# params.layout[10].css_classes=['missing_labels'] 
+# params.layout[10].margin = (5,5,-12,5)
+# params.layout.insert(5, 'Clustering method:')
+# params.layout[5].css_classes=['missing_labels'] 
+# params.layout[5].margin = (5,5,-12,5)
+# params.layout.insert(2, 'Month:')
+# #params.layout.select(lambda x: x.name=='Month')
+# params.layout[2].css_classes=['missing_labels'] 
+# params.layout[2].margin = (5,5,-12,5)
+
+
+parameter_strings = [
+    ['Month:', 'Month_title'],
+    ['Clustering method:', 'Clustering_title'],
+    ['Plot all clusters:', 'Plot all_title'],
+    ['Show land use:', 'Show land_title'],
+    ['Show census:', 'Show census_title'],
+    ['Show service area:', 'Show service_title'],
+    ['Use road:', 'Use road_title'],
+    ]
+
+for parstr in parameter_strings:
+    pane = pn.pane.Markdown(parstr[0], name=parstr[1])
+    pane.css_classes=['missing_labels']
+    pane.margin = (5,5,-12,5)
+    params.layout.append(pane)
+
+parameter_names = [
+    'City', 'Month_title', 'Month', 'Day type', 'Clustering_title', 
+    'Clustering', 'K', 'Plot all_title', 'Plot all clusters', 'Show land_title',
+    'Show land use', 'Show census_title', 'Show census', 'Show service_title',
+    'Show service area', 'Service radius', 'Service area color',
+    'Use road_title', 'Use road', 'Random state', 'Min trips']
+
+parameter_column = []
+
+for name in parameter_names:
+    parameter_column.append(params.layout.select(lambda x: x.name==name)[0])
+
+parameter_column = pn.Column(*parameter_column)
 
 LR_params = pn.Param(bike_params.param, widgets={
     'use_points_or_percents': pn.widgets.RadioButtonGroup,
@@ -603,7 +681,11 @@ LR_params = pn.Param(bike_params.param, widgets={
 LR_params.parameters = LR_params.parameters[param_split:-1]
 
 LR_params.layout.insert(2, 'Make points by:')
+LR_params.layout[2].css_classes=['missing_labels'] 
+LR_params.layout[2].margin = (5,5,-12,5)
 LR_params.layout.insert(1, 'Use station points or percents:')
+LR_params.layout[1].css_classes=['missing_labels'] 
+LR_params.layout[1].margin = (5,5,-12,5)
 
 
 # =============================================================================
@@ -661,7 +743,7 @@ views = tileview*zoneview*census_view*service_area_view*pointview
 # Dashboard layout
 # =============================================================================
 
-param_column = pn.Column(params.layout, minpercent)
+param_column = pn.Column(parameter_column, minpercent)
 param_column[1].width=300
 
 LR_row = pn.Row(LR_params.layout, print_logistic_regression)
