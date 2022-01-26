@@ -1196,13 +1196,18 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
     
     union = land_use_union(city, land_use)
     
-
-    # station_df['service_area'].apply(lambda area, union=union: area.intersection(union) if area else shapely.geometry.Polygon())
-
+    t = time.time()
+    station_df['service_area'].apply(lambda area, union=union: area.intersection(union) if area else shapely.geometry.Polygon())
+    print(time.time() - t)
+    
+    t = time.time()
+    
     in2 = partial(intersect, union=union)
 
     with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version 1.4sec -> 0.4 sec
         station_df['service_area'] = pool.map(in2, station_df['service_area']) 
+    
+    print(time.time() - t)
     
     service_area_trim = []
     for i, row in station_df.iterrows():
