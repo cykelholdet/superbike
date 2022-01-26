@@ -8,7 +8,9 @@ import pickle
 import time
 import os
 import contextlib
+import multiprocessing as mp
 from functools import partial
+
 
 #import fiona
 import numpy as np
@@ -1140,6 +1142,10 @@ def cluster_mean(traffic_matrix, station_df, labels, k):
     return mean_vector
 
 
+def intersect(area, union):
+    return area.intersection(union) if area else shapely.geometry.Polygon()
+
+
 def service_areas(city, station_df, land_use, service_radius=500, use_road=False):
     t_start = time.time()
     if 'service_area' in station_df.columns:
@@ -1190,8 +1196,13 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
     
     union = land_use_union(city, land_use)
     
-    
-    station_df['service_area'] = station_df['service_area'].apply(lambda area: area.intersection(union) if area else shapely.geometry.Polygon())
+
+    # station_df['service_area'].apply(lambda area, union=union: area.intersection(union) if area else shapely.geometry.Polygon())
+
+    in2 = partial(intersect, union=union)
+
+    with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version 1.4sec -> 0.4 sec
+        station_df['service_area'] = pool.map(in2, station_df['service_area']) 
     
     service_area_trim = []
     for i, row in station_df.iterrows():
@@ -1670,8 +1681,9 @@ if __name__ == "__main__":
     data = bs.Data('nyc', 2019, 9)
 
     pre = time.time()
-    traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=True)
-    station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
+    traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
+    station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=False)
+    area = service_areas(data.city, station_df, land_use, service_radius=500, use_road=False)
     print(f'station_df took {time.time() - pre:.2f} seconds')
 
     
