@@ -18,6 +18,7 @@ import holoviews as hv
 import pyproj
 import shapely.ops
 
+import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 import skimage.color as skcolor
 import statsmodels.api as sm
@@ -1304,7 +1305,12 @@ def land_use_union(city, land_use):
     return union
 
 
-def stations_logistic_regression(station_df, zone_columns, other_columns, use_points_or_percents='points', make_points_by='station location', const=False, test_model=False, test_ratio=0.2, test_seed=None):
+def stations_logistic_regression(station_df, zone_columns, other_columns, 
+                                 use_points_or_percents='points', 
+                                 make_points_by='station location', 
+                                 const=False, test_model=False, test_ratio=0.2, 
+                                 test_seed=None, plot_cm=False, 
+                                 normalise_cm=None):
     df = station_df[~station_df['label'].isna()]
     
     if len(df) == 0:
@@ -1389,24 +1395,10 @@ def stations_logistic_regression(station_df, zone_columns, other_columns, use_po
         X_train = X_scaled[~mask]
         y_train = y[~mask]
         
-        LR_model = MNLogit(y_train, X_train)
-        # LR_training_results = LR_model.fit_regularized(maxiter=10000)
-            
-        try:
-            LR_training_results = LR_model.fit_regularized(maxiter=10000, disp=0)
-            #print(LR_model.loglikeobs(LR_results.params.to_numpy()))
-        except np.linalg.LinAlgError:
-            print("Singular matrix")
-            LR_training_results = None
-            return None
-        
-        predictions = LR_training_results.predict(X_test)
-        predictions['label'] = predictions.idxmax(axis=1)
-        
-        success_rate = (y_test == predictions['label']).sum()/len(y_test)
-        
-        print(f"\nTest completed.\nPercentage of data used for testing: {len(y_test)/len(y)*100:.2f}%\nTesting success rate:                {success_rate*100:.2f}%\n")
-        
+        success_rate, cm, predictions = logistic_regression_test(X_train, y_train, 
+                                                    X_test, y_test,
+                                                    plot_cm=plot_cm,
+                                                    normalise_cm=normalise_cm)
     
     LR_model = MNLogit(y, X_scaled.rename(param_names))
     
@@ -1432,7 +1424,12 @@ def logistic_regression_test(X_train, y_train, X_test, y_test, plot_cm=True, nor
         X_train = X_train[columns_shared]
         X_test = X_test[columns_shared]
     
-    LR_train_res = MNLogit(y_train, X_train).fit_regularized(maxiter=10000, disp=0)
+    try:
+        LR_train_res = MNLogit(y_train, X_train).fit_regularized(maxiter=10000, disp=0)
+    except np.linalg.LinAlgError:
+          print("Singular matrix. Test aborted.")
+          return None, None
+    
     predictions = LR_train_res.predict(X_test)
     predictions['label'] = predictions.idxmax(axis=1)
     
@@ -1443,10 +1440,23 @@ def logistic_regression_test(X_train, y_train, X_test, y_test, plot_cm=True, nor
     
     if plot_cm:
         
+        if normalise_cm == 'true':
+            title='Normalised wrt. true label'
+        
+        if normalise_cm == 'pred':
+            title='Normalised wrt. predicted label'
+        
+        if normalise_cm == 'all':
+            title='Normalised wrt. number of predictions'
+        
+        
+        
+        plt.style.use('default')
         disp = ConfusionMatrixDisplay(confusion_matrix=cm)
         disp.plot()
+        plt.title(title)
 
-    return success_rate, cm
+    return success_rate, cm, predictions
 
 
 
@@ -1604,9 +1614,10 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('boston', 2019, 1)
+    data = bs.Data('nyc', 2019, 9)
 
     pre = time.time()
+    traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=True)
     station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
     print(f'station_df took {time.time() - pre:.2f} seconds')
 
@@ -1615,23 +1626,23 @@ if __name__ == "__main__":
     #     a = geodesic_point_buffer(station['lat'], station['long'], 1000)
     
     
-    overlaps = []
+    # overlaps = []
     
-    for i in range(len(land_use)):
-        for j in range(i+1, len(land_use)):
-            if land_use.iloc[i].geometry.intersection(land_use.iloc[j].geometry).area > 0:
-                overlap_perc = land_use.iloc[i].geometry.intersection(land_use.iloc[j].geometry).area/land_use.iloc[i].geometry.union(land_use.iloc[j].geometry).area*100
-                print(f'Zone {land_use.iloc[i].name} overlaps with zone {land_use.iloc[j].name}. Pecentage overlap: {overlap_perc:.2f}%')
-                overlaps.append([overlap_perc,(land_use.iloc[i].name, land_use.iloc[j].name)])
+    # for i in range(len(land_use)):
+    #     for j in range(i+1, len(land_use)):
+    #         if land_use.iloc[i].geometry.intersection(land_use.iloc[j].geometry).area > 0:
+    #             overlap_perc = land_use.iloc[i].geometry.intersection(land_use.iloc[j].geometry).area/land_use.iloc[i].geometry.union(land_use.iloc[j].geometry).area*100
+    #             print(f'Zone {land_use.iloc[i].name} overlaps with zone {land_use.iloc[j].name}. Pecentage overlap: {overlap_perc:.2f}%')
+    #             overlaps.append([overlap_perc,(land_use.iloc[i].name, land_use.iloc[j].name)])
 
-    overlaps2 = []
+    # overlaps2 = []
     
-    for i in range(len(poly_gdf)):
-        for j in range(i+1, len(poly_gdf)):
-            if poly_gdf.iloc[i].geometry.intersection(poly_gdf.iloc[j].geometry).area > 0:
-                overlap_perc = poly_gdf.iloc[i].geometry.intersection(poly_gdf.iloc[j].geometry).area/poly_gdf.iloc[i].geometry.union(poly_gdf.iloc[j].geometry).area*100
-                print(f'Zone {poly_gdf.iloc[i].name} overlaps with zone {poly_gdf.iloc[j].name}. Pecentage overlap: {overlap_perc:.2f}%')
-                overlaps2.append([overlap_perc,(poly_gdf.iloc[i].name, poly_gdf.iloc[j].name)])
+    # for i in range(len(poly_gdf)):
+    #     for j in range(i+1, len(poly_gdf)):
+    #         if poly_gdf.iloc[i].geometry.intersection(poly_gdf.iloc[j].geometry).area > 0:
+    #             overlap_perc = poly_gdf.iloc[i].geometry.intersection(poly_gdf.iloc[j].geometry).area/poly_gdf.iloc[i].geometry.union(poly_gdf.iloc[j].geometry).area*100
+    #             print(f'Zone {poly_gdf.iloc[i].name} overlaps with zone {poly_gdf.iloc[j].name}. Pecentage overlap: {overlap_perc:.2f}%')
+    #             overlaps2.append([overlap_perc,(poly_gdf.iloc[i].name, poly_gdf.iloc[j].name)])
 
     
 

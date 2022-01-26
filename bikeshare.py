@@ -3253,9 +3253,9 @@ class Data:
         
         if not month:
             month = self.month
-        
-        if stat_index is None and stat_id is None:
-            raise ValueError('Plese provide either a station index or station id')
+            
+        if (stat_index is None) and (stat_id is None):
+            raise ValueError('Please provide either a station index or station id')
         
         if stat_index:
             stat_id = self.stat.inverse[stat_index]
@@ -3323,7 +3323,7 @@ class Data:
             
             for i, day in enumerate(days):
                 traffic_mat_dep[i,:], traffic_mat_arr[i,:] = self.daily_traffic(
-                    stat_index, month=day.month, day=day.day, normalise=normalise,
+                    stat_index=stat_index, stat_id=stat_id, month=day.month, day=day.day, normalise=normalise,
                     plot=False)
 
             return traffic_mat_dep, traffic_mat_arr
@@ -4440,8 +4440,8 @@ name_dict = {
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('boston', 2019, 7, overwrite=True)
+    data = Data('nyc', 2019, 9, overwrite=True)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)
-    traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=True)
+    traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False)

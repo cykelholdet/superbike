@@ -6,10 +6,9 @@ Created on Thu Sep 30 11:36:11 2021
 @author: dbvd
 """
 
-# TODO: Find out what to do with stations outside of zoning and their 
-#       service areas within the zoning. Maybe nothing
-#
-
+# TODO: Remove panel buttons which do nothing
+#       Change pop_density to a log scale when plotting census tracts
+#       Change defaults in LR
 
 import pickle
 import time
@@ -46,7 +45,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = 9
-CITY = 'oslo'
+CITY = 'nyc'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
