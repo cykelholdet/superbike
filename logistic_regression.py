@@ -12,9 +12,9 @@ import bikeshare as bs
 import interactive_plot_utils as ipu
 import matplotlib.pyplot as plt
 
-CITY = 'oslo'
+CITY = 'nyc'
 YEAR = 2019
-MONTH = 1
+MONTH = 9
 
 day_type = 'business_days' # 'business_days' or 'weekend'
 min_trips = 100
@@ -86,7 +86,9 @@ LR_results, X, y, predictions = ipu.stations_logistic_regression(station_df, zon
                                                     use_points_or_percents=use_points_or_percents, 
                                                     make_points_by=make_points_by, 
                                                     const=add_const,
-                                                    test_model=True)
+                                                    test_model=True,
+                                                    plot_cm=True, 
+                                                    normalise_cm='true')
 
 print(LR_results.summary())
 
