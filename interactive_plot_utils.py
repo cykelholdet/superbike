@@ -1678,12 +1678,23 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('nyc', 2019, 9)
+    data = bs.Data('oslo', 2019, 9)
 
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
     station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=False)
     area = service_areas(data.city, station_df, land_use, service_radius=500, use_road=False)
+    
+    station_df, clusters, labels = get_clusters(
+        traffic_matrices, station_df, day_type='business_days', min_trips=100,
+        clustering='k_means', k=3, random_state=42)
+    station_df = service_areas(data.city, station_df, land_use, service_radius=500, use_road=False)
+
+    lr = stations_logistic_regression(
+        station_df, ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational'],
+        ['pop_density', 'nearest_subway_dist'], use_points_or_percents='points', 
+        make_points_by='station location', const=False, test_model=False,
+        test_ratio=0.2, test_seed=None, plot_cm=False, normalise_cm=None)
     print(f'station_df took {time.time() - pre:.2f} seconds')
 
     
