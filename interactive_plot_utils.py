@@ -1535,12 +1535,14 @@ def big_station_df(cities, year=2019, month=None, service_radius=500,
         k, 
         random_state=random_state)
     
+
     return big_station_df, traffic_matrices, labels
+
 
 def make_station_df_year(city, year=2019, months=None, service_radius=500,
                    use_road=False, day_type='business_days',
                    min_trips=100, clustering='k_means', k=3,
-                   random_state=42):
+                   random_state=42, return_land_use=False):
     
     month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
           7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
@@ -1588,7 +1590,10 @@ def make_station_df_year(city, year=2019, months=None, service_radius=500,
         k, 
         random_state=random_state)
     
-    return big_station_df, traffic_matrices, labels
+    if return_land_use:
+        return big_station_df, traffic_matrices, labels, land_use
+    else:
+        return big_station_df, traffic_matrices, labels
 
 
 def create_all_pickles(city, year, holidays=False, overwrite=False):

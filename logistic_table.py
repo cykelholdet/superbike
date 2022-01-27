@@ -14,7 +14,12 @@ import bikeshare as bs
 import interactive_plot_utils as ipu
 
 
-def lr_coefficients(data, name, min_trips=100, clustering='k_means', k=3, random_state=42, day_type='business_days', service_radius=500, use_points_or_percents='points', make_points_by='station_location', add_const=False, use_road=False, remove_columns=[], title='City', big_station_df=False):
+def lr_coefficients(data, name, min_trips=100, clustering='k_means', k=3, 
+                    random_state=42, day_type='business_days', 
+                    service_radius=500, use_points_or_percents='points', 
+                    make_points_by='station_location', add_const=False, 
+                    use_road=False, remove_columns=[], title='City', 
+                    big_station_df=False, return_model=False):
     
     if big_station_df:
         station_df, traffic_matrices, labels = ipu.big_station_df(data)
@@ -77,7 +82,11 @@ def lr_coefficients(data, name, min_trips=100, clustering='k_means', k=3, random
     pvs = pd.Series(pvalues, index=multiindex, name='pvalues')
     
     coefs = pd.DataFrame(pars).join((sts, pvs))
-    return pd.concat({name: coefs}, names=[title], axis=1)
+    
+    if return_model:
+        return pd.concat({name: coefs}, names=[title], axis=1), lr_results, X, y
+    else:
+        return pd.concat({name: coefs}, names=[title], axis=1)
 
 
 def formatter(x):
