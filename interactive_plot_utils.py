@@ -8,7 +8,9 @@ import pickle
 import time
 import os
 import contextlib
+import multiprocessing as mp
 from functools import partial
+
 
 #import fiona
 import numpy as np
@@ -1140,6 +1142,10 @@ def cluster_mean(traffic_matrix, station_df, labels, k):
     return mean_vector
 
 
+def intersect(area, union):
+    return area.intersection(union) if area else shapely.geometry.Polygon()
+
+
 def service_areas(city, station_df, land_use, service_radius=500, use_road=False):
     t_start = time.time()
     if 'service_area' in station_df.columns:
@@ -1190,8 +1196,13 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
     
     union = land_use_union(city, land_use)
     
-    
-    station_df['service_area'] = station_df['service_area'].apply(lambda area: area.intersection(union) if area else shapely.geometry.Polygon())
+
+    # station_df['service_area'].apply(lambda area, union=union: area.intersection(union) if area else shapely.geometry.Polygon())
+
+    in2 = partial(intersect, union=union)
+
+    with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version 1.4sec -> 0.4 sec
+        station_df['service_area'] = pool.map(in2, station_df['service_area']) 
     
     service_area_trim = []
     for i, row in station_df.iterrows():
@@ -1221,7 +1232,7 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
     # station_df['service_area'] = station_df['service_area'].to_crs(epsg=3857)
     # land_use['geometry'] = land_use['geometry'].to_crs(epsg=3857)
     
-    if 'road' in station_df['zone_type'].unique() and use_road == 'False':
+    if 'road' in station_df['zone_type'].unique() and use_road == 'False': # Ignore road
 
         station_df['service_area_no_road'] = [
             stat['service_area'].difference(stat['neighborhood_road'])
@@ -1672,11 +1683,23 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('nyc', 2019, 9)
+    data = bs.Data('oslo', 2019, 9)
 
     pre = time.time()
-    traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=True)
-    station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
+    traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
+    station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=False)
+    area = service_areas(data.city, station_df, land_use, service_radius=500, use_road=False)
+    
+    station_df, clusters, labels = get_clusters(
+        traffic_matrices, station_df, day_type='business_days', min_trips=100,
+        clustering='k_means', k=3, random_state=42)
+    station_df = service_areas(data.city, station_df, land_use, service_radius=500, use_road=False)
+
+    lr = stations_logistic_regression(
+        station_df, ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational'],
+        ['pop_density', 'nearest_subway_dist'], use_points_or_percents='points', 
+        make_points_by='station location', const=False, test_model=False,
+        test_ratio=0.2, test_seed=None, plot_cm=False, normalise_cm=None)
     print(f'station_df took {time.time() - pre:.2f} seconds')
 
     
