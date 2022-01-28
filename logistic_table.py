@@ -14,7 +14,12 @@ import bikeshare as bs
 import interactive_plot_utils as ipu
 
 
-def lr_coefficients(data, name, min_trips=100, clustering='k_means', k=3, random_state=42, day_type='business_days', service_radius=500, use_points_or_percents='points', make_points_by='station_location', add_const=False, use_road=False, remove_columns=[], title='City', big_station_df=False):
+def lr_coefficients(data, name, min_trips=100, clustering='k_means', k=3, 
+                    random_state=42, day_type='business_days', 
+                    service_radius=500, use_points_or_percents='points', 
+                    make_points_by='station_location', add_const=False, 
+                    use_road=False, remove_columns=[], title='City', 
+                    big_station_df=False, return_model=False):
     
     if big_station_df:
         station_df, traffic_matrices, labels = ipu.big_station_df(data)
@@ -77,7 +82,11 @@ def lr_coefficients(data, name, min_trips=100, clustering='k_means', k=3, random
     pvs = pd.Series(pvalues, index=multiindex, name='pvalues')
     
     coefs = pd.DataFrame(pars).join((sts, pvs))
-    return pd.concat({name: coefs}, names=[title], axis=1)
+    
+    if return_model:
+        return pd.concat({name: coefs}, names=[title], axis=1), lr_results, X, y
+    else:
+        return pd.concat({name: coefs}, names=[title], axis=1)
 
 
 def formatter(x):
@@ -158,9 +167,9 @@ if __name__ == '__main__':
     month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
           7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
 
-    CITY = 'nyc'
+    CITY = 'chic'
     YEAR = 2019
-    MONTH = 9
+    MONTH = None
     
     clustering = 'k_means'
     k = 3
@@ -173,7 +182,7 @@ if __name__ == '__main__':
     use_road = False
     add_const = True
     
-    table_type = 'month_all_cities'
+    table_type = 'only_coef'
 # =============================================================================
 #   Table types
 # =============================================================================
@@ -508,6 +517,13 @@ if __name__ == '__main__':
         
         latex_table = tuple_table.to_latex(column_format='@{}ll'+('r'*len(tuple_table.columns)) + '@{}', multirow=True, formatters = [tuple_formatter]*len(tuple_table.columns), escape=False)
         print(latex_table)
+        
+        # collist = list(tuple_table.columns)
+        # latex_table = tuple_table[collist[:4]].to_latex(column_format='@{}ll'+('r'*len(collist[:4])) + '@{}', multirow=True, formatters = [tuple_formatter]*len(collist[:4]), escape=False)
+        # print(latex_table)
+        # latex_table = tuple_table[collist[4:]].to_latex(column_format='@{}ll'+('r'*len(collist[4:])) + '@{}', multirow=True, formatters = [tuple_formatter]*len(collist[4:]), escape=False)
+        # print(latex_table)
+        
         with open('figures/coef_table.tex','a') as file:
             file.write(latex_table + "\n")
 
