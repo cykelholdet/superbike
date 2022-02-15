@@ -38,7 +38,6 @@ import interactive_plot_utils as ipu
 
 hv.extension('bokeh', logo=False)
 
-
 cmap = cm.get_cmap('Blues')
 
 # Load bikeshare data
