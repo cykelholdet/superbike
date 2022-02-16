@@ -403,7 +403,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     print("Making Station DataFrame", end="")
     
-    df = pd.DataFrame(data.stat.locations).T.rename(columns={0: 'long', 1: 'lat'})
+    df = gpd.GeoDataFrame(data.stat.locations).T.rename(columns={0: 'long', 1: 'lat'})
     
     df['stat_id'] = df.index.map(data.stat.inverse)
     
@@ -931,7 +931,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     print(".")
     
-    df['service_area'] = get_service_area(data.city, df, land_use, service_radius=500, use_road=False)
+    df['service_area'], df['service_area_size'] = get_service_area(data.city, df, land_use, service_radius=500)
     df['pop_density'] = pop_density_in_service_area(df, census_df)
         
     df.rename(mapper=df_key(data.city), axis=1, inplace=True)  
@@ -952,6 +952,14 @@ def make_station_df(data, holidays=True, return_land_use=False,
         neighborhoods = make_neighborhoods(data.city, data.year, df, land_use)
     
     df = df.merge(neighborhoods, on='stat_id')
+    print("pre")
+    pre = time.time()
+    df = df.join(
+        neighborhood_percentages(
+            data.city, df, land_use, service_radius=500,
+            use_road=False
+            ))
+    print(f"time taken = {time.time() - pre}")
     
     print("Done")
     
@@ -1100,7 +1108,7 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         labels = None
         station_df['label'] = np.nan
         station_df['color'] = None
-    
+    print(station_df.crs)
 
     return station_df, clusters, labels
 
@@ -1188,29 +1196,25 @@ def intersect(area, union):
     return area.intersection(union) if area else shapely.geometry.Polygon()
 
 
-def service_areas(city, station_df, land_use, service_radius=500, use_road=False):
-    t_start = time.time()
+def neighborhood_percentages(city, station_df, land_use, service_radius=500, use_road='False'):
     
+    if 'service_area' not in station_df.columns or service_radius != 500:
+        print('Making service area...')
+        station_df['service_area'], station_df['service_area_size'] = get_service_area(city, station_df, land_use, service_radius=service_radius)
     
-    station_df['service_area'] = get_service_area(city, station_df, land_use, service_radius=500, use_road=False)
+    percentages = pd.DataFrame()
     
-    # station_df['service_area'] = station_df['service_area'].to_crs(epsg=3857)
-    # land_use['geometry'] = land_use['geometry'].to_crs(epsg=3857)
+    if 'road' in station_df['zone_type'].unique() and use_road in ['False', False]: # Ignore road
+        
     
-    if 'road' in station_df['zone_type'].unique() and use_road == 'False': # Ignore road
-
-        station_df['service_area_no_road'] = [
-            stat['service_area'].difference(stat['neighborhood_road'])
-            for i, stat in station_df.iterrows()] # ShapelyDeprecationWarning for 2.0 here. Probably needs geopandas to fix it
-
+        sa_no_road = station_df['service_area'].difference(station_df['neighborhood_road']).rename('sa_no_road').to_crs(epsg=3857)  
+        
         zone_types = station_df['zone_type'].unique()[
             station_df['zone_type'].unique() != 'road']
 
+        sa_no_road = sa_no_road.buffer(0)
         
-        geo_sdf = station_df.set_geometry('service_area_no_road')
-        geo_sdf.to_crs(epsg=3857, inplace=True)
         
-        geo_sdf.geometry = geo_sdf.buffer(0)
 
         for zone_type in zone_types:
         
@@ -1218,15 +1222,15 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
             
             mask = ~station_df[f'neighborhood_{zone_type}'].is_empty
             
-            sdf_zone = geo_sdf[f'neighborhood_{zone_type}'].to_crs(epsg=3857)[mask]
+            sdf_zone = station_df[f'neighborhood_{zone_type}'].to_crs(epsg=3857)[mask]
             
             print(zone_type)
-            zone_percents[mask] = geo_sdf[mask].intersection(sdf_zone).area/geo_sdf[mask].area
+            zone_percents[mask] = sa_no_road[mask].intersection(sdf_zone).area/sa_no_road[mask].area
             
-            station_df[f'percent_{zone_type}'] = zone_percents
+            percentages[f'percent_{zone_type}'] = zone_percents
         
     else:
-            
+        
         for zone_type in station_df['zone_type'].unique(): #This is where all the time goes
             
             zone_percents = np.zeros(len(station_df))
@@ -1242,26 +1246,12 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
                 else:
                     zone_percents[i] = np.nan
                     
-            station_df[f'percent_{zone_type}'] = zone_percents
+            percentages[f'percent_{zone_type}'] = zone_percents
 
-    station_df['service_area_size'] = station_df['service_area'].apply(lambda area: area.area/1000000)
-    
-    station_df['service_area'] = station_df['service_area'].to_crs(epsg=4326)
-    land_use['geometry'] = land_use['geometry'].to_crs(epsg=4326)
-    
-    station_df['service_area'] = station_df['service_area'].apply(
-        lambda poly: Point(0,0).buffer(0.0001) if poly.area==0 else poly)
-    
-    # serv = gpd.GeoSeries(station_df.service_area)
-    # mask = serv.area == 0
-    # station_df = station_df[~mask]
-    
-    station_df['geometry'] = station_df['service_area']
-    print(f"total time on service areas spent = {time.time()-t_start:.2f}")
-    return station_df
+    return percentages
 
 
-def get_service_area(city, station_df, land_use, service_radius=500, use_road=False):
+def get_service_area(city, station_df, land_use, service_radius=500):
     """
     
 
@@ -1275,8 +1265,6 @@ def get_service_area(city, station_df, land_use, service_radius=500, use_road=Fa
         DESCRIPTION.
     service_radius : TYPE, optional
         DESCRIPTION. The default is 500.
-    use_road : TYPE, optional
-        DESCRIPTION. The default is False.
 
     Returns
     -------
@@ -1318,7 +1306,9 @@ def get_service_area(city, station_df, land_use, service_radius=500, use_road=Fa
     buffers = poly_gdf['point'].buffer(service_radius)
     
     poly_gdf['service_area'] = poly_gdf.intersection(buffers)
-
+    
+    poly_gdf['service_area_size'] = poly_gdf['service_area'].apply(lambda area: area.area/1000000)
+    
     poly_gdf['geometry'] = poly_gdf['service_area']
     poly_gdf.set_crs(epsg=3857, inplace=True)
     poly_gdf.to_crs(epsg=4326, inplace=True)
@@ -1328,11 +1318,11 @@ def get_service_area(city, station_df, land_use, service_radius=500, use_road=Fa
     sa_df.drop(columns=['index_right', 'vor_poly', 'point'], inplace=True)
     
     service_areas = sa_df['service_area']
+    service_area_size = sa_df['service_area_size']
     
     union = land_use_union(city, land_use)
-    
 
-    service_areas.apply(lambda area, union=union: area.intersection(union) if area else shapely.geometry.Polygon())
+    service_areas = service_areas.apply(lambda area, union=union: area.intersection(union) if area else shapely.geometry.Polygon())
 
     # in2 = partial(intersect, union=union)
 
@@ -1369,7 +1359,11 @@ def get_service_area(city, station_df, land_use, service_radius=500, use_road=Fa
     #service_areas = service_area_trim
     #station_df.set_geometry('service_area', inplace=True)
     
-    return service_areas
+    service_areas = service_areas.apply(
+        lambda poly: Point(0,0).buffer(0.0001) if poly.area==0 else poly)
+    
+    
+    return gpd.GeoSeries(service_areas), service_area_size
 
 
 def land_use_union(city, land_use):
@@ -1477,9 +1471,11 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
     
     X_scaled = X.copy()
     if 'n_trips' in X_scaled.columns:
-        X_scaled['n_trips'] = X_scaled['n_trips']/X_scaled['n_trips'].sum()
+        X_scaled['n_trips'] = X_scaled['n_trips']/X_scaled['n_trips'].sum() # percentage of total trips
     if 'nearest_subway_dist' in X_scaled.columns:
-        X_scaled['nearest_subway_dist'] = X_scaled['nearest_subway_dist']/1000
+        X_scaled['nearest_subway_dist'] = X_scaled['nearest_subway_dist']/1000 # Convert to km
+    if 'pop_density' in X_scaled.columns:
+        X_scaled['pop_density'] = X_scaled['pop_density']/10000 # population per 100 m²
     
     param_names = {'percent_industrial' : '% industrial',
                    'percent_commercial' : '% commercial',
@@ -1619,8 +1615,14 @@ def big_station_df(cities, year=2019, month=None, service_radius=500,
         data = bs.Data(city, year, month)
         station_df, land_use = make_station_df(data, holidays=False, return_land_use=True)
         traffic_matrices = data.pickle_daily_traffic(holidays=False)
-
-        station_df = service_areas(data.city, station_df, land_use, service_radius=service_radius, use_road=use_road)
+        
+        station_df['service_area'] = get_service_area(data.city, station_df, land_use, service_radius=service_radius)
+        station_df.join(
+            neighborhood_percentages(
+                data.city, station_df, land_use, service_radius=service_radius,
+                use_road=use_road
+                ),
+            inplace=True)
         
         station_df_list.append(pd.concat({city: station_df}))
         traffic_matrix_b_list.append(traffic_matrices[0])
@@ -1671,7 +1673,13 @@ def make_station_df_year(city, year=2019, months=None, service_radius=500,
         station_df, land_use = make_station_df(data, holidays=False, return_land_use=True)
         traffic_matrices = data.pickle_daily_traffic(holidays=False)
 
-        station_df = service_areas(data.city, station_df, land_use, service_radius=service_radius, use_road=use_road)
+        station_df['service_area'] = get_service_area(data.city, station_df, land_use, service_radius=service_radius)
+        station_df.join(
+            neighborhood_percentages(
+                data.city, station_df, land_use, service_radius=service_radius,
+                use_road=use_road
+                ),
+            inplace=True)
         station_df[month_dict[month]] = 1
         
         station_df_list.append(pd.concat({city: station_df}))
@@ -1789,24 +1797,30 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('oslo', 2019, 9)
+    data = bs.Data('nyc', 2019, 9)
 
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
     station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
-    area = service_areas(data.city, station_df, land_use, service_radius=500, use_road=False)
+    #station_df['service_area'], station_df['service_area_size'] = get_service_area(data.city, station_df, land_use, service_radius=500)
+    station_df = neighborhood_percentages(
+            data.city, station_df, land_use, service_radius=500,
+            use_road=False
+            ).combine_first(station_df)
     
     station_df, clusters, labels = get_clusters(
         traffic_matrices, station_df, day_type='business_days', min_trips=100,
         clustering='k_means', k=3, random_state=42)
-    station_df = service_areas(data.city, station_df, land_use, service_radius=500, use_road=False)
-
+    
+    print(f'station_df took {time.time() - pre:.2f} seconds')
+    
     lr = stations_logistic_regression(
         station_df, ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational'],
-        ['pop_density', 'nearest_subway_dist'], use_points_or_percents='points', 
-        make_points_by='station location', const=False, test_model=False,
+        ['pop_density', 'nearest_subway_dist'], use_points_or_percents='percents', 
+        make_points_by='station location', const=True, test_model=False,
         test_ratio=0.2, test_seed=None, plot_cm=False, normalise_cm=None)
-    print(f'station_df took {time.time() - pre:.2f} seconds')
+    print(lr[0].summary())
+
 
     
     # for i, station in station_df.iterrows():
