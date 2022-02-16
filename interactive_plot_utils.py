@@ -415,7 +415,11 @@ def make_station_df(data, holidays=True, return_land_use=False,
 
     df['n_trips'] = df['n_arrivals'] + df['n_departures']
 
-    df_s = data.df[['start_stat_id', 'start_dt']][data.df['start_dt'].dt.weekday <= 4]
+
+    column_list = ['start_stat_id', 'start_dt']
+    if 'user_type' in data.df.columns:
+        column_list.append('user_type')
+    df_s = data.df[column_list][data.df['start_dt'].dt.weekday <= 4]
     
     print(".", end="")
     
@@ -426,20 +430,50 @@ def make_station_df(data, holidays=True, return_land_use=False,
         df_s = df_s[~df_s['start_dt'].dt.date.isin(holiday_list)] # Rows which are not in holiday list
     df['b_departures'] = df['stat_id'].map(df_s['start_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
     
-    df_s = data.df[['start_stat_id', 'start_dt']][data.df['start_dt'].dt.weekday > 4]
+    if 'user_type' in data.df.columns:
+        df_sub = df_s[df_s['user_type'] == 'Subscriber']
+        df_cus = df_s[df_s['user_type'] == 'Customer']
+        df['sub_b_departures'] = df['stat_id'].map(df_sub['start_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
+        df['cus_b_departures'] = df['stat_id'].map(df_cus['start_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
+
+
+    
+    df_s = data.df[column_list][data.df['start_dt'].dt.weekday > 4]
     df['w_departures'] = df['stat_id'].map(df_s['start_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
 
-    df_s = data.df[['end_stat_id', 'end_dt']][data.df['end_dt'].dt.weekday <= 4]
+    if 'user_type' in data.df.columns:
+        df_sub = df_s[df_s['user_type'] == 'Subscriber']
+        df_cus = df_s[df_s['user_type'] == 'Customer']
+        df['sub_w_departures'] = df['stat_id'].map(df_sub['start_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
+        df['cus_w_departures'] = df['stat_id'].map(df_cus['start_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
+
+
+    column_list = ['end_stat_id', 'end_dt']
+    if 'user_type' in data.df.columns:
+        column_list.append('user_type')
+            
+    df_s = data.df[column_list][data.df['end_dt'].dt.weekday <= 4]
     if not holidays:
         df_s = df_s[~df_s['end_dt'].dt.date.isin(holiday_list)] # Rows which are not in holiday list
     df['b_arrivals'] = df['stat_id'].map(df_s['end_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
     
-    df_s = data.df[['end_stat_id', 'end_dt']][data.df['end_dt'].dt.weekday > 4]
+    if 'user_type' in data.df.columns:
+        df_sub = df_s[df_s['user_type'] == 'Subscriber']
+        df_cus = df_s[df_s['user_type'] == 'Customer']
+        df['sub_b_arrivals'] = df['stat_id'].map(df_sub['end_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
+        df['cus_b_arrivals'] = df['stat_id'].map(df_cus['end_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
+    
+    df_s = data.df[column_list][data.df['end_dt'].dt.weekday > 4] # DataFrame subset consisting of the end station id and time of trips which end in the weekend
     df['w_arrivals'] = df['stat_id'].map(df_s['end_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
+    
+    if 'user_type' in data.df.columns:
+        df_sub = df_s[df_s['user_type'] == 'Subscriber']
+        df_cus = df_s[df_s['user_type'] == 'Customer']
+        df['sub_w_arrivals'] = df['stat_id'].map(df_sub['end_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
+        df['cus_w_arrivals'] = df['stat_id'].map(df_cus['end_stat_id'].value_counts().sort_index().to_dict()).fillna(0)
     
     df['b_trips'] = df['b_arrivals'] + df['b_departures']
     df['w_trips'] = df['w_arrivals'] + df['w_departures']
-
     
     df['coords'] = list(zip(df['long'], df['lat']))
     df['coords'] = df['coords'].apply(Point)
@@ -539,7 +573,9 @@ def make_station_df(data, holidays=True, return_land_use=False,
         df['zone_type'] = df['code_2018'].apply(lambda x: zone_code_transform(data.city, x))
         df.loc[df['zone_type'] == 'water', 'zone_type'] = "UNKNOWN"
         print(".", end="")
-        land_use = land_use[['code_2018', 'geometry']]
+        census_df = land_use[['Pop2018', 'area', 'geometry']]
+        census_df['pop_density'] = (census_df['Pop2018'] / census_df['area'])*1000000
+        #land_use = land_use[['code_2018', 'geometry']]
         print(".", end="")
         land_use.to_crs(epsg=3857, inplace=True)
         print(".", end="")
@@ -562,7 +598,10 @@ def make_station_df(data, holidays=True, return_land_use=False,
         
         df['pop_density'] = (df['Pop2018'] / df['area'])*1000000
         
-        census_df = pd.DataFrame([])
+        census_df = land_use[['Pop2018', 'area', 'geometry']]
+        census_df['pop_density'] = (census_df['Pop2018'] / census_df['area'])*1000000
+        
+        land_use = land_use[['zone_type', 'geometry']]
         
     elif data.city == 'chic':
         
@@ -891,6 +930,9 @@ def make_station_df(data, holidays=True, return_land_use=False,
         land_use['zone_type'] = 'UNKNOWN'
     
     print(".")
+    
+    df['service_area'] = get_service_area(data.city, df, land_use, service_radius=500, use_road=False)
+    df['pop_density'] = pop_density_in_service_area(df, census_df)
         
     df.rename(mapper=df_key(data.city), axis=1, inplace=True)  
     df['zone_type'] = df['zone_type'].apply(lambda x: x if pd.notnull(x) else 'UNKNOWN')
@@ -1148,87 +1190,10 @@ def intersect(area, union):
 
 def service_areas(city, station_df, land_use, service_radius=500, use_road=False):
     t_start = time.time()
-    if 'service_area' in station_df.columns:
-        station_df.drop(columns='service_area', inplace=True)
-        station_df.set_geometry('coords', inplace=True)
-    
-    points = station_df[['easting', 'northing']].to_numpy()
-    points_gdf = gpd.GeoDataFrame(geometry = [Point(station_df.iloc[i]['easting'], 
-                                                  station_df.iloc[i]['northing'])
-                           for i in range(len(station_df))], crs='EPSG:3857')
-
-    points_gdf['point'] = points_gdf['geometry']
-    
-    mean_point= np.mean(points, axis=0)
-    edge_dist = 1000000
-    edge_points = np.array([[mean_point[0]-edge_dist, mean_point[1]-edge_dist],
-                            [mean_point[0]-edge_dist, mean_point[1]+edge_dist],
-                            [mean_point[0]+edge_dist, mean_point[1]+edge_dist],
-                            [mean_point[0]+edge_dist, mean_point[1]-edge_dist]])
-
-    vor = Voronoi(np.concatenate([points, edge_points], axis=0))
-    
-    lines = [LineString(vor.vertices[line])
-        for line in vor.ridge_vertices
-        if -1 not in line]
-    
-    poly_gdf = gpd.GeoDataFrame()
-    poly_gdf['vor_poly'] = [poly for poly in shapely.ops.polygonize(lines)]
-    poly_gdf['geometry'] = poly_gdf['vor_poly']
-    poly_gdf.set_crs(epsg=3857, inplace=True)
-
-    poly_gdf = gpd.tools.sjoin(points_gdf, poly_gdf, op='within', how='left')
-    poly_gdf.drop('index_right', axis=1, inplace=True)
-    poly_gdf['geometry'] = poly_gdf['vor_poly']
-    
-    buffers = poly_gdf['point'].buffer(service_radius)
-    
-    poly_gdf['service_area'] = poly_gdf.intersection(buffers)
-
-    poly_gdf['geometry'] = poly_gdf['service_area']
-    poly_gdf.set_crs(epsg=3857, inplace=True)
-    poly_gdf.to_crs(epsg=4326, inplace=True)
-    poly_gdf['service_area'] = poly_gdf['geometry']
-    
-    station_df = gpd.tools.sjoin(station_df, poly_gdf, op='within', how='left')
-    station_df.drop(columns=['index_right', 'vor_poly', 'point'], inplace=True)
     
     
-    union = land_use_union(city, land_use)
+    station_df['service_area'] = get_service_area(city, station_df, land_use, service_radius=500, use_road=False)
     
-
-    # station_df['service_area'].apply(lambda area, union=union: area.intersection(union) if area else shapely.geometry.Polygon())
-
-    in2 = partial(intersect, union=union)
-
-    with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version 1.4sec -> 0.4 sec
-        station_df['service_area'] = pool.map(in2, station_df['service_area']) 
-    
-    service_area_trim = []
-    for i, row in station_df.iterrows():
-        # if isinstance(row['service_area'], shapely.geometry.multipolygon.MultiPolygon):
-        #     count=1
-        #     for poly in row['service_area'].geoms:
-
-        #         if poly.contains(row['coords']):
-        #             service_area_trim.append(poly)
-                # else:
-                #     service_area_trim.append(row['service_area']) # hotfix, find better solution
-                    
-                #     if count != len(row['service_area']):
-                #         service_area_trim = service_area_trim[:-1]
-                # count+=1
-
-        if isinstance(row['service_area'], shapely.geometry.collection.GeometryCollection):
-            service_area_trim.append(shapely.ops.unary_union(row['service_area']))
-        
-        else:
-            service_area_trim.append(row['service_area'])
-    
-    station_df['service_area'] = service_area_trim
-    station_df.set_geometry('service_area', inplace=True)
-    
-
     # station_df['service_area'] = station_df['service_area'].to_crs(epsg=3857)
     # land_use['geometry'] = land_use['geometry'].to_crs(epsg=3857)
     
@@ -1296,6 +1261,117 @@ def service_areas(city, station_df, land_use, service_radius=500, use_road=False
     return station_df
 
 
+def get_service_area(city, station_df, land_use, service_radius=500, use_road=False):
+    """
+    
+
+    Parameters
+    ----------
+    city : TYPE
+        DESCRIPTION.
+    station_df : TYPE
+        DESCRIPTION.
+    land_use : TYPE
+        DESCRIPTION.
+    service_radius : TYPE, optional
+        DESCRIPTION. The default is 500.
+    use_road : TYPE, optional
+        DESCRIPTION. The default is False.
+
+    Returns
+    -------
+    service_areas : TYPE
+        DESCRIPTION.
+
+    """
+    
+    points = station_df[['easting', 'northing']].to_numpy()
+    points_gdf = gpd.GeoDataFrame(
+        geometry=[Point(station_df.iloc[i]['easting'], 
+                        station_df.iloc[i]['northing'])
+                  for i in range(len(station_df))],
+        crs='EPSG:3857')
+
+    points_gdf['point'] = points_gdf['geometry']
+    
+    mean_point = np.mean(points, axis=0)
+    edge_dist = 1000000
+    edge_points = np.array([[mean_point[0]-edge_dist, mean_point[1]-edge_dist],
+                            [mean_point[0]-edge_dist, mean_point[1]+edge_dist],
+                            [mean_point[0]+edge_dist, mean_point[1]+edge_dist],
+                            [mean_point[0]+edge_dist, mean_point[1]-edge_dist]])
+
+    vor = Voronoi(np.concatenate([points, edge_points], axis=0))
+    
+    lines = [LineString(vor.vertices[line])
+        for line in vor.ridge_vertices if -1 not in line]
+    
+    poly_gdf = gpd.GeoDataFrame()
+    poly_gdf['vor_poly'] = [poly for poly in shapely.ops.polygonize(lines)]
+    poly_gdf['geometry'] = poly_gdf['vor_poly']
+    poly_gdf.set_crs(epsg=3857, inplace=True)
+
+    poly_gdf = gpd.tools.sjoin(points_gdf, poly_gdf, op='within', how='left')
+    poly_gdf.drop('index_right', axis=1, inplace=True)
+    poly_gdf['geometry'] = poly_gdf['vor_poly']
+    
+    buffers = poly_gdf['point'].buffer(service_radius)
+    
+    poly_gdf['service_area'] = poly_gdf.intersection(buffers)
+
+    poly_gdf['geometry'] = poly_gdf['service_area']
+    poly_gdf.set_crs(epsg=3857, inplace=True)
+    poly_gdf.to_crs(epsg=4326, inplace=True)
+    poly_gdf['service_area'] = poly_gdf['geometry']
+    
+    sa_df = gpd.tools.sjoin(station_df[['coords']], poly_gdf, op='within', how='left')
+    sa_df.drop(columns=['index_right', 'vor_poly', 'point'], inplace=True)
+    
+    service_areas = sa_df['service_area']
+    
+    union = land_use_union(city, land_use)
+    
+
+    service_areas.apply(lambda area, union=union: area.intersection(union) if area else shapely.geometry.Polygon())
+
+    # in2 = partial(intersect, union=union)
+
+    # with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version 1.4sec -> 0.4 sec
+    #     station_df['service_area'] = pool.map(in2, station_df['service_area']) 
+    
+    # service_area_trim = []
+    # for sa in service_areas:
+    #     # if isinstance(row['service_area'], shapely.geometry.multipolygon.MultiPolygon):
+    #     #     count=1
+    #     #     for poly in row['service_area'].geoms:
+
+    #     #         if poly.contains(row['coords']):
+    #     #             service_area_trim.append(poly)
+    #             # else:
+    #             #     service_area_trim.append(row['service_area']) # hotfix, find better solution
+                    
+    #             #     if count != len(row['service_area']):
+    #             #         service_area_trim = service_area_trim[:-1]
+    #             # count+=1
+
+    #     if isinstance(sa, shapely.geometry.collection.GeometryCollection):
+    #         service_area_trim.append(shapely.ops.unary_union(sa))
+        
+    #     else:
+    #         service_area_trim.append(sa)
+    
+    mask = service_areas.apply(isinstance, args=[shapely.geometry.collection.GeometryCollection])
+    
+    print(f"Number of 'GeometryCollection's: {mask.sum()}")
+    
+    service_areas[mask].apply(shapely.ops.unary_union)
+    
+    #service_areas = service_area_trim
+    #station_df.set_geometry('service_area', inplace=True)
+    
+    return service_areas
+
+
 def land_use_union(city, land_use):
     try:
         with open(f'./python_variables/union_{city}.pickle', 'rb') as file:
@@ -1314,6 +1390,35 @@ def land_use_union(city, land_use):
         print('Pickling done')
     
     return union
+
+
+def pop_density_in_service_area(station_df, census_df):
+    """
+    Compute the population density of each station as a weighted average of the
+    population densities in the service area.
+
+    Parameters
+    ----------
+    station_df : GeoDataFrame
+        Dataframe containing the column 'service_area' for each station.
+    census_df : GeoDataFrame
+        Contains census polygons and corresponding population density.
+
+    Returns
+    -------
+    pop_ds : list
+        weighted average population density for each station.
+
+    """
+    pop_ds = []
+    stat_sa = station_df['service_area'].to_crs(epsg=3857)
+    cens_df = census_df.to_crs(epsg=3857)
+    for station in stat_sa:
+        intersection = cens_df.intersection(station)
+        mask = (intersection != Polygon())
+        sec_masked = intersection.loc[mask]
+        pop_ds.append((cens_df.loc[mask, 'pop_density'] * sec_masked.area).sum() / station.area)
+    return pop_ds
 
 
 def stations_logistic_regression(station_df, zone_columns, other_columns, 
@@ -1424,6 +1529,7 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
         return LR_results, X, y, predictions
     else:
         return LR_results, X, y
+
 
 def logistic_regression_test(X_train, y_train, X_test, y_test, plot_cm=True, normalise_cm=None):
     
@@ -1687,7 +1793,7 @@ if __name__ == "__main__":
 
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
-    station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=False)
+    station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
     area = service_areas(data.city, station_df, land_use, service_radius=500, use_road=False)
     
     station_df, clusters, labels = get_clusters(
