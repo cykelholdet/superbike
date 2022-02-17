@@ -952,14 +952,12 @@ def make_station_df(data, holidays=True, return_land_use=False,
         neighborhoods = make_neighborhoods(data.city, data.year, df, land_use)
     
     df = df.merge(neighborhoods, on='stat_id')
-    print("pre")
-    pre = time.time()
+
     df = df.join(
         neighborhood_percentages(
             data.city, df, land_use, service_radius=500,
             use_road=False
             ))
-    print(f"time taken = {time.time() - pre}")
     
     print("Done")
     
@@ -1108,7 +1106,6 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         labels = None
         station_df['label'] = np.nan
         station_df['color'] = None
-    print(station_df.crs)
 
     return station_df, clusters, labels
 
@@ -1803,10 +1800,15 @@ if __name__ == "__main__":
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
     station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
     #station_df['service_area'], station_df['service_area_size'] = get_service_area(data.city, station_df, land_use, service_radius=500)
-    station_df = neighborhood_percentages(
-            data.city, station_df, land_use, service_radius=500,
-            use_road=False
-            ).combine_first(station_df)
+    
+    percent_cols = [column for column in station_df.columns if "percent_" in column]
+
+    station_df = station_df.drop(columns=percent_cols).merge(
+        neighborhood_percentages(
+            data.city, station_df, land_use, 
+            service_radius=500, use_road=False
+            ),
+        how='outer', left_index=True, right_index=True)
     
     station_df, clusters, labels = get_clusters(
         traffic_matrices, station_df, day_type='business_days', min_trips=100,
