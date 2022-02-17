@@ -38,7 +38,6 @@ import interactive_plot_utils as ipu
 
 hv.extension('bokeh', logo=False)
 
-
 cmap = cm.get_cmap('Blues')
 
 # Load bikeshare data
@@ -172,6 +171,8 @@ class BikeDash(param.Parameterized):
         self.station_df, self.land_use, self.census_df = ipu.make_station_df(self.data, holidays=False, return_land_use=True, return_census=True)
         self.traffic_matrices = self.data.pickle_daily_traffic(holidays=False)
         
+        self.service_area_modified = False
+        
         self.plot_clusters_full()
         self.make_service_areas()
         print("Make logi")
@@ -195,7 +196,6 @@ class BikeDash(param.Parameterized):
     def plot_clusters_full(self):
         print("Plotting Clusters")
         self.station_df, self.clusters, self.labels = ipu.get_clusters(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, self.clustering, self.k, self.random_state)
-        
         # print(self.station_df.label.iloc[0])
         
         
@@ -299,7 +299,19 @@ class BikeDash(param.Parameterized):
     def make_service_areas(self):
         print("Making Service Areas")
         
-        self.station_df = ipu.service_areas(self.city, self.station_df, self.land_use, self.service_radius, self.use_road)
+        if self.service_radius != 500 or self.service_area_modified == True:
+            self.station_df['service_area'], self.station_df['service_area_size'] = ipu.get_service_area(self.data.city, self.station_df, self.land_use, self.service_radius)
+            self.service_area_modified = True
+        
+        percent_cols = [column for column in self.station_df.columns if "percent_" in column]
+
+        self.station_df = self.station_df.drop(columns=percent_cols).merge(
+            ipu.neighborhood_percentages(
+                self.data.city, self.station_df, self.land_use, 
+                self.service_radius,self.use_road
+                ),
+            how='outer', left_index=True, right_index=True)
+            
         
         self.LR_indicator = not self.LR_indicator
 
@@ -464,17 +476,18 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
         
         vdims = zone_percents_columns
         vdims.append('service_area_size')
-        
-        print(vdims)
+        sdf = bike_params.station_df.set_geometry('service_area')
+        sdf['geometry'] = sdf.geometry
+        print(f"vdims={vdims}")
         if service_area_color == 'residential':
-            return gv.Polygons(bike_params.station_df, vdims=vdims).opts(color='percent_residential')
+            return gv.Polygons(sdf, vdims=vdims).opts(color='percent_residential')
         elif service_area_color == 'commercial':
-            return gv.Polygons(bike_params.station_df, vdims=vdims).opts(color='percent_commercial')
+            return gv.Polygons(sdf, vdims=vdims).opts(color='percent_commercial')
         elif service_area_color == 'recreational':
-            return gv.Polygons(bike_params.station_df, vdims=vdims).opts(color='percent_recreational')
+            return gv.Polygons(sdf, vdims=vdims).opts(color='percent_recreational')
         elif service_area_color == 'pop density':
             if 'pop_density' in bike_params.station_df.columns:
-                return gv.Polygons(bike_params.station_df, vdims=vdims).opts(color='pop_density')
+                return gv.Polygons(sdf, vdims=vdims).opts(color='pop_density')
             else:
                 return gv.Polygons([])
         

@@ -469,18 +469,118 @@ plt.savefig(f'./figures/LR_model_tests/train_on_{city_train}_test_on_{city_test}
 
 
 
+#%% Linear Regression
+from statsmodels.api import OLS, GLS, WLS
+from statsmodels.tools import add_constant
+import statsmodels.formula.api as smf
+
+CITY = 'nyc'
+YEAR = 2019
+MONTH = 9
+
+data = bs.Data(CITY, YEAR, MONTH)
+
+station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
+traffic_matrices = data.pickle_daily_traffic(holidays=False)
+station_df, clusters, labels = ipu.get_clusters(
+    traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
+station_df = ipu.service_areas(
+    CITY, station_df, land_use, service_radius=service_radius, use_road=use_road)
+
+df = station_df
+
+cols = ['percent_residential', 'percent_commercial', 'percent_industrial',
+        'pop_density', 'nearest_subway_dist']
+
+triptype = 'b_departures'
+
+#cols = ['percent_residential']
+X = df[cols]
+
+y = df[triptype][~X.isna().any(axis=1)]
+
+y = np.sqrt(y)
+
+X = X[~X.isna().any(axis=1)]
+
+X_scaled = X.copy()
+if triptype in X_scaled.columns:
+    X_scaled[triptype] = X_scaled[triptype]/X_scaled[triptype].sum()
+if 'nearest_subway_dist' in X_scaled.columns:
+    X_scaled['nearest_subway_dist'] = X_scaled['nearest_subway_dist']/1000
+if 'pop_density' in X_scaled.columns:
+    X_scaled['pop_density'] = X_scaled['pop_density']/10000
+
+    
+
+param_names = {'percent_industrial' : '% industrial',
+               'percent_commercial' : '% commercial',
+               'percent_residential' : '% residential',
+               'percent_recreational' : '% recreational',
+               'percent_mixed' : '% mixed',
+               'pop_density' : 'pop density',
+               'nearest_subway_dist' : 'nearest subway dist'}
+
+X_scaled = X_scaled.rename(param_names)
+
+X_scaled = add_constant(X_scaled)
+
+OLS_model = OLS(y, X_scaled)
+
+OLS_results = OLS_model.fit(maxiter=10000)
+
+print(OLS_results.summary())
 
 
+OLS_pred = OLS_results.get_prediction()
+
+iv_l = OLS_pred.summary_frame()["obs_ci_lower"]
+iv_u = OLS_pred.summary_frame()["obs_ci_upper"]
 
 
+variable = 'nearest_subway_dist'
 
 
+x = X_scaled[variable]
+
+a = pd.concat([x, y], axis=1).sort_values(variable)
+
+x = a[a.columns[0]]
+y = a[a.columns[1]]
 
 
+fig, ax = plt.subplots(figsize=(8, 6))
 
+ax.plot(x, y, "o", label="Data")
+ax.plot(x, OLS_results.fittedvalues, "r--.", label="Predicted")
+# ax.plot(x, iv_u, "r--")
+# ax.plot(x, iv_l, "r--")
+ax.set_xlabel(variable)
+ax.set_ylabel('n_trips')
+legend = ax.legend(loc="best")
 
+cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
+        'pop_density', 'nearest_subway_dist', triptype]
 
+df = station_df[cols]
+    
+df['nearest_subway_dist'] = df['nearest_subway_dist']/1000
+df['pop_density'] = df['pop_density']/10000
+df[triptype] = np.sqrt(df[triptype])
 
+model = smf.ols(formula=f"""{triptype} ~ 
+                percent_residential + percent_commercial + percent_industrial + percent_recreational + pop_density + nearest_subway_dist
+                + percent_residential:percent_commercial + percent_residential:percent_industrial + percent_residential:percent_recreational
+                + percent_commercial:percent_industrial + percent_commercial:percent_recreational
+                + percent_industrial:percent_recreational
+                """, data=df)
 
+model = smf.ols(formula=f"""{triptype} ~ 
+                percent_residential + percent_commercial + percent_industrial + percent_recreational + pop_density + nearest_subway_dist
+                + percent_commercial:percent_industrial
+                """, data=df)
 
+result = model.fit()
+
+print(result.summary())
 

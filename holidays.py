@@ -101,7 +101,9 @@ def plot_trips_pr_hour_year(df, city, year, savefig=True, n_bins=24):
         
         if (day_dt.date() == holidays['day']).sum() > 0:
             d_ax.set_facecolor('#d4f0d3')
-            text_box = AnchoredText(f"{month_abbr[day_dt.month]}{day_dt.day}\n{holidays[holidays['day'] == day_dt.date()]['name'].iloc[0]}", frameon=False, loc='upper left', pad=0.3)        
+            text_box = AnchoredText(
+                f"{month_abbr[day_dt.month]}{day_dt.day}\n{holidays[holidays['day'] == day_dt.date()]['name'].iloc[0]}",
+                frameon=False, loc='upper left', pad=0.3)
             d_ax.add_artist(text_box)
         elif day_dt.weekday() == 6 and day < 8:
             pass

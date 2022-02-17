@@ -334,6 +334,10 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
             df.drop(columns=['start_t', 'end_t'], inplace=True)
+            
+            df['user_type'] = df['user_type'].map(
+                {'Member': 'Subscriber',
+                 'Casual': 'Customer'})
 
         elif city == 'minn':
             try:
@@ -854,6 +858,11 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
 
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
+            
+            df['user_type'] = df['user_type'].map(
+                {1: 'Subscriber',
+                 2: 'Customer',
+                 3: 'Company Worker'})
 
         elif city == "mexico":
 
@@ -985,6 +994,10 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df.reset_index(inplace=True, drop=True)
             df['start_stat_id'] = df['start_stat_id'].astype(int)
             df['end_stat_id'] = df['end_stat_id'].astype(int)
+            
+            df['user_type'] = df['user_type'].map(
+                {1: 'Subscriber',
+                 0: 'Customer'})
 
         elif city == "taipei":
             colnames = ['start_t', 'start_stat_name_zh',
@@ -1223,6 +1236,12 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
 
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
+            
+            df.drop(columns=['start_t', 'end_t'], inplace=True)
+            
+            df['user_type'] = df['user_type'].map(
+                {'Member': 'Subscriber',
+                 'Casual': 'Customer'})
 
         elif city == "chic":
 
@@ -1501,6 +1520,11 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
             #df = df[df.start_dt.dt.month == month]
             df.sort_values(by=['start_dt'], inplace=True)
             df.reset_index(inplace=True, drop=True)
+            
+            df['user_type'] = df['user_type'].map(
+                {1: 'Subscriber',
+                 2: 'Customer',
+                 3: 'Company Worker'})
 
         elif city == "buenos_aires":
 
@@ -4441,7 +4465,7 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('nyc', 2019, 9, overwrite=True)
+    data = Data('washDC', 2019, 9, overwrite=True)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)
