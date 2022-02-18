@@ -37,7 +37,7 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 #%% Make station_df
 
 if use_whole_year:
-    for month in bs.get_valid_months(city, YEAR):
+    for month in bs.get_valid_months(CITY, YEAR):
         
         data = bs.Data(CITY, YEAR, month)
         
@@ -49,9 +49,12 @@ if use_whole_year:
                                                         day_type, min_trips, 
                                                         clustering, k, seed)
             
-        station_df = ipu.service_areas(CITY, station_df, land_use, 
-                                       service_radius=service_radius, 
-                                       use_road=use_road)
+        station_df = station_df.merge(
+            ipu.neighborhood_percentages(
+                data.city, station_df, land_use, 
+                service_radius=service_radius, use_road=use_road
+                ),
+            how='outer', left_index=True, right_index=True)
         
         station_df['month'] = month
         
@@ -72,9 +75,12 @@ else:
                                                     day_type, min_trips, 
                                                     clustering, k, seed)
         
-    station_df = ipu.service_areas(CITY, station_df, land_use, 
-                                   service_radius=service_radius, 
-                                   use_road=use_road)
+    station_df = station_df.merge(
+        ipu.neighborhood_percentages(
+            data.city, station_df, land_use, 
+            service_radius=service_radius, use_road=use_road
+            ),
+        how='outer', left_index=True, right_index=True)
     
     
 #%% Make logistic regression
@@ -115,7 +121,7 @@ omit_columns = {
 
 
 data_train_year = bs.Data(city_train, YEAR, None)
-LR_train_year, X_train_year, y_train_year = lr_coefficients(data_train, data.city, min_trips=min_trips, clustering=clustering, k=k, 
+LR_train_year, X_train_year, y_train_year = lr_coefficients(data_train_year, data.city, min_trips=min_trips, clustering=clustering, k=k, 
                                                 random_state=seed, day_type=day_type, 
                                                 service_radius=service_radius, use_points_or_percents=use_points_or_percents, 
                                                 make_points_by=make_points_by, add_const=add_const, 
@@ -132,9 +138,12 @@ for month in bs.get_valid_months(city_train, YEAR):
     stat_df_train = ipu.get_clusters(traffic_matrices_train, stat_df_train, 
                                                     day_type, min_trips,
                                                     clustering, k, seed)[0]
-    stat_df_train = ipu.service_areas(city_train, stat_df_train, land_use_train, 
-                                   service_radius=service_radius, 
-                                   use_road=use_road)
+    station_df = station_df.merge(
+        ipu.neighborhood_percentages(
+            data.city, station_df, land_use, 
+            service_radius=service_radius, use_road=use_road
+            ),
+        how='outer', left_index=True, right_index=True)
     
     data_test = bs.Data(city_train, YEAR, month)
     stat_df_test, land_use_test = ipu.make_station_df(data_test, return_land_use=True)
@@ -142,9 +151,12 @@ for month in bs.get_valid_months(city_train, YEAR):
     stat_df_test = ipu.get_clusters(traffic_matrices_test, stat_df_test, 
                                                     day_type, min_trips,
                                                     clustering, k, seed)[0]
-    stat_df_test = ipu.service_areas(city_train, stat_df_test, land_use_test, 
-                                   service_radius=service_radius, 
-                                   use_road=use_road)
+    station_df = station_df.merge(
+        ipu.neighborhood_percentages(
+            data.city, station_df, land_use, 
+            service_radius=service_radius, use_road=use_road
+            ),
+        how='outer', left_index=True, right_index=True)
     
     zone_columns_train = [column for column in stat_df_train.columns if 'percent_' in column]
     zone_columns_train = [column for column in zone_columns_train if column not in omit_columns[city_train]]
@@ -230,9 +242,12 @@ for month in bs.get_valid_months(city_train, YEAR):
                                                     day_type, min_trips, 
                                                     clustering, k, seed)
         
-    station_df = ipu.service_areas(CITY, station_df, land_use, 
-                                   service_radius=service_radius, 
-                                   use_road=use_road)
+    station_df = station_df.merge(
+        ipu.neighborhood_percentages(
+            data.city, station_df, land_use, 
+            service_radius=service_radius, use_road=use_road
+            ),
+        how='outer', left_index=True, right_index=True)
     
     for i in bs.get_valid_months(city_train, YEAR):
         if i == month:
@@ -385,9 +400,12 @@ for city in city_test:
             stat_df_train = ipu.get_clusters(traffic_matrices_train, stat_df_train, 
                                                             day_type, min_trips,
                                                             clustering, k, seed)[0]
-            stat_df_train = ipu.service_areas(city_train, stat_df_train, land_use_train, 
-                                           service_radius=service_radius, 
-                                           use_road=use_road)
+            station_df = station_df.merge(
+                ipu.neighborhood_percentages(
+                    data.city, station_df, land_use, 
+                    service_radius=service_radius, use_road=use_road
+                    ),
+                how='outer', left_index=True, right_index=True)
             
     
             data_test = bs.Data(city, YEAR, month)
@@ -396,9 +414,12 @@ for city in city_test:
             stat_df_test = ipu.get_clusters(traffic_matrices_test, stat_df_test, 
                                                             day_type, min_trips,
                                                             clustering, k, seed)[0]
-            stat_df_test = ipu.service_areas(city, stat_df_test, land_use_test, 
-                                           service_radius=service_radius, 
-                                           use_road=use_road)
+            station_df = station_df.merge(
+                ipu.neighborhood_percentages(
+                    data.city, station_df, land_use, 
+                    service_radius=service_radius, use_road=use_road
+                    ),
+                how='outer', left_index=True, right_index=True)
             
             omit_columns = {
                             'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
@@ -484,8 +505,12 @@ station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use
 traffic_matrices = data.pickle_daily_traffic(holidays=False)
 station_df, clusters, labels = ipu.get_clusters(
     traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
-station_df = ipu.service_areas(
-    CITY, station_df, land_use, service_radius=service_radius, use_road=use_road)
+station_df = station_df.merge(
+    ipu.neighborhood_percentages(
+        data.city, station_df, land_use, 
+        service_radius=service_radius, use_road=use_road
+        ),
+    how='outer', left_index=True, right_index=True)
 
 df = station_df
 

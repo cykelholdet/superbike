@@ -3405,7 +3405,7 @@ class Data:
     
             return trips_departures, trips_arrivals
 
-    def daily_traffic_average(self, stat_index, period='b', normalise=True, plot=False, return_all=False, return_fig=False, return_std=False):
+    def daily_traffic_average(self, stat_index, period='b', normalise=True, plot=False, return_all=False, return_fig=False, return_std=False, user_type='all'):
         """
         Computes the average daily traffic of a station over either business
         days or weekends. Both average number of departures and arrivals are
@@ -3446,10 +3446,21 @@ class Data:
         else:
             raise ValueError(
                 "Please provide the period as either 'b' = business days or 'w' = weekends")
+        
+        if user_type != 'all':
+            if 'user_type' in self.df.columns:
+                df = self.df.loc[self.df['user_type'] == user_type, ['start_stat_id', 'start_dt', 'end_stat_id', 'end_dt']]
+            else:
+                warnings.warn('dataframe contains no "user_type". Continuing with all users.')
+                df = self.df[['start_stat_id', 'start_dt', 'end_stat_id', 'end_dt']]
+            if len(df) == 0:
+                raise NameError(f'user_type {user_type} not found in user_type column in DataFrame.')
+        else:
+            df = self.df[['start_stat_id', 'start_dt', 'end_stat_id', 'end_dt']]
 
-        df_start = self.df[self.df['start_stat_id'] ==
+        df_start = df[df['start_stat_id'] ==
                            self.stat.inverse[stat_index]]['start_dt']
-        df_end = self.df[self.df['end_stat_id'] ==
+        df_end = df[df['end_stat_id'] ==
                          self.stat.inverse[stat_index]]['end_dt']
 
         trips_arrivals = np.zeros(shape=(len(days), 24))
@@ -3537,7 +3548,7 @@ class Data:
         else:
             return trips_departures_average, trips_arrivals_average
 
-    def daily_traffic_average_all(self, period='b', normalise=True, plot=False, return_all=False, holidays=True):
+    def daily_traffic_average_all(self, period='b', normalise=True, plot=False, return_all=False, holidays=True, user_type='all'):
         """
         Computes the average daily traffic of a station over either business
         days or weekends. Both average number of departures and arrivals are
@@ -3569,10 +3580,20 @@ class Data:
 
         """
 
+        if user_type != 'all':
+            if 'user_type' in self.df.columns:
+                df = self.df.loc[self.df['user_type'] == user_type, ['start_stat_id', 'start_dt']]
+            else:
+                warnings.warn('dataframe contains no "user_type". Continuing with all users.')
+                df = self.df[['start_stat_id', 'start_dt']]
+            if len(df) == 0:
+                raise NameError(f'user_type {user_type} not found in user_type column in DataFrame.')
+        else:
+            df = self.df[['start_stat_id', 'start_dt']]
         # Departures
 
         if period == 'b':
-            df = self.df[['start_stat_id', 'start_dt']][self.df['start_dt'].dt.weekday <= 4]
+            df = df[df['start_dt'].dt.weekday <= 4]
             if not holidays:
                 holiday_year = pd.DataFrame(
                     get_cal(self.city).get_calendar_holidays(self.year), columns=['day', 'name'])
@@ -3583,7 +3604,7 @@ class Data:
 
             weekmask = '1111100'
         elif period == 'w':
-            df = self.df[['start_stat_id', 'start_dt']][self.df['start_dt'].dt.weekday > 4]
+            df = df[df['start_dt'].dt.weekday > 4]
             holiday_list = []
             weekmask = '0000011'
 
@@ -3597,6 +3618,8 @@ class Data:
                 n_days = np.busday_count(datetime.date(self.year, self.month, 1), datetime.date(self.year+1, 1, 1), weekmask=weekmask, holidays=holiday_list)
 
 
+        
+        
         print(f'Departures {period}...')
 
 
@@ -3622,12 +3645,23 @@ class Data:
 
 
         # Arrivals
+        if user_type != 'all':
+            if 'user_type' in self.df.columns:
+                df = self.df.loc[self.df['user_type'] == user_type, ['end_stat_id', 'end_dt']]
+            else:
+                warnings.warn('dataframe contains no "user_type". Continuing with all users.')
+                df = self.df[['end_stat_id', 'end_dt']]
+            if len(df) == 0:
+                raise NameError(f'user_type {user_type} not found in user_type column in DataFrame.')
+        else:
+            df = self.df[['end_stat_id', 'end_dt']]
 
         if period == 'b':
-            df = self.df[['end_stat_id', 'end_dt']][self.df['end_dt'].dt.weekday <= 4]
+            df = df[df['end_dt'].dt.weekday <= 4]
             df = df[~df['end_dt'].dt.date.isin(holiday_list)]
         elif period == 'w':
-            df = self.df[['end_stat_id', 'end_dt']][self.df['end_dt'].dt.weekday > 4]
+            df = df[['end_stat_id', 'end_dt']][df['end_dt'].dt.weekday > 4]
+                
 
         print(f'Arrivals {period}...')
 
@@ -3747,7 +3781,7 @@ class Data:
             return departures_mean, arrivals_mean
 
 
-    def pickle_daily_traffic(self, normalise=True, plot=False, overwrite=False, holidays=True):
+    def pickle_daily_traffic(self, normalise=True, plot=False, overwrite=False, holidays=True, user_type='all'):
         """
         Pickles matrices containing the average number of departures and
         arrivals to and from each station for every hour. One matrix
@@ -3770,6 +3804,8 @@ class Data:
             monstr = f"{self.month:02d}"
         if not holidays:
             monstr = monstr + "_no_holidays"
+        if user_type != 'all' and 'user_type' in self.df.columns:
+            monstr = monstr + f"_{user_type}"
         if not overwrite:
             try:
                 with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}.pickle', 'rb') as file:
@@ -3780,10 +3816,10 @@ class Data:
         print('Pickling average daily traffic for all stations... \nSit back and relax, this might take a while...')
         pre = time.time()
         departures_b, arrivals_b = self.daily_traffic_average_all(
-            'b', normalise=normalise, plot=plot, holidays=holidays)
+            'b', normalise=normalise, plot=plot, holidays=holidays, user_type=user_type)
         print("Hang in there, we're halfway...")
         departures_w, arrivals_w = self.daily_traffic_average_all(
-            'w', normalise=normalise, plot=plot, holidays=holidays)
+            'w', normalise=normalise, plot=plot, holidays=holidays, user_type=user_type)
 
         zeroseries = pd.Series(np.zeros((24,)))
         departures_b = departures_b.add(zeroseries).fillna(0)
@@ -4465,8 +4501,34 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('washDC', 2019, 9, overwrite=True)
+    data = Data('oslo', 2019)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)
-    traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False)
+    pre = time.time()
+    traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False, user_type='Subscriber')
+    print(time.time() - pre)
+    pre = time.time()
+    data = Data('helsinki', 2019)
+    print(time.time() - pre)
+    #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
+    # print(time.time() - pre)
+    pre = time.time()
+    traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False, user_type='Subscriber')
+    print(time.time() - pre)
+    pre = time.time()
+    data = Data('madrid', 2019)
+    print(time.time() - pre)
+    #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
+    # print(time.time() - pre)
+    pre = time.time()
+    traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False, user_type='Subscriber')
+    print(time.time() - pre)
+    pre = time.time()
+    data = Data('london', 2019)
+    print(time.time() - pre)
+    #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
+    # print(time.time() - pre)
+    pre = time.time()
+    traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False, user_type='Subscriber')
+    print(time.time() - pre)

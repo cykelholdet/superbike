@@ -80,7 +80,7 @@ def plot_center(labels, cluster_j, c_center, title_pre="Mean"):
     return cc_plot
 
 
-def plot_dta_with_std(data, index, day_type):
+def plot_dta_with_std(data, index, day_type, user_type='all'):
     """
     Plot daily traffic average of station including standard deviation bounds.
 
@@ -98,7 +98,7 @@ def plot_dta_with_std(data, index, day_type):
 
     """
     print(f"{index=}")
-    a = data.daily_traffic_average(index, period=day_type_dict[day_type], return_std=True)
+    a = data.daily_traffic_average(index, period=day_type_dict[day_type], return_std=True, user_type=user_type)
     means = pd.DataFrame(a[:2]).T.rename(columns={0:'departures', 1:'arrivals'})
     stds = pd.DataFrame(a[2:]).T.rename(columns={0:'departures', 1:'arrivals'})
     varea = pd.DataFrame()
@@ -138,6 +138,7 @@ class BikeDash(param.Parameterized):
     use_road = param.Selector(objects=['False', 'True'])
     random_state = param.Integer(default=42, bounds=(0, 10000))
     min_trips = param.Integer(default=100, bounds=(0, 800))
+    user_type = param.Selector(objects=['all', 'Subscriber', 'Customer'])
     
     # LR params
     
@@ -158,6 +159,7 @@ class BikeDash(param.Parameterized):
     const = param.Boolean(True)
     
     LR_indicator = param.Boolean(True)
+    
     # boolean_ = param.Boolean(True)
     
     
@@ -192,7 +194,7 @@ class BikeDash(param.Parameterized):
         # self.boolean_ = not self.boolean_
     
     
-    @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 'city', 'month', watch=False)
+    @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 'city', 'month', 'user_type', watch=False)
     def plot_clusters_full(self):
         print("Plotting Clusters")
         self.station_df, self.clusters, self.labels = ipu.get_clusters(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, self.clustering, self.k, self.random_state)
@@ -352,6 +354,14 @@ class BikeDash(param.Parameterized):
             use_points_or_percents=self.use_points_or_percents,
             make_points_by=self.make_points_by, const=self.const)
     
+    @param.depends('user_type', watch=True)
+    def get_traffic_matrix(self):
+        self.traffic_matrices = self.data.pickle_daily_traffic(holidays=False, user_type=self.user_type)
+        self.plot_clusters_full()
+        self.make_service_areas()
+        self.make_logistic_regression()
+        
+    
     
 bike_params = BikeDash(None)
 
@@ -393,18 +403,27 @@ selection_stream = hv.streams.Selection1D(source=pointview)
 @pn.depends(index=selection_stream.param.index,
             day_type=bike_params.param.day_type,
             city=bike_params.param.city,
-            month=bike_params.param.month)
-def plot_daily_traffic(index, day_type, city, month): 
+            month=bike_params.param.month,
+            user_type=bike_params.param.user_type)
+def plot_daily_traffic(index, day_type, city, month, user_type): 
     if not index:
         return "Select a station to see station traffic"
     else:
         i = index[0]
-    plot = plot_dta_with_std(bike_params.data, i, day_type)
+    plot = plot_dta_with_std(bike_params.data, i, day_type, user_type)
+    
+    if user_type == 'all':
+        tripstring = ''
+    elif user_type == 'Subscriber':
+        tripstring = 'sub_'
+    elif user_type == 'Customer':
+        tripstring = 'cus_'
+
     if day_type == 'business_days':
-        b_trips = bike_params.station_df['b_trips'].iloc[i]
+        b_trips = bike_params.station_df[f'{tripstring}b_departures'].iloc[i] + bike_params.station_df[f'{tripstring}b_arrivals'].iloc[i]
         plot.opts(title=f'Average hourly traffic for {bike_params.data.stat.names[i]} (b_trips={b_trips:n})', ylabel='percentage')
-    if day_type == 'weekend':
-        w_trips = bike_params.station_df['w_trips'].iloc[i]
+    elif day_type == 'weekend':
+        w_trips = bike_params.station_df[f'{tripstring}w_departures'].iloc[i] + bike_params.station_df[f'{tripstring}w_arrivals'].iloc[i]
         plot.opts(title=f'Average hourly traffic for {bike_params.data.stat.names[i]} (w_trips={w_trips:n})', ylabel='percentage')
     
     return plot
@@ -417,9 +436,10 @@ def plot_daily_traffic(index, day_type, city, month):
             min_trips=bike_params.param.min_trips,
             day_type=bike_params.param.day_type,
             city=bike_params.param.city,
-            month=bike_params.param.month)
+            month=bike_params.param.month,
+            user_type=bike_params.param.user_type)
 def plot_centroid_callback(index, plot_all_clusters, clustering, k, min_trips,
-                           day_type, city, month): 
+                           day_type, city, month, user_type): 
     return bike_params.plot_centroid(index)
     
 
@@ -584,7 +604,7 @@ city_dict = dict(zip([bs.name_dict[city] for city in city_list], city_list))
 # Parameters
 # =============================================================================
 
-param_split = 18 # add to this number if additional parameters are added in the first column
+param_split = 19 # add to this number if additional parameters are added in the first column
 
 params = pn.Param(bike_params.param, widgets={
     'city': {'widget_type': pn.widgets.Select, 'options': city_dict},
@@ -674,7 +694,7 @@ parameter_names = [
     'Clustering', 'K', 'Plot all_title', 'Plot all clusters', 'Show land_title',
     'Show land use', 'Show census_title', 'Show census', 'Show service_title',
     'Show service area', 'Service radius', 'Service area color',
-    'Use road_title', 'Use road', 'Random state', 'Min trips']
+    'Use road_title', 'Use road', 'Random state', 'Min trips', 'User type']
 
 parameter_column = []
 

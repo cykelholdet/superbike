@@ -1614,12 +1614,12 @@ def big_station_df(cities, year=2019, month=None, service_radius=500,
         traffic_matrices = data.pickle_daily_traffic(holidays=False)
         
         station_df['service_area'] = get_service_area(data.city, station_df, land_use, service_radius=service_radius)
-        station_df.join(
+        station_df = station_df.merge(
             neighborhood_percentages(
-                data.city, station_df, land_use, service_radius=service_radius,
-                use_road=use_road
+                data.city, station_df, land_use, 
+                service_radius=service_radius, use_road=use_road
                 ),
-            inplace=True)
+            how='outer', left_index=True, right_index=True)
         
         station_df_list.append(pd.concat({city: station_df}))
         traffic_matrix_b_list.append(traffic_matrices[0])
@@ -1671,12 +1671,12 @@ def make_station_df_year(city, year=2019, months=None, service_radius=500,
         traffic_matrices = data.pickle_daily_traffic(holidays=False)
 
         station_df['service_area'] = get_service_area(data.city, station_df, land_use, service_radius=service_radius)
-        station_df.join(
+        station_df = station_df.merge(
             neighborhood_percentages(
-                data.city, station_df, land_use, service_radius=service_radius,
-                use_road=use_road
+                data.city, station_df, land_use, 
+                service_radius=service_radius, use_road=use_road
                 ),
-            inplace=True)
+            how='outer', left_index=True, right_index=True)
         station_df[month_dict[month]] = 1
         
         station_df_list.append(pd.concat({city: station_df}))

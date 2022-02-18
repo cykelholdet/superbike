@@ -34,7 +34,14 @@ def lr_coefficients(data, name, min_trips=100, clustering='k_means', k=3,
                                                         clustering, 
                                                         k, 
                                                         random_state=random_state)
-        station_df = ipu.service_areas(data.city, station_df, land_use, service_radius=service_radius, use_road=use_road)
+        
+        percent_cols = [column for column in station_df.columns if "percent_" in column]
+        station_df = station_df.drop(columns=percent_cols).merge(
+            ipu.neighborhood_percentages(
+                data.city, station_df, land_use, 
+                service_radius=service_radius, use_road=use_road
+                ),
+            how='outer', left_index=True, right_index=True)
 
     zone_columns = [column for column in station_df.columns if 'percent_' in column]
     
@@ -53,6 +60,7 @@ def lr_coefficients(data, name, min_trips=100, clustering='k_means', k=3,
 
     lr_results, X, y = ipu.stations_logistic_regression(station_df, zone_columns, other_columns, use_points_or_percents=use_points_or_percents, make_points_by=make_points_by, const=add_const)
 
+    print(lr_results)
     print(lr_results.summary())
 
     traffic_matrix, mask, _ = ipu.mask_traffic_matrix(traffic_matrices, station_df, day_type, min_trips, holidays=False, return_mask=True)
