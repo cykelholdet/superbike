@@ -375,7 +375,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
     postfix = "" if data.month == None else f"{data.month:02d}"
     postfix = postfix + "" if holidays else postfix + "_no_holidays"
     
-    if not overwrite:
+    if (not overwrite) and (data.day == None):
         try:
             with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'rb') as file:
                 df, land_use, census_df = pickle.load(file)
@@ -939,8 +939,9 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     land_use['color'] = land_use['zone_type'].map(color_dict).fillna("pink")
     
-    with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'wb') as file:
-        pickle.dump([df, land_use, census_df], file)
+    if data.day != None:
+        with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'wb') as file:
+            pickle.dump([df, land_use, census_df], file)
     
     
     try:

@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import shapely
 from sklearn.model_selection import train_test_split
 from holoviews import opts
-from holoviews.operation.datashader import datashade
+
 from matplotlib.patches import Polygon
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 from matplotlib.offsetbox import AnchoredText, AnchoredOffsetbox
@@ -26,7 +26,6 @@ from logistic_table import lr_coefficients
 
 def service_area_figure(data, stat_df, land_use):
     
-    stat_df = ipu.service_areas(data.city, stat_df, land_use)
     
     extend = (stat_df['lat'].min(), stat_df['long'].min(), 
           stat_df['lat'].max(), stat_df['long'].max())
@@ -124,7 +123,7 @@ def service_area_figure(data, stat_df, land_use):
     ax.axis('off')    
     
     plt.tight_layout()
-    plt.savefig('./figures/paper_figures/service_areas.pdf')
+    plt.savefig(f'./figures/paper_figures/service_areas_{data.city}_{bs.month_dict[data.month]}.pdf')
         
     return fig, ax
 

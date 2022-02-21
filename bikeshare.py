@@ -1589,6 +1589,14 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
         return df
 
 
+def get_data_day(city, year, month, day, blacklist=None):
+    df, _ = get_data_month(city, year, month, blacklist=blacklist)
+    
+    df = df[(df['start_dt'].dt.day == day) | (df['end_dt'].dt.day == day)]
+    
+    return df
+
+
 def station_locations(df, id_index):
     """
     Creates a dictionary with station IDs as keys and locations as values.
@@ -2812,7 +2820,7 @@ class Data:
 
     """
 
-    def __init__(self, city, year, month=None, blacklist=None, overwrite=False):
+    def __init__(self, city, year, month=None, day=None, blacklist=None, overwrite=False):
         """
         Parameters
         ----------
@@ -2832,8 +2840,16 @@ class Data:
         self.city = city
         self.year = year
         self.month = month
-
-        if self.month is not None:
+        self.day = day
+        
+        if self.day is not None:
+            self.num_days = 1
+            self.weekdays = [calendar.weekday(year, month, day)]
+            
+            self.df = get_data_day(city, year, month, day, blacklist)
+            self.d_index = [0]
+        
+        elif self.month is not None:
             first_weekday, self.num_days = calendar.monthrange(year, month)
 
             self.weekdays = [(i+(first_weekday)) %
