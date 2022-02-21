@@ -26,15 +26,17 @@ from logistic_table import lr_coefficients
 
 def service_area_figure(data, stat_df, land_use):
     
-    stat_df = ipu.service_areas(data.city, stat_df, land_use)
+    # stat_df['service_area'] = ipu.get_service_area(data.city, stat_df, land_use)[0]
     
     extend = (stat_df['lat'].min(), stat_df['long'].min(), 
           stat_df['lat'].max(), stat_df['long'].max())
     
+    tileserver = 'https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg' # Stamen Terrain
+    # tileserver = 'http://a.tile.stamen.com/toner/{z}/{x}/{y}.png' # Stamen Toner
+    # tileserver = 'http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.png' # Stamen Watercolor
+    # tileserver = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' # OSM Default
     
-    m = sm.Map(extend, tileserver='https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg', z=15)
-    
-    
+    m = sm.Map(extend, tileserver=tileserver, z=15)
     
     fig, ax = plt.subplots(figsize=(7,10))
     
@@ -128,9 +130,35 @@ def service_area_figure(data, stat_df, land_use):
         
     return fig, ax
 
+    def make_summary_statistics_table():
+        
+        cities = ['nyc', 'chic', 'washDC', 'boston', 
+                  'london', 'helsinki', 'oslo', 'madrid']
+        
+        variables = ['Share of residential use', 'Share of commercial use',
+                     'Share of recreational use', 'Share of industrial use', 
+                     'Share of transportational use', 'Share of mixed use',
+                     'Population density', 'Distance to nearest subway/railway', 
+                     'Number of  trips']
+        
+        df = pd.DataFrame(columns=['Variable', 'Mean', 'Std. Dev.', 'Min', 'Max'])
+        
+        for city in cities:
+            data = bs.Data(city, 2019)
+        
+        
+        
+        
+        
+        
+        
+        
+        return fig
+
+
 
 if __name__ == "__main__":
-    data = bs.Data('nyc', 2019, 9)
+    data = bs.Data('nyc', 2019, 12)
     stat_df, land_use, census_df = ipu.make_station_df(data, return_land_use=True, return_census=True, overwrite=False)
     
     fig, ax = service_area_figure(data, stat_df, land_use)
