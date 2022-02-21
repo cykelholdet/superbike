@@ -1590,9 +1590,33 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
 
 
 def get_data_day(city, year, month, day, blacklist=None):
+    """
+    Get data for a specific day.
+
+    Parameters
+    ----------
+    city : TYPE
+        DESCRIPTION.
+    year : TYPE
+        DESCRIPTION.
+    month : TYPE
+        DESCRIPTION.
+    day : TYPE
+        DESCRIPTION.
+    blacklist : TYPE, optional
+        DESCRIPTION. The default is None.
+
+    Returns
+    -------
+    df : TYPE
+        DESCRIPTION.
+
+    """
     df, _ = get_data_month(city, year, month, blacklist=blacklist)
     
-    df = df[(df['start_dt'].dt.day == day) | (df['end_dt'].dt.day == day)]
+    # either: Start day and start month as specified 
+    # or: End day and end month as specified
+    df = df[((df['start_dt'].dt.day == day) & (df['start_dt'].dt.month == month)) | ((df['end_dt'].dt.day == day) & (df['end_dt'].dt.month == month))]
     
     return df
 
