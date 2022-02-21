@@ -126,7 +126,7 @@ def service_area_figure(data, stat_df, land_use):
     ax.axis('off')    
     
     plt.tight_layout()
-    plt.savefig(f'./figures/paper_figures/service_areas_{data.city}_{bs.month_dict[data.month]}.pdf')
+    plt.savefig(f'./figures/paper_figures/service_areas_{data.city}_{data.year}{data.month:02d}.pdf')
         
     return fig, ax
 
