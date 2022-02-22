@@ -97,7 +97,7 @@ def zone_code_transform(city, zone_code):
         
         elif city in ['madrid', 'helsinki', 'london', 'oslo', 'bergen', 'trondheim', 'edinburgh']:
             
-            if zone_code in ['11100', '11210', '11220', '11230']: # Continuous urban fabric (S.L. : > 80%), Discontinuous dense urban fabric (S.L. : 50% -  80%), Discontinuous medium density urban fabric (S.L. : 30% - 50%), Discontinuous low density urban fabric (S.L. : 10% - 30%)
+            if zone_code in ['11100', '11210', '11220', '11230', '11240']: # Continuous urban fabric (S.L. : > 80%), Discontinuous dense urban fabric (S.L. : 50% -  80%), Discontinuous medium density urban fabric (S.L. : 30% - 50%), Discontinuous low density urban fabric (S.L. : 10% - 30%), Discontinuous very low density urban fabric (S.L. < 10%)
                 zone_type = 'residential' 
             elif zone_code in ['12220', '12210']: # Other roads and associated land, Fast transit roads and associated land
                 zone_type = 'road'

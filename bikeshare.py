@@ -3674,6 +3674,7 @@ class Data:
 
 
             shap = day_hour_count.shape
+            print(shap)
             start_mean.append(day_hour_count.sum(axis=0).rename(station) / n_days)
             start_std.append(
                 pd.concat(
@@ -4541,34 +4542,11 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('oslo', 2019)
+    data = Data('oslo', 2019, 4, 30)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)
-    pre = time.time()
-    traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False, user_type='Subscriber')
-    print(time.time() - pre)
-    pre = time.time()
-    data = Data('helsinki', 2019)
-    print(time.time() - pre)
-    #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
+    # pre = time.time()
+    # traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False, user_type='Subscriber')
     # print(time.time() - pre)
-    pre = time.time()
-    traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False, user_type='Subscriber')
-    print(time.time() - pre)
-    pre = time.time()
-    data = Data('madrid', 2019)
-    print(time.time() - pre)
-    #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
-    # print(time.time() - pre)
-    pre = time.time()
-    traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False, user_type='Subscriber')
-    print(time.time() - pre)
-    pre = time.time()
-    data = Data('london', 2019)
-    print(time.time() - pre)
-    #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
-    # print(time.time() - pre)
-    pre = time.time()
-    traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False, user_type='Subscriber')
-    print(time.time() - pre)
+
