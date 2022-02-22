@@ -155,7 +155,7 @@ def make_summary_statistics_table():
     
     avg_stat_dfs = dict()
     
-    for city in ['oslo', 'nyc']: #cities:
+    for city in cities:
         data_city = bs.Data(city, year)
         
         stat_ids = list(data_city.stat.id_index.keys())
@@ -168,7 +168,7 @@ def make_summary_statistics_table():
             
             var_dfs[var] = var_df
         
-        for month in [9]: #bs.get_valid_months(city, year):
+        for month in bs.get_valid_months(city, year):
             for day in range(1, calendar.monthrange(year, month)[1]+1):
                 data_day = bs.Data(city, year, month, day)
                 stat_df = ipu.make_station_df(data_day)
@@ -252,7 +252,7 @@ if __name__ == "__main__":
     # data = bs.Data('oslo', 2019, 9, 30)
     # stat_df, land_use, census_df = ipu.make_station_df(data, return_land_use=True, return_census=True, overwrite=False)
     
-    # var_dfs, avg_stat_df = make_summary_statistics_table()
+    avg_stat_df = make_summary_statistics_table()
     
     # fig, ax = service_area_figure(data, stat_df, land_use)
     
