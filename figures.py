@@ -13,6 +13,7 @@ import smopy as sm
 import matplotlib.pyplot as plt
 import shapely
 import calendar
+import pickle
 from sklearn.model_selection import train_test_split
 from holoviews import opts
 
@@ -36,7 +37,7 @@ def service_area_figure(data, stat_df, land_use):
     # tileserver = 'http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.png' # Stamen Watercolor
     # tileserver = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' # OSM Default
     
-    m = sm.Map(extend, tileserver=tileserver, z=15)
+    m = sm.Map(extend, tileserver=tileserver)
     
     fig, ax = plt.subplots(figsize=(7,10))
     
@@ -152,7 +153,9 @@ def make_summary_statistics_table():
     
     df = pd.DataFrame(columns=['Variable', 'Mean', 'Std. Dev.', 'Min', 'Max'])
     
-    for city in ['oslo']: #cities:
+    avg_stat_dfs = dict()
+    
+    for city in ['oslo', 'nyc']: #cities:
         data_city = bs.Data(city, year)
         
         stat_ids = list(data_city.stat.id_index.keys())
@@ -165,7 +168,7 @@ def make_summary_statistics_table():
             
             var_dfs[var] = var_df
         
-        for month in bs.get_valid_months(city, year):
+        for month in [9]: #bs.get_valid_months(city, year):
             for day in range(1, calendar.monthrange(year, month)[1]+1):
                 data_day = bs.Data(city, year, month, day)
                 stat_df = ipu.make_station_df(data_day)
@@ -175,23 +178,81 @@ def make_summary_statistics_table():
                         var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
                         var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
         
-    avg_stat_df = pd.DataFrame()
-    avg_stat_df['stat_id'] = stat_ids
-    for var in variables:
-        if len(var_dfs[var].columns) > 1:
-            avg_stat_df[var] = var_dfs[var][var_dfs[var].columns[1:]].mean(axis=1)
+        avg_stat_df = pd.DataFrame()
+        avg_stat_df['stat_id'] = stat_ids
+        for var in variables:
+            if len(var_dfs[var].columns) > 1:
+                avg_stat_df[var] = var_dfs[var][var_dfs[var].columns[1:]].mean(axis=1)
         
+        avg_stat_dfs[city] = avg_stat_df
+    
+    
+    tab_df = pd.DataFrame(columns = ['city', 'Variable', 'Mean', 'Std. Dev.', 'Min', 'Max'])
+    
+    for city in cities[:4]:
+        city_df = pd.DataFrame(columns=['city', 'Variable', 'Mean', 
+                                        'Std. Dev.', 'Min', 'Max'],
+                               index=variables)
+        city_df['city'] = city
+        city_df['Variable'] = variables
+        city_df['Mean'] = avg_stat_dfs[city].mean()
+        city_df['Std. Dev.'] = avg_stat_dfs[city].std()
+        city_df['Min'] = avg_stat_dfs[city].min()
+        city_df['Max'] = avg_stat_dfs[city].max()
         
-
-    return var_dfs, avg_stat_df
+        tab_df = pd.concat([tab_df, city_df])
+    
+    var_renames = {'percent_residential' : 'Share of residential use',
+                   'percent_commercial' : 'Share of commercial use',
+                   'percent_industrial' : 'Share of industrial use',
+                   'percent_recreational' : 'Share of recreational use',
+                   'percent_mixed' : 'Share of mixed use',
+                   'percent_transportation' : 'Share of transportation use',
+                   'n_trips' : 'Number of daily trips',
+                   'pop_density' : 'Population density',
+                   'nearest_subway_dist' : 'Distance to nearest subway/railway'}
+    tab_df = tab_df.replace(var_renames)
+    print(tab_df.to_latex(index=False, na_rep = '--', float_format='%.2f'))
+    
+    tab_df = pd.DataFrame(columns = ['city', 'Variable', 'Mean', 'Std. Dev.', 'Min', 'Max'])
+    
+    for city in cities[4:]:
+        city_df = pd.DataFrame(columns=['city', 'Variable', 'Mean', 
+                                        'Std. Dev.', 'Min', 'Max'],
+                               index=variables)
+        city_df['city'] = city
+        city_df['Variable'] = variables
+        city_df['Mean'] = avg_stat_dfs[city].mean()
+        city_df['Std. Dev.'] = avg_stat_dfs[city].std()
+        city_df['Min'] = avg_stat_dfs[city].min()
+        city_df['Max'] = avg_stat_dfs[city].max()
+        
+        tab_df = pd.concat([tab_df, city_df])
+    
+    var_renames = {'percent_residential' : 'Share of residential use',
+                   'percent_commercial' : 'Share of commercial use',
+                   'percent_industrial' : 'Share of industrial use',
+                   'percent_recreational' : 'Share of recreational use',
+                   'percent_mixed' : 'Share of mixed use',
+                   'percent_transportation' : 'Share of transportation use',
+                   'n_trips' : 'Number of daily trips',
+                   'pop_density' : 'Population density',
+                   'nearest_subway_dist' : 'Distance to nearest subway/railway'}
+    tab_df = tab_df.replace(var_renames)
+    print(tab_df.to_latex(index=False, na_rep = '--', float_format='%.2f'))
+    
+    with open('./python_variables/avg_stat_dfs.pickle', 'wb') as file:
+        pickle.dump(avg_stat_dfs, file)
+    
+    return avg_stat_dfs
 
 
 
 if __name__ == "__main__":
-    # data = bs.Data('nyc', 2019, 12,)
+    # data = bs.Data('oslo', 2019, 9, 30)
     # stat_df, land_use, census_df = ipu.make_station_df(data, return_land_use=True, return_census=True, overwrite=False)
     
-    var_dfs, avg_stat_df = make_summary_statistics_table()
+    # var_dfs, avg_stat_df = make_summary_statistics_table()
     
     # fig, ax = service_area_figure(data, stat_df, land_use)
     
