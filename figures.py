@@ -171,13 +171,14 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
             for month in bs.get_valid_months(city, year):
                 for day in range(1, calendar.monthrange(year, month)[1]+1):
                     data_day = bs.Data(city, year, month, day)
-                    stat_df = ipu.make_station_df(data_day)
-                    
-                    for var in variables:
-                        if var in stat_df.columns:
-                            var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
-                            var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
-            
+                    if len(data_day.df) > 0: # Avoid the issue of days with no traffic. E.g. Oslo 2019-04-01
+                        stat_df = ipu.make_station_df(data_day)
+                        
+                        for var in variables:
+                            if var in stat_df.columns:
+                                var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
+                                var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
+                
             avg_stat_df = pd.DataFrame()
             avg_stat_df['stat_id'] = stat_ids
             for var in variables:
@@ -185,7 +186,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
                     avg_stat_df[var] = var_dfs[var][var_dfs[var].columns[1:]].mean(axis=1)
             
             with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
-                picke.dump(avg_stat_df, file)
+                pickle.dump(avg_stat_df, file)
         
         
     tab_df = pd.DataFrame(columns = ['city', 'Variable', 'Mean', 'Std. Dev.', 'Min', 'Max'])
@@ -193,7 +194,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
     for city in cities:
         
         with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
-                avg_stat_df = picke.load(file)
+                avg_stat_df = pickle.load(file)
         
         city_df = pd.DataFrame(columns=['city', 'Variable', 'Mean', 
                                         'Std. Dev.', 'Min', 'Max'],
