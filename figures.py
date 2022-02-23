@@ -148,7 +148,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
                      'percent_recreational', 'percent_industrial', 
                      'percent_transportation', 'percent_mixed',
                      'pop_density', 'nearest_subway_dist', 'n_trips']
-        
+
     if not print_only:
         
         for city in cities:
