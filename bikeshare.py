@@ -3616,7 +3616,6 @@ class Data:
         # Departures
 
         if period == 'b':
-            print(df['start_dt'].dt.weekday)
             df = df[df['start_dt'].dt.weekday <= 4]
             if not holidays:
                 holiday_year = pd.DataFrame(
@@ -3655,11 +3654,8 @@ class Data:
         for station in stations_start:
             subset = df['start_dt'][df['start_stat_id'] == station]
             day_hour_count = pd.concat({'date': subset.dt.date, 'hour': subset.dt.hour}, axis=1).value_counts().unstack(fill_value=0)
-            print(day_hour_count)
 
             shap = day_hour_count.shape
-            print(shap)
-            print(n_days)
             start_mean.append(day_hour_count.sum(axis=0).rename(station) / n_days)
             start_std.append(
                 pd.concat(
