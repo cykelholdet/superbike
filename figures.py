@@ -135,7 +135,7 @@ def make_summary_statistics_table():
     
     year = 2019
     
-    cities = ['nyc', 'chic', 'washDC', 'boston', 
+    cities = ['chic', 'washDC', 'boston', 
               'london', 'helsinki', 'oslo', 'madrid']
     
     # variables = ['Share of residential use', 'Share of commercial use',
