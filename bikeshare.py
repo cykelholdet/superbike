@@ -2869,6 +2869,12 @@ class Data:
                 city, year, month, blacklist, overwrite=overwrite)
 
         else:
+            self.num_days = 365 + 1*calendar.isleap(year)
+            first_weekday = calendar.weekday(year, 1, 1)
+            
+            self.weekdays = [(i+(first_weekday)) %
+                             7 for i in range(self.num_days)]
+            
             self.df, self.d_index = get_data_year(city, year, blacklist, overwrite=overwrite)
 
         self.stat = Stations(self.df)
@@ -3462,8 +3468,7 @@ class Data:
             each hour.
 
         """
-        weekdays = [calendar.weekday(self.year, self.month, i) for i in range(
-            1, calendar.monthrange(self.year, self.month)[1]+1)]
+        weekdays = self.weekdays
 
         if period == 'b':
             days = [date+1 for date, day in enumerate(weekdays) if day <= 4]
@@ -4520,9 +4525,9 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('london', 2019, 4, 30)
+    data = Data('oslo', 2019, 4)
     print(time.time() - pre)
-    #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
+    traffic_arr, traffic_dep = data.daily_traffic_average(100, plot=True)
     # print(time.time() - pre)
     # pre = time.time()
     # traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False, user_type='Subscriber')
