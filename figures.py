@@ -131,74 +131,75 @@ def service_area_figure(data, stat_df, land_use):
         
     return fig, ax
 
-def make_summary_statistics_table():
+def make_summary_statistics_table(cities=None, variables=None, year=2019, print_only=False):
     
-    year = 2019
-    
-    cities = ['nyc', 'chic', 'washDC', 'boston', 
-              'london', 'helsinki', 'oslo', 'madrid']
-    
+    if cities is None:
+        cities = ['nyc', 'chic', 'washDC', 'boston', 
+                  'london', 'helsinki', 'oslo', 'madrid']
+        
     # variables = ['Share of residential use', 'Share of commercial use',
     #              'Share of recreational use', 'Share of industrial use', 
     #              'Share of transportational use', 'Share of mixed use',
     #              'Population density', 'Distance to nearest subway/railway', 
     #              'Number of  trips']
     
-    
-    variables = ['percent_residential', 'percent_commercial',
-                 'percent_recreational', 'percent_industrial', 
-                 'percent_transportation', 'percent_mixed',
-                 'pop_density', 'nearest_subway_dist', 'n_trips']
-    
-    
-    df = pd.DataFrame(columns=['Variable', 'Mean', 'Std. Dev.', 'Min', 'Max'])
-    
-    avg_stat_dfs = dict()
+    variables is None:
+        variables = ['percent_residential', 'percent_commercial',
+                     'percent_recreational', 'percent_industrial', 
+                     'percent_transportation', 'percent_mixed',
+                     'pop_density', 'nearest_subway_dist', 'n_trips']
+        
+    if not print_only:
+        
+        for city in cities:
+            data_city = bs.Data(city, year)
+            
+            stat_ids = list(data_city.stat.id_index.keys())
+            
+            var_dfs = dict()
+            
+            for var in variables:
+                var_df = pd.DataFrame()
+                var_df['stat_id'] = stat_ids
+                
+                var_dfs[var] = var_df
+            
+            for month in bs.get_valid_months(city, year):
+                for day in range(1, calendar.monthrange(year, month)[1]+1):
+                    data_day = bs.Data(city, year, month, day)
+                    stat_df = ipu.make_station_df(data_day)
+                    
+                    for var in variables:
+                        if var in stat_df.columns:
+                            var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
+                            var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
+            
+            avg_stat_df = pd.DataFrame()
+            avg_stat_df['stat_id'] = stat_ids
+            for var in variables:
+                if len(var_dfs[var].columns) > 1:
+                    avg_stat_df[var] = var_dfs[var][var_dfs[var].columns[1:]].mean(axis=1)
+            
+            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
+                picke.dump(avg_stat_df, file)
+        
+        
+    tab_df = pd.DataFrame(columns = ['city', 'Variable', 'Mean', 'Std. Dev.', 'Min', 'Max'])
     
     for city in cities:
-        data_city = bs.Data(city, year)
         
-        stat_ids = list(data_city.stat.id_index.keys())
+        with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+                avg_stat_df = picke.load(file)
         
-        var_dfs = dict()
-        
-        for var in variables:
-            var_df = pd.DataFrame()
-            var_df['stat_id'] = stat_ids
-            
-            var_dfs[var] = var_df
-        
-        for month in bs.get_valid_months(city, year):
-            for day in range(1, calendar.monthrange(year, month)[1]+1):
-                data_day = bs.Data(city, year, month, day)
-                stat_df = ipu.make_station_df(data_day)
-                
-                for var in variables:
-                    if var in stat_df.columns:
-                        var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
-                        var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
-        
-        avg_stat_df = pd.DataFrame()
-        avg_stat_df['stat_id'] = stat_ids
-        for var in variables:
-            if len(var_dfs[var].columns) > 1:
-                avg_stat_df[var] = var_dfs[var][var_dfs[var].columns[1:]].mean(axis=1)
-        
-        avg_stat_dfs[city] = avg_stat_df
-    
-    
-    tab_df = pd.DataFrame(columns = ['city', 'Variable', 'Mean', 'Std. Dev.', 'Min', 'Max'])
-    
-    for city in cities[:4]:
         city_df = pd.DataFrame(columns=['city', 'Variable', 'Mean', 
                                         'Std. Dev.', 'Min', 'Max'],
                                index=variables)
         city_df['city'] = city
         city_df['Variable'] = variables
-        city_df['Mean'] = avg_stat_dfs[city].mean()
-        city_df['Std. Dev.'] = avg_stat_dfs[city].std()
-        city_df['Min'] = avg_stat_dfs[city].min()
-        city_df['Max'] = avg_stat_dfs[city].max()
+        city_df['Mean'] = avg_stat_df.mean()
+        city_df['Std. Dev.'] = avg_stat_df.std()
+        city_df['Min'] = avg_stat_df.min()
+        city_df['Max'] = avg_stat_df.max()
         
         tab_df = pd.concat([tab_df, city_df])
     
@@ -216,35 +217,7 @@ def make_summary_statistics_table():
     
     tab_df = pd.DataFrame(columns = ['city', 'Variable', 'Mean', 'Std. Dev.', 'Min', 'Max'])
     
-    for city in cities[4:]:
-        city_df = pd.DataFrame(columns=['city', 'Variable', 'Mean', 
-                                        'Std. Dev.', 'Min', 'Max'],
-                               index=variables)
-        city_df['city'] = city
-        city_df['Variable'] = variables
-        city_df['Mean'] = avg_stat_dfs[city].mean()
-        city_df['Std. Dev.'] = avg_stat_dfs[city].std()
-        city_df['Min'] = avg_stat_dfs[city].min()
-        city_df['Max'] = avg_stat_dfs[city].max()
-        
-        tab_df = pd.concat([tab_df, city_df])
-    
-    var_renames = {'percent_residential' : 'Share of residential use',
-                   'percent_commercial' : 'Share of commercial use',
-                   'percent_industrial' : 'Share of industrial use',
-                   'percent_recreational' : 'Share of recreational use',
-                   'percent_mixed' : 'Share of mixed use',
-                   'percent_transportation' : 'Share of transportation use',
-                   'n_trips' : 'Number of daily trips',
-                   'pop_density' : 'Population density',
-                   'nearest_subway_dist' : 'Distance to nearest subway/railway'}
-    tab_df = tab_df.replace(var_renames)
-    print(tab_df.to_latex(index=False, na_rep = '--', float_format='%.2f'))
-    
-    with open('./python_variables/avg_stat_dfs.pickle', 'wb') as file:
-        pickle.dump(avg_stat_dfs, file)
-    
-    return avg_stat_dfs
+    return tab_df
 
 
 
