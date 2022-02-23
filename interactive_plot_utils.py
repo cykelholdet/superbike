@@ -107,7 +107,7 @@ def zone_code_transform(city, zone_code):
                 zone_type = 'recreational'
             elif zone_code in ['12230']: # Railways and associated land
                 zone_type = 'transportation'
-            elif zone_code in ['13100', 'Construction sites', '12300']: # Mineral extraction and dump sites, Construction, Port areas
+            elif zone_code in ['13100', '12300']: # Mineral extraction and dump sites, Port areas
                 zone_type = 'industrial'
             elif zone_code in ['50000']:
                 zone_type = 'water'
@@ -931,6 +931,8 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     print(".")
     
+    census_df.geometry = census_df.geometry.buffer(0)
+    
     df['service_area'], df['service_area_size'] = get_service_area(data.city, df, land_use, service_radius=500)
     df['pop_density'] = pop_density_in_service_area(df, census_df)
         
@@ -1359,6 +1361,8 @@ def get_service_area(city, station_df, land_use, service_radius=500):
     
     service_areas = service_areas.apply(
         lambda poly: Point(0,0).buffer(0.0001) if poly.area==0 else poly)
+    
+    service_areas = service_areas.buffer(0)
     
     
     return gpd.GeoSeries(service_areas), service_area_size
