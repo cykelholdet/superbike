@@ -1618,7 +1618,7 @@ def big_station_df(cities, year=2019, month=None, service_radius=500,
         station_df, land_use = make_station_df(data, holidays=False, return_land_use=True)
         traffic_matrices = data.pickle_daily_traffic(holidays=False)
         
-        station_df['service_area'] = get_service_area(data.city, station_df, land_use, service_radius=service_radius)
+        #station_df['service_area'], station_df['service_area_size'] = get_service_area(data.city, station_df, land_use, service_radius=service_radius)
         station_df = station_df.merge(
             neighborhood_percentages(
                 data.city, station_df, land_use, 
@@ -1675,7 +1675,7 @@ def make_station_df_year(city, year=2019, months=None, service_radius=500,
         station_df, land_use = make_station_df(data, holidays=False, return_land_use=True)
         traffic_matrices = data.pickle_daily_traffic(holidays=False)
 
-        station_df['service_area'] = get_service_area(data.city, station_df, land_use, service_radius=service_radius)
+        #station_df['service_area'], station_df['service_area_size'] = get_service_area(data.city, station_df, land_use, service_radius=service_radius)
         station_df = station_df.merge(
             neighborhood_percentages(
                 data.city, station_df, land_use, 
