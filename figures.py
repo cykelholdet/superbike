@@ -26,7 +26,7 @@ import bikeshare as bs
 import interactive_plot_utils as ipu
 from logistic_table import lr_coefficients
 
-def service_area_figure(data, stat_df, land_use):
+def service_area_figure(data, stat_df, land_use, return_fig=False):
     
     
     extend = (stat_df['lat'].min(), stat_df['long'].min(), 
@@ -133,7 +133,41 @@ def service_area_figure(data, stat_df, land_use):
     plt.tight_layout()
     plt.savefig(f'./figures/paper_figures/service_areas_{data.city}_{data.year}{data.month:02d}.pdf')
         
-    return fig, ax
+    if return_fig:
+        return fig, ax
+
+def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='all', return_fig=False):
+
+    traffic = data.daily_traffic_average(data.stat.id_index[stat_id], period=period, normalise=normalise, user_type=user_type)    
+    
+    departures = traffic[0]
+    arrivals = traffic[1]
+    
+    plt.style.use('seaborn-darkgrid')
+    
+    fig, ax = plt.subplots(figsize=(10,5))
+
+    if normalise:
+        ax.plot(np.arange(24), departures*100, label='departures')
+        ax.plot(np.arange(24), arrivals*100, label='arrivals')
+
+        ax.set_ylabel('% of total trips')
+
+    else:
+        ax.plot(np.arange(24), departures, label='departures')
+        ax.plot(np.arange(24), arrivals, label='arrivals')
+
+        ax.set_ylabel('# trips')
+
+    ax.set_xticks(np.arange(24))
+    plt.legend()
+    ax.set_xlabel('Hour')
+    
+    plt.tight_layout()
+    
+    if return_fig:
+        return fig, ax
+
 
 def make_summary_statistics_table(cities=None, variables=None, year=2019, print_only=False):
     
@@ -227,12 +261,15 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
 
 
 if __name__ == "__main__":
-    data = bs.Data('boston', 2019, 9, 30)
-    stat_df, land_use, census_df = ipu.make_station_df(data, return_land_use=True, return_census=True, overwrite=False)
+    data = bs.Data('nyc', 2019)
+    
+    daily_traffic_figure(data, 252)
+    
+    # stat_df, land_use, census_df = ipu.make_station_df(data, return_land_use=True, return_census=True, overwrite=False)
     
     # avg_stat_df = make_summary_statistics_table()
     
-    fig, ax = service_area_figure(data, stat_df, land_use)
+    # fig, ax = service_area_figure(data, stat_df, land_use)
     
     
     
