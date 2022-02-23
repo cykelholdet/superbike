@@ -90,8 +90,12 @@ def service_area_figure(data, stat_df, land_use):
     xlim_dict = {'nyc' : (150, 600)}
     ylim_dict = {'nyc' : (767.5,100)}
     
-    ax.set_xlim(xlim_dict[data.city])
-    ax.set_ylim(ylim_dict[data.city])
+    
+    if data.city in xlim_dict.keys():
+        ax.set_xlim(xlim_dict[data.city])
+    
+    if data.city in ylim_dict.keys():
+        ax.set_ylim(ylim_dict[data.city])
     
     ax.plot(0, 0, 'ob', ms=2, mew=1.5, label='Station')
     p0 = Polygon([(0,0), (0,1), (1,0)], alpha=0.5, 
@@ -223,12 +227,12 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
 
 
 if __name__ == "__main__":
-    # data = bs.Data('oslo', 2019, 9, 30)
-    # stat_df, land_use, census_df = ipu.make_station_df(data, return_land_use=True, return_census=True, overwrite=False)
+    data = bs.Data('boston', 2019, 9, 30)
+    stat_df, land_use, census_df = ipu.make_station_df(data, return_land_use=True, return_census=True, overwrite=False)
     
-    avg_stat_df = make_summary_statistics_table(['oslo'])
+    # avg_stat_df = make_summary_statistics_table()
     
-    # fig, ax = service_area_figure(data, stat_df, land_use)
+    fig, ax = service_area_figure(data, stat_df, land_use)
     
     
     
