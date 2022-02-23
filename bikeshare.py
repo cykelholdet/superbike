@@ -2742,8 +2742,9 @@ class Stations:
         self.locations = station_locations(df, self.id_index)
         self.loc = np.array(list(self.locations.values()))
         trans = Transformer.from_crs("EPSG:4326", "EPSG:3857")
-        self.loc_merc = np.vstack(trans.transform(
-            self.loc[:, 1], self.loc[:, 0])).T
+        if len(df) > 0:
+            self.loc_merc = np.vstack(trans.transform(
+                self.loc[:, 1], self.loc[:, 0])).T
         print(".", end="")
         self.names = station_names(df, self.id_index)
 

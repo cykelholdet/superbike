@@ -167,13 +167,14 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
             for month in bs.get_valid_months(city, year):
                 for day in range(1, calendar.monthrange(year, month)[1]+1):
                     data_day = bs.Data(city, year, month, day)
-                    stat_df = ipu.make_station_df(data_day)
-                    
-                    for var in variables:
-                        if var in stat_df.columns:
-                            var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
-                            var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
-            
+                    if len(data_day.df) > 0: # Avoid the issue of days with no traffic. E.g. Oslo 2019-04-01
+                        stat_df = ipu.make_station_df(data_day)
+                        
+                        for var in variables:
+                            if var in stat_df.columns:
+                                var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
+                                var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
+                
             avg_stat_df = pd.DataFrame()
             avg_stat_df['stat_id'] = stat_ids
             for var in variables:
@@ -225,7 +226,7 @@ if __name__ == "__main__":
     # data = bs.Data('oslo', 2019, 9, 30)
     # stat_df, land_use, census_df = ipu.make_station_df(data, return_land_use=True, return_census=True, overwrite=False)
     
-    avg_stat_df = make_summary_statistics_table()
+    avg_stat_df = make_summary_statistics_table(['oslo'])
     
     # fig, ax = service_area_figure(data, stat_df, land_use)
     
