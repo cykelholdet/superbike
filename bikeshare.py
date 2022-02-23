@@ -3469,8 +3469,12 @@ class Data:
 
         """
         weekdays = self.weekdays
-
-        if period == 'b':
+        
+        if self.day != None:
+            days = [self.day]
+        # In case of a month, days will hold the day in the month. In case of a
+        # year, days will hold the day of year.
+        elif period == 'b':
             days = [date+1 for date, day in enumerate(weekdays) if day <= 4]
         elif period == 'w':
             days = [date+1 for date, day in enumerate(weekdays) if day > 4]
@@ -3496,11 +3500,15 @@ class Data:
 
         trips_arrivals = np.zeros(shape=(len(days), 24))
         trips_departures = np.zeros(shape=(len(days), 24))
-
-        start_day = df_start.dt.day
+        
+        if self.month == None:  # If data is from whole year
+            start_day = df_start.dt.dayofyear
+            end_day = df_end.dt.dayofyear
+        else:
+            start_day = df_start.dt.day
+            end_day = df_end.dt.day
+            
         start_hour = df_start.dt.hour
-
-        end_day = df_end.dt.day
         end_hour = df_end.dt.hour
 
         for i, day in enumerate(days):
@@ -4525,9 +4533,9 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('oslo', 2019, 4)
+    data = Data('nyc', 2019, 4, 3)
     print(time.time() - pre)
-    traffic_arr, traffic_dep = data.daily_traffic_average(100, plot=True)
+    traffic_arr, traffic_dep = data.daily_traffic_average(420, plot=True)
     # print(time.time() - pre)
     # pre = time.time()
     # traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False, user_type='Subscriber')
