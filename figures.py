@@ -143,7 +143,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
     #              'Population density', 'Distance to nearest subway/railway', 
     #              'Number of  trips']
     
-    variables is None:
+    if variables is None:
         variables = ['percent_residential', 'percent_commercial',
                      'percent_recreational', 'percent_industrial', 
                      'percent_transportation', 'percent_mixed',
