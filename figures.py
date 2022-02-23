@@ -182,7 +182,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
                     avg_stat_df[var] = var_dfs[var][var_dfs[var].columns[1:]].mean(axis=1)
             
             with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
-                picke.dump(avg_stat_df, file)
+                pickle.dump(avg_stat_df, file)
         
         
     tab_df = pd.DataFrame(columns = ['city', 'Variable', 'Mean', 'Std. Dev.', 'Min', 'Max'])

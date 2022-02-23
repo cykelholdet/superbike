@@ -58,6 +58,8 @@ def compile_chicago_stations():
         stat_files = [file for file in os.listdir(
             'data') if 'Divvy_Stations' in file]
 
+        # Only a subset of the columns are of interest. These are then renamed
+        # to a standard format.
         col_list = ['id', 'name', 'latitude', 'longitude']
         key = {'ID': 'id', 'Station Name': 'name',
                'Latitude': 'latitude', 'Longitude': 'longitude'}
@@ -126,6 +128,8 @@ def get_JC_blacklist():
         df = pd.read_csv('data/' + file)
         df = df.rename(columns=dataframe_key.get_key('nyc'))
 
+        # In the Citi bike area, Jersey City and New York City are split by the
+        # 74.02° meridian.
         JC_start_stat_indices = np.where(df['start_stat_long'] < -74.02)
         JC_end_stat_indices = np.where(df['end_stat_long'] < -74.02)
 
@@ -137,7 +141,7 @@ def get_JC_blacklist():
     with open('./python_variables/JC_blacklist', 'wb') as file:
         pickle.dump(blacklist, file)
 
-    print('Blacklist updated')
+    print('JC blacklist updated')
 
     return blacklist
 
@@ -198,7 +202,7 @@ def pickle_day_index(df, city, year, month):
 
 def get_data_month(city, year, month, blacklist=None, overwrite=False):
     """
-    Read data from csv files.
+    Read bikeshare data from provider provided files.
 
     Parameters
     ----------
@@ -211,6 +215,9 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
         The month of interest in MM format.
     blacklist : list, optional
         List of IDs of stations to remove. Default is None.
+    overwrite : bool, optional
+        If True, create a new pickle regardless of whether there is an existing
+        pickle.
 
     Returns
     -------
@@ -220,27 +227,23 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
         Contains the indices of the first trip per day.
 
     """
-
-    supported_cities = ['nyc', 'sfran', 'sjose',
-                        'washDC', 'chic', 'london',
-                        'oslo', 'edinburgh', 'bergen',
-                        'trondheim', 'buenos_aires', 'madrid',
-                        'mexico', 'taipei', 'helsinki',
-                        'minn', 'boston', 'guadalajara', 'montreal', 'la']  # Remember to update this list
+    # Remember to update this list when implementing a new city
+    supported_cities = [ 
+        'bergen', 'boston', 'buenos_aires', 'chic', 'edinburgh', 'guadalajara',
+        'helsinki', 'la', 'london', 'madrid', 'mexico', 'minn', 'montreal',
+        'nyc', 'oslo', 'sfran', 'sjose', 'taipei', 'trondheim', 'washDC'] 
 
     if city not in supported_cities:
         raise ValueError(
             "This city is not currently supported. Supported cities are {}".format(supported_cities))
 
-    # Make folder for dataframes if not found
-    if not os.path.exists('python_variables/big_data'):
-        os.makedirs('python_variables/big_data')
+    # Make directory for dataframes if not found
+    if not os.path.exists('python_variables'):
+        os.makedirs('python_variables')
     if not overwrite:
-        month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
-              7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
         print(f'Loading pickle {name_dict[city]} {year:d} {month_dict[month]}... ', end="")
         try:
-            with open(f'./python_variables/big_data/{city}{year:d}{month:02d}_dataframe_blcklst={blacklist}.pickle', 'rb') as file:
+            with open(f'./python_variables/{city}{year:d}{month:02d}_dataframe_blcklst={blacklist}.pickle', 'rb') as file:
                 df = pickle.load(file)
             print("Done")
 
@@ -248,7 +251,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             print('\n No dataframe pickle found. ', end="")
             overwrite = True
 
-    if overwrite:
+    else: # if overwrite
         print("Pickling dataframe...")
         if city == "nyc":
 
@@ -542,10 +545,6 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df.drop(columns=['start_t', 'end_t'], inplace=True)
 
         elif city == "london":
-
-            month_dict = {1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May',
-                          6: 'Jun', 7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct',
-                          11: 'Nov', 12: 'Dec'}
 
             data_files = [file for file in os.listdir(
                 'data') if 'JourneyDataExtract' in file]
@@ -1088,7 +1087,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df = df[~df['start_stat_id'].isin(blacklist)]
             df = df[~df['end_stat_id'].isin(blacklist)]
 
-        with open(f'./python_variables/big_data/{city}{year:d}{month:02d}_dataframe_blcklst={blacklist}.pickle', 'wb') as file:
+        with open(f'./python_variables/{city}{year:d}{month:02d}_dataframe_blcklst={blacklist}.pickle', 'wb') as file:
             pickle.dump(df, file)
 
         print('Pickling done.')
@@ -1121,13 +1120,13 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
             "This city is not currently supported. Supported cities are {}".format(supported_cities))
 
     # Make folder for dataframes if not found
-    if not os.path.exists('python_variables/big_data'):
-        os.makedirs('python_variables/big_data')
+    if not os.path.exists('python_variables'):
+        os.makedirs('python_variables')
     
     if not overwrite:
         try:
             print(f'Loading pickle {name_dict[city]} {year:d}... ', end="")
-            with open(f'./python_variables/big_data/{city}{year:d}_dataframe.pickle', 'rb') as file:
+            with open(f'./python_variables/{city}{year:d}_dataframe.pickle', 'rb') as file:
                 df = pickle.load(file)
             print('Done')
     
@@ -1573,7 +1572,7 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
                 print(".", end="")
             df = pd.concat(dfs)
 
-        with open(f'./python_variables/big_data/{city}{year:d}_dataframe.pickle', 'wb') as file:
+        with open(f'./python_variables/{city}{year:d}_dataframe.pickle', 'wb') as file:
             pickle.dump(df, file)
 
         print(' Pickling done.')
@@ -1834,7 +1833,7 @@ def data_pickle_load(city, year, month):
     object of Data class
     """
 
-    with open(f'./python_variables/big_data/data_{city}{year:d}{month:02d}.pickle', 'rb') as file:
+    with open(f'./python_variables/data_{city}{year:d}{month:02d}.pickle', 'rb') as file:
         return pickle.load(file)
 
 
@@ -2028,10 +2027,6 @@ def get_weather(city, year, month):
               'nyc', 'sfran', 'taipei', 'washDC']
 
     if city in cities:
-        name_dict = {'chic': 'Chicago', 'london': 'London', 'madrid': 'Madrid',
-                     'mexico': 'Mexico City', 'nyc': 'New York City',
-                     'sfran': 'San Francisco', 'taipei': 'Taipei',
-                     'washDC': 'Washington DC'}
         city = name_dict[city]
 
     n_days = calendar.monthrange(year, month)[1]
@@ -2296,11 +2291,6 @@ def purge_pickles(city, year, month):
         if lookfor in file:
             os.remove('python_variables/' + file)
 
-    print("Purging in 'python_variables/big_data'...")
-    for file in os.listdir('python_variables/big_data'):
-        if lookfor in file:
-            os.remove('python_variables/big_data/' + file)
-
     print('Purging done')
 
 def nuke_pickles(city):
@@ -2311,11 +2301,6 @@ def nuke_pickles(city):
     for file in os.listdir('python_variables'):
         if lookfor in file:
             os.remove('python_variables/' + file)
-
-    print("Nuking in 'python_variables/big_data'...")
-    for file in os.listdir('python_variables/big_data'):
-        if lookfor in file:
-            os.remove('python_variables/big_data/' + file)
 
     print('Nuke succesful. What have we done...')
 
@@ -3053,7 +3038,7 @@ class Data:
 
         """
 
-        with open(f'./python_variables/big_data/data_{self.city}{self.year:d}{self.month:02d}.pickle', 'wb') as file:
+        with open(f'./python_variables/data_{self.city}{self.year:d}{self.month:02d}.pickle', 'wb') as file:
             pickle.dump(self, file)
 
     def get_degree_matrix(self, days, threshold=1, remove_self_loops=True):
@@ -3567,9 +3552,6 @@ class Data:
             # plt.legend(['Arrivals','Departures','$\pm$std - arrivals','$\pm$std - departures'])
             ax.set_xlabel('Hour')
 
-            month_dict = {1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
-                          7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'}
-
             if period == 'b':
                 ax.set_title(
                     f'Average hourly traffic for {self.stat.names[stat_index]} \n in {month_dict[self.month]} {self.year} on business days')
@@ -3801,9 +3783,6 @@ class Data:
                 plt.xticks(np.arange(24))
                 # plt.legend(['Arrivals','Departures','$\pm$std - arrivals','$\pm$std - departures'])
                 plt.xlabel('Hour')
-
-                month_dict = {1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
-                              7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'}
 
                 if self.month == None:
                     monstr = ""
@@ -4545,7 +4524,7 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('oslo', 2019, 4, 30)
+    data = Data('london', 2019, 4, 30)
     print(time.time() - pre)
     #traffic_arr, traffic_dep = data.daily_traffic_average_all(plot=False)
     # print(time.time() - pre)
