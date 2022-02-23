@@ -251,7 +251,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             print('\n No dataframe pickle found. ', end="")
             overwrite = True
 
-    else: # if overwrite
+    if overwrite:
         print("Pickling dataframe...")
         if city == "nyc":
 
