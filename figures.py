@@ -190,7 +190,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
     for city in cities:
         
         with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
-                avg_stat_df = picke.load(file)
+                avg_stat_df = pickle.load(file)
         
         city_df = pd.DataFrame(columns=['city', 'Variable', 'Mean', 
                                         'Std. Dev.', 'Min', 'Max'],
