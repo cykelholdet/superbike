@@ -89,10 +89,10 @@ def compile_chicago_stations():
     return stat_df
 
 
-def get_JC_blacklist():
+def get_JC_blocklist():
     """
-    Constructs/updates a blacklist of stations in Jersey City area. The
-    blacklist is created using historical biketrip datasets for the area.
+    Constructs/updates a blocklist of stations in Jersey City area. The
+    blocklist is created using historical biketrip datasets for the area.
     Use only if you know what you are doing.
 
     The relevant files can be found at:
@@ -105,24 +105,24 @@ def get_JC_blacklist():
 
     Returns
     -------
-    blacklist : list
+    blocklist : list
         List of IDs of the Jersey City docking stations.
 
     """
 
     try:
-        with open('./python_variables/JC_blacklist', 'rb') as file:
-            blacklist = pickle.load(file)
+        with open('./python_variables/JC_blocklist', 'rb') as file:
+            blocklist = pickle.load(file)
 
     except FileNotFoundError:
-        print('No previous blacklist found. Creating blacklist...')
-        blacklist = set()
+        print('No previous blocklist found. Creating blocklist...')
+        blocklist = set()
 
     JC_files = [file for file in os.listdir('data') if 'JC' in file]
 
     if len(JC_files) == 0:
         raise FileNotFoundError(
-            'No JC files found. Please have a JC file in the data directory to create/update blacklist.')
+            'No JC files found. Please have a JC file in the data directory to create/update blocklist.')
 
     for file in JC_files:
         df = pd.read_csv('data/' + file)
@@ -136,14 +136,14 @@ def get_JC_blacklist():
         stat_IDs = set(
             df['start_stat_id'].iloc[JC_start_stat_indices]) | set(df['end_stat_id'].iloc[JC_end_stat_indices])
 
-        blacklist = blacklist | stat_IDs
+        blocklist = blocklist | stat_IDs
 
-    with open('./python_variables/JC_blacklist', 'wb') as file:
-        pickle.dump(blacklist, file)
+    with open('./python_variables/JC_blocklist', 'wb') as file:
+        pickle.dump(blocklist, file)
 
-    print('JC blacklist updated')
+    print('JC blocklist updated')
 
-    return blacklist
+    return blocklist
 
 
 def days_index(df):
@@ -200,7 +200,7 @@ def pickle_day_index(df, city, year, month):
     return d
 
 
-def get_data_month(city, year, month, blacklist=None, overwrite=False):
+def get_data_month(city, year, month, blocklist=None, overwrite=False):
     """
     Read bikeshare data from provider provided files.
 
@@ -213,7 +213,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
         The year of interest in YYYY format.
     month : int
         The month of interest in MM format.
-    blacklist : list, optional
+    blocklist : list, optional
         List of IDs of stations to remove. Default is None.
     overwrite : bool, optional
         If True, create a new pickle regardless of whether there is an existing
@@ -243,7 +243,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
     if not overwrite:
         print(f'Loading pickle {name_dict[city]} {year:d} {month_dict[month]}... ', end="")
         try:
-            with open(f'./python_variables/{city}{year:d}{month:02d}_dataframe_blcklst={blacklist}.pickle', 'rb') as file:
+            with open(f'./python_variables/{city}{year:d}{month:02d}_dataframe_blcklst={blocklist}.pickle', 'rb') as file:
                 df = pickle.load(file)
             print("Done")
 
@@ -264,16 +264,17 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                     'No trip data found. All relevant files can be found at https://www.citibikenyc.com/system-data') from exc
 
             df = df.rename(columns=dataframe_key.get_key(city))
-
+            
+            # Remove stations in Jersey City using the 
             try:
-                with open('./python_variables/JC_blacklist', 'rb') as file:
-                    JC_blacklist = pickle.load(file)
+                with open('./python_variables/JC_blocklist', 'rb') as file:
+                    JC_blocklist = pickle.load(file)
 
-                df = df[~df['start_stat_id'].isin(JC_blacklist)]
-                df = df[~df['end_stat_id'].isin(JC_blacklist)]
+                df = df[~df['start_stat_id'].isin(JC_blocklist)]
+                df = df[~df['end_stat_id'].isin(JC_blocklist)]
 
             except FileNotFoundError:
-                print('No JC blacklist found. Continuing...')
+                print('No JC blocklist found. Continuing...')
 
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
@@ -1083,11 +1084,11 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df.sort_values(by=['start_dt'], inplace=True)
             df.reset_index(inplace=True, drop=True)
 
-        if blacklist:
-            df = df[~df['start_stat_id'].isin(blacklist)]
-            df = df[~df['end_stat_id'].isin(blacklist)]
+        if blocklist:
+            df = df[~df['start_stat_id'].isin(blocklist)]
+            df = df[~df['end_stat_id'].isin(blocklist)]
 
-        with open(f'./python_variables/{city}{year:d}{month:02d}_dataframe_blcklst={blacklist}.pickle', 'wb') as file:
+        with open(f'./python_variables/{city}{year:d}{month:02d}_dataframe_blcklst={blocklist}.pickle', 'wb') as file:
             pickle.dump(df, file)
 
         print('Pickling done.')
@@ -1110,7 +1111,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
     return df, days
 
 
-def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
+def get_data_year(city, year, blocklist=None, day_index=True, overwrite=False):
 
     supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki', 'mexico', 'taipei', 'oslo', 'bergen', 'trondheim', 'boston', 'minn', 'guadalajara', 'montreal', 'buenos_aires', 'la'
                         ]  # Remember to update this list
@@ -1156,14 +1157,14 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
             df = df.rename(columns=dataframe_key.get_key(city))
 
             try:
-                with open('./python_variables/JC_blacklist', 'rb') as file:
-                    JC_blacklist = pickle.load(file)
+                with open('./python_variables/JC_blocklist', 'rb') as file:
+                    JC_blocklist = pickle.load(file)
 
-                df = df[~df['start_stat_id'].isin(JC_blacklist)]
-                df = df[~df['end_stat_id'].isin(JC_blacklist)]
+                df = df[~df['start_stat_id'].isin(JC_blocklist)]
+                df = df[~df['end_stat_id'].isin(JC_blocklist)]
 
             except FileNotFoundError:
-                print('No JC blacklist found. Continuing...')
+                print('No JC blocklist found. Continuing...')
 
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
@@ -1577,9 +1578,9 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
 
         print(' Pickling done.')
 
-    if blacklist:
-        df = df[~df['start_stat_id'].isin(blacklist)]
-        df = df[~df['end_stat_id'].isin(blacklist)]
+    if blocklist:
+        df = df[~df['start_stat_id'].isin(blocklist)]
+        df = df[~df['end_stat_id'].isin(blocklist)]
 
     if day_index:
         days = days_index(df)
@@ -1588,7 +1589,7 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
         return df
 
 
-def get_data_day(city, year, month, day, blacklist=None):
+def get_data_day(city, year, month, day, blocklist=None):
     """
     Get data for a specific day.
 
@@ -1602,7 +1603,7 @@ def get_data_day(city, year, month, day, blacklist=None):
         DESCRIPTION.
     day : TYPE
         DESCRIPTION.
-    blacklist : TYPE, optional
+    blocklist : TYPE, optional
         DESCRIPTION. The default is None.
 
     Returns
@@ -1611,7 +1612,7 @@ def get_data_day(city, year, month, day, blacklist=None):
         DESCRIPTION.
 
     """
-    df, _ = get_data_month(city, year, month, blacklist=blacklist)
+    df, _ = get_data_month(city, year, month, blocklist=blocklist)
     
     # either: Start day and start month as specified 
     # or: End day and end month as specified
@@ -2830,7 +2831,7 @@ class Data:
 
     """
 
-    def __init__(self, city, year, month=None, day=None, blacklist=None, overwrite=False):
+    def __init__(self, city, year, month=None, day=None, blocklist=None, overwrite=False):
         """
         Parameters
         ----------
@@ -2856,7 +2857,7 @@ class Data:
             self.num_days = 1
             self.weekdays = [calendar.weekday(year, month, day)]
             
-            self.df = get_data_day(city, year, month, day, blacklist)
+            self.df = get_data_day(city, year, month, day, blocklist)
             self.d_index = [0]
         
         elif self.month is not None:
@@ -2866,7 +2867,7 @@ class Data:
                              7 for i in range(self.num_days)]
 
             self.df, self.d_index = get_data_month(
-                city, year, month, blacklist, overwrite=overwrite)
+                city, year, month, blocklist, overwrite=overwrite)
 
         else:
             self.num_days = 365 + 1*calendar.isleap(year)
@@ -2875,7 +2876,7 @@ class Data:
             self.weekdays = [(i+(first_weekday)) %
                              7 for i in range(self.num_days)]
             
-            self.df, self.d_index = get_data_year(city, year, blacklist, overwrite=overwrite)
+            self.df, self.d_index = get_data_year(city, year, blocklist, overwrite=overwrite)
 
         self.stat = Stations(self.df)
 
@@ -4533,7 +4534,7 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('nyc', 2019, 4, 3)
+    data = Data('oslo', 2019)
     print(time.time() - pre)
     traffic_arr, traffic_dep = data.daily_traffic_average(420, plot=True)
     # print(time.time() - pre)
