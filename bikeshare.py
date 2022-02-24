@@ -265,7 +265,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
             df = df.rename(columns=dataframe_key.get_key(city))
             
-            # Remove stations in Jersey City using the 
+            # Remove stations in Jersey City using the blocklist pickle.
             try:
                 with open('./python_variables/JC_blocklist', 'rb') as file:
                     JC_blocklist = pickle.load(file)
@@ -295,27 +295,20 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
             df = df.rename(columns=dataframe_key.get_key(city))
 
-            df['start_stat_lat'] = ''
-            df['start_stat_long'] = ''
-            df['end_stat_lat'] = ''
-            df['end_stat_long'] = ''
+            stations = pd.read_csv('data/Capital_Bike_Share_Locations.csv')
+            
+            long_dict = dict(zip(stations['TERMINAL_NUMBER'], stations['LONGITUDE']))
+            lat_dict = dict(zip(stations['TERMINAL_NUMBER'], stations['LATITUDE']))
+            
+            df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
+            df['start_stat_long'] = df['start_stat_id'].map(long_dict)
 
-            stat_df = pd.read_csv('data/Capital_Bike_Share_Locations.csv')
-
-            for _, stat in stat_df.iterrows():
-                start_matches = np.where(
-                    df['start_stat_id'] == stat['TERMINAL_NUMBER'])
-                end_matches = np.where(
-                    df['end_stat_id'] == stat['TERMINAL_NUMBER'])
-
-                df.at[start_matches[0], 'start_stat_lat'] = stat['LATITUDE']
-                df.at[start_matches[0], 'start_stat_long'] = stat['LONGITUDE']
-                df.at[end_matches[0], 'end_stat_lat'] = stat['LATITUDE']
-                df.at[end_matches[0], 'end_stat_long'] = stat['LONGITUDE']
-
-            df.replace('', np.nan, inplace=True)
+            df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
+            df['end_stat_long'] = df['end_stat_id'].map(long_dict)
+            
             df.dropna(inplace=True)
-
+            
+            # Remove stations in towns outside of the main DC area.
             max_lat = 38.961029
             min_lat = 38.792686
             max_long = -76.909415
@@ -400,21 +393,6 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
                     raise FileNotFoundError(
                         'No trip data found. All relevant files can be found at https://www.divvybikes.com/system-data') from exc
 
-            if q == 2:
-                col_dict = {'01 - Rental Details Rental ID': 'trip_id',
-                            '01 - Rental Details Local Start Time': 'start_time',
-                            '01 - Rental Details Local End Time': 'end_time',
-                            '01 - Rental Details Bike ID': 'bikeid',
-                            '01 - Rental Details Duration In Seconds Uncapped': 'tripduration',
-                            '03 - Rental Start Station ID': 'from_station_id',
-                            '03 - Rental Start Station Name': 'from_station_name',
-                            '02 - Rental End Station ID': 'to_station_id',
-                            '02 - Rental End Station Name': 'to_station_name',
-                            'User Type': 'usertype',
-                            'Member Gender': 'gender',
-                            '05 - Member Details Member Birthday Year': 'birthyear'}
-                df = df.rename(columns=col_dict)
-
             df = df.rename(columns=dataframe_key.get_key(city))
 
             n_days = calendar.monthrange(year, month)[1]
@@ -426,24 +404,18 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
             df.reset_index(inplace=True, drop=True)
 
-            df['start_stat_lat'] = ''
-            df['start_stat_long'] = ''
-            df['end_stat_lat'] = ''
-            df['end_stat_long'] = ''
-
             with open('./python_variables/Chicago_stations.pickle', 'rb') as file:
-                stat_df = pickle.load(file)
+                stations = pickle.load(file)
+                       
+            long_dict = dict(zip(stations['name'], stations['latitude']))
+            lat_dict = dict(zip(stations['name'], stations['longitude']))
+            
+            df['start_stat_lat'] = df['start_stat_name'].map(lat_dict)
+            df['start_stat_long'] = df['start_stat_name'].map(long_dict)
 
-            for _, stat in stat_df.iterrows():
-                start_matches = np.where(df['start_stat_name'] == stat['name'])
-                end_matches = np.where(df['end_stat_name'] == stat['name'])
+            df['end_stat_lat'] = df['end_stat_name'].map(lat_dict)
+            df['end_stat_long'] = df['end_stat_name'].map(long_dict)
 
-                df.at[start_matches[0], 'start_stat_lat'] = stat['latitude']
-                df.at[start_matches[0], 'start_stat_long'] = stat['longitude']
-                df.at[end_matches[0], 'end_stat_lat'] = stat['latitude']
-                df.at[end_matches[0], 'end_stat_long'] = stat['longitude']
-
-            df.replace('', np.nan, inplace=True)
             df.dropna(subset=['start_stat_lat',
                               'start_stat_long',
                               'end_stat_lat',
@@ -511,6 +483,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
                 df['rental_access_method'].fillna('N', inplace=True)
             df.dropna(inplace=True)
 
+            # Split stations in San Francisco from San Jose
             df = df.iloc[np.where(df['start_stat_lat'] > 37.593220)]
             df = df.iloc[np.where(df['end_stat_lat'] > 37.593220)]
             df = df.iloc[np.where(df['start_stat_long'] < -80)]
@@ -535,6 +508,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df = df.rename(columns=dataframe_key.get_key(city))
             df.dropna(inplace=True)
 
+            # Split stations in San Francisco from San Jose
             df = df.iloc[np.where(df['start_stat_lat'] < 37.593220)]
             df = df.iloc[np.where(df['end_stat_lat'] < 37.593220)]
 
@@ -575,7 +549,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             
             df.sort_values(by='start_dt', inplace=True)
             
-            df.reset_index(inplace=True)            
+            df.reset_index(inplace=True)
 
             stat_df = pd.read_csv('./data/london_stations.csv')
             stat_df.at[np.where(stat_df['station_id'] == 502)[
@@ -593,6 +567,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df.replace('', np.nan, inplace=True)
             df.dropna(inplace=True)
 
+            # Merge stations with identical coordinates
             merge_id_dict = {361: 154, 374: 154,
                               280: 250, 819: 273, 328: 327, 336: 334,
                               421: 420, 816: 812}    
@@ -625,6 +600,8 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df = df.rename(columns=dataframe_key.get_key(city))
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
+            
+            # Merge stations with identical coordinates
             merge_id_dict = {619: 618}
             merge_name_dict = {f"Bak Niels Treschows hus {i}": "Bak Niels Treschows hus" for i in ['sør', 'nord']}
             
@@ -737,9 +714,11 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
                     'No trip data found. All relevant files can be found at https://data.buenosaires.gob.ar/dataset/bicicletas-publicas') from exc
 
             df = df.rename(columns=dataframe_key.get_key(city))
-            #df_year['month'] = pd.to_datetime(df_year['fecha_origen_recorrido']).dt.month
+            
             df['month'] = pd.to_datetime(df['start_t']).dt.month
             df = df[df.month == month]
+            
+            # Fix errors regarding station 159 in the data
             mask = df['start_stat_id'] == "159_0"
             df.loc[mask, 'start_stat_id'] = 159
             df.loc[mask, 'start_stat_lat'] = -34.584953
@@ -766,7 +745,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df.drop(columns=['start_t', 'end_t'], inplace=True)
 
         elif city == "madrid":
-            # df
+            # Depending on the month, the data has different formats
             if year == 2019 and month > 7:
                 try:
                     df = pd.read_json(
@@ -782,12 +761,20 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
                         'No trip data found. All relevant files can be found at https://opendata.emtmadrid.es/Datos-estaticos/Datos-generales-(1)') from exc
                 df = df.rename(columns=dataframe_key.get_key(city))
                 df_pre = df_pre.rename(columns=dataframe_key.get_key(city))
-
+                
+                # Convert from UTC to local time. There is no end time in the
+                # data, only start and duration.
+                
+                # df['start_dt'] = pd.to_datetime(
+                #     df['start_t'], format='%Y-%m-%dT%H:%M:%SZ') + pd.DateOffset(hours=2)
+                # df_pre['start_dt'] = pd.to_datetime(
+                #     df_pre['start_t'], format='%Y-%m-%dT%H:%M:%SZ') + pd.DateOffset(hours=2)
+                
                 df['start_dt'] = pd.to_datetime(
-                    df['start_t'], format='%Y-%m-%dT%H:%M:%SZ') + pd.DateOffset(hours=2)
+                    df['start_t'], format='%Y-%m-%dT%H:%M:%SZ').dt.tz_localize(tz='Europe/Madrid', ambiguous=False)
                 df_pre['start_dt'] = pd.to_datetime(
-                    df_pre['start_t'], format='%Y-%m-%dT%H:%M:%SZ') + pd.DateOffset(hours=2)
-
+                    df_pre['start_t'], format='%Y-%m-%dT%H:%M:%SZ').dt.tz_localize(tz='Europe/Madrid', ambiguous=False)
+                
                 df = df[df['start_dt'].dt.month == month]
                 df_pre = df_pre[df_pre['start_dt'].dt.month == month]
 
@@ -803,7 +790,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
                 df = df.rename(columns=dataframe_key.get_key(city))
                 df['start_dt'] = pd.to_datetime(
-                    df['start_t'], format='%Y-%m-%dT%H:%M:%SZ') + pd.DateOffset(hours=2)
+                    df['start_t'], format='%Y-%m-%dT%H:%M:%SZ').dt.tz_localize(tz='Europe/Madrid', ambiguous=False)
             else:
                 try:
                     df = pd.read_json(
@@ -817,18 +804,20 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
                     df['unplug_hourTime'])
                 df.rename(columns = dataframe_key.get_key(city), inplace=True)
                 df['start_t'] = df['start_t'].str[:-6]
-                # Timezone is correct in older data.
+                
+                # Timezone is local in older data.
                 df['start_dt'] = pd.to_datetime(
                     df['start_t'], format='%Y-%m-%dT%H:%M:%S')
 
             df.drop(columns=['start_t'], inplace=True)
             
-            df = df[df['start_dt'].dt.month == month] # Hour adjusted because of timezone... Fix in year data.
+            df = df[df['start_dt'].dt.month == month]
             
             df['end_dt'] = df['start_dt'] + \
                 pd.to_timedelta(df['duration'], unit='s')
-            #df['end_t'] = pd.to_datetime(df['end_dt']).astype(str)
+                
             if year == 2019 and month >= 7:
+                # In the last months of 2019 the station data is UTF-8
                 _, stations = pd.read_json(
                     f"./data/{year:d}{month:02d}_stations_madrid.json",
                     lines=True).iloc[-1]
@@ -874,8 +863,9 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
             df.rename(columns=dataframe_key.get_key(city), inplace=True)
 
+            # Remove corrupt data.
             if month == 3 and year == 2019:
-                df.drop(index=df.loc[df['end_date'] == '10'].index, inplace=True) # March 2019
+                df.drop(index=df.loc[df['end_date'] == '10'].index, inplace=True)
                 df.drop(columns="Unnamed: 9", inplace=True)
             if month == 4 and year == 2019:
                 df.drop(index=df.loc[df['start_time'] == '18::'].index, inplace=True)
@@ -890,8 +880,8 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             
             df = df[(df['start_dt'].dt.year == year) & (df['start_dt'].dt.month == month)]
 
-            stations = pd.DataFrame(pd.read_json("./data/stations_mexico.json",
-                                                 lines=True)['stations'][0])
+            stations = pd.DataFrame(pd.read_json(
+                "./data/stations_mexico.json", lines=True)['stations'][0])
 
             stat_name_dict = dict(zip(stations['id'], stations['address']))
             locations = stations['location'].apply(pd.Series)
@@ -929,10 +919,11 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
 
-            files = [file for file in os.listdir(
+            # Get station information from the nomenclatura file.
+            station_files = [file for file in os.listdir(
                 'data') if 'nomenclatura' in file]
             try:
-                stations = pd.read_csv(f"data/{files[0]}", encoding = "ISO-8859-1")
+                stations = pd.read_csv(f"data/{station_files[0]}", encoding = "ISO-8859-1")
             except FileNotFoundError as exc:
                 raise FileNotFoundError(
                     'No trip data found. All relevant files can be found at https://www.mibici.net/en/open-data/') from exc
@@ -1010,17 +1001,21 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
                 raise FileNotFoundError(
                     'No trip data found. All relevant data can be found at https://data.taipei/#/ and https://drive.google.com/drive/folders/1QsROgp8AcER6qkTJDxpuV8Mt1Dy6lGQO') from exc
 
-            # Update names of stations
+            # Fix names of stations to match current naming scheme.
             df.replace(to_replace='信義杭州路口(中華電信總公司',
-                       value='信義杭州路口(中華電信總公司)', inplace=True)
+                            value='信義杭州路口(中華電信總公司)', inplace=True)
             df.replace(to_replace='捷運科技大樓站',
-                       value='捷運科技大樓站(台北教育大學)', inplace=True)
-            df.replace(to_replace='?公公園', value='瑠公公園', inplace=True)
-            df.replace(to_replace='饒河夜市', value='饒河夜市(八德路側)', inplace=True)
+                            value='捷運科技大樓站(台北教育大學)', inplace=True)
+            df.replace(to_replace='?公公園',
+                            value='瑠公公園', inplace=True)
+            df.replace(to_replace='饒河夜市',
+                            value='饒河夜市(八德路側)', inplace=True)
             df.replace(to_replace='捷運大坪林站(3號出口)',
-                       value='捷運大坪林站(1號出口)', inplace=True)
-            df.replace(to_replace='新明路321巷口', value='新明路262巷口', inplace=True)
+                            value='捷運大坪林站(1號出口)', inplace=True)
+            df.replace(to_replace='新明路321巷口',
+                            value='新明路262巷口', inplace=True)
             
+            # Remove header in data containing header.
             if (df.loc[0] == ['rent_time', 'rent_station', 'return_time', 'return_station', 'rent']).all():
                 df.drop(0, inplace=True)
             
@@ -1041,6 +1036,9 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             stations['lat'] = stations['lat'].astype(float)
             stations['lng'] = stations['lng'].astype(float)
             id_dict = dict(zip(stations['sna'], stations['sno']))
+
+            # The data includes origin and destination stations in New Taipei.
+            # It is possible to include these with the commented code below.
 
             # stations_ntpc = pd.read_csv("./data/stations_new_taipei.csv")
             # stations_ntpc['sno'] = stations_ntpc['sno'].astype(int)
@@ -1093,6 +1091,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
         print('Pickling done.')
     
+    # Get day index
     if not overwrite:
         try:
             with open(f'./python_variables/day_index_{city}{year:d}{month:02d}.pickle', 'rb') as file:
@@ -1112,9 +1111,37 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
 
 def get_data_year(city, year, blocklist=None, day_index=True, overwrite=False):
+    """
+    Read bikeshare data for a whole year from provider provided files.
 
-    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki', 'mexico', 'taipei', 'oslo', 'bergen', 'trondheim', 'boston', 'minn', 'guadalajara', 'montreal', 'buenos_aires', 'la'
-                        ]  # Remember to update this list
+    Parameters
+    ----------
+    city : str
+        The identification of the city. For a list of supported cities, see
+        the documentation for the Data class.
+    year : int
+        The year of interest in YYYY format.
+    blocklist : list, optional
+        List of IDs of stations to remove. Default is None.
+    day_index : bool, optional
+        Whether to return day index. The default is True.
+    overwrite : bool, optional
+        If True, create a new pickle regardless of whether there is an existing
+        pickle.
+
+    Returns
+    -------
+    df : pandas DataFrame
+        Dataframe containing bikeshare trip data.
+    days : dict
+        Contains the indices of the first trip per day.
+
+    """
+    # Remember to update this list when ading support for new cities
+    supported_cities = [
+        'bergen', 'boston', 'buenos_aires', 'chic', 'edinburgh', 'guadalajara',
+        'helsinki', 'la', 'london', 'madrid', 'mexico', 'minn', 'montreal',
+        'nyc', 'oslo', 'sfran', 'taipei', 'trondheim', 'washDC']
 
     if city not in supported_cities:
         raise ValueError(
@@ -4534,9 +4561,9 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('oslo', 2019)
+    data = Data('madrid', 2019, 10, overwrite=True)
     print(time.time() - pre)
-    traffic_arr, traffic_dep = data.daily_traffic_average(420, plot=True)
+    traffic_arr, traffic_dep = data.daily_traffic_average_all()
     # print(time.time() - pre)
     # pre = time.time()
     # traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False, user_type='Subscriber')
