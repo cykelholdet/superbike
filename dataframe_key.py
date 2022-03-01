@@ -65,7 +65,7 @@ def get_key(city):
                'end_lon': 'end_stat_long',
                'passholder_type': 'user_type'}
 
-    elif city == "washDC":
+    elif city == "washdc":
         key = {'Duration': 'duration',
                'Start date': 'start_t',
                'End date': 'end_t',
@@ -76,7 +76,7 @@ def get_key(city):
                'Bike number': 'bike_id',
                'Member type': 'user_type'}
 
-    elif city == "chic":
+    elif city == "chicago":
         key = {'tripduration': 'duration',
                'start_time': 'start_t',
                'end_time': 'end_t',
@@ -101,7 +101,7 @@ def get_key(city):
                'Member Gender': 'gender',
                '05 - Member Details Member Birthday Year': 'birth_year'}
     
-    elif city == "minn":
+    elif city == "minneapolis":
         key = {'ride_id' : 'ride_id',
                'rideable_type' : 'bike_type',
                'started_at' : 'start_t',
@@ -265,16 +265,16 @@ def get_land_use_key(city):
     if city == 'nyc':
         key = {'ZONEDIST': 'zone_type',
                'geometry': 'geometry',}
-    elif city == 'chic':
+    elif city == 'chicago':
         key = {'zone_class': 'zone_type',
                'geometry': 'geometry',}
     # elif city == 'boston':
         # key = {'ZONE_': 'zone_type',
         #        'geometry': 'geometry',}
-    elif city == 'minn':
+    elif city == 'minneapolis':
         key = {'ZONE_CODE': 'zone_type',
                'geometry': 'geometry'}
-    elif city == 'washDC':
+    elif city == 'washdc':
         key = {'ZONING_LABEL': 'zone_type',
                'geometry': 'geometry',}
     elif city in ['helsinki', 'madrid', 'oslo', 'london', 'bergen', 'trondheim', 'edinburgh']:
@@ -287,7 +287,7 @@ def get_land_use_key(city):
 
 def get_census_key(city):
         
-    if city in ['nyc', 'chic', 'boston', 'minn', 'washDC']:
+    if city in ['nyc', 'chicago', 'boston', 'minneapolis', 'washdc']:
         key = {'GEO_ID': 'census_geo_id',
                 'P1_001N': 'population',}
     

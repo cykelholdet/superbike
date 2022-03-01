@@ -172,7 +172,7 @@ def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='
 def make_summary_statistics_table(cities=None, variables=None, year=2019, print_only=False):
     
     if cities is None:
-        cities = ['nyc', 'chic', 'washDC', 'boston', 
+        cities = ['nyc', 'chicago', 'washdc', 'boston', 
                   'london', 'helsinki', 'oslo', 'madrid']
         
     # variables = ['Share of residential use', 'Share of commercial use',

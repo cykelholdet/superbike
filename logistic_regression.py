@@ -110,9 +110,9 @@ city_train = 'nyc'
 
 omit_columns = {
                            'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
-                           'chic': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+                           'chicago': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
                            'nyc': ['percent_mixed', 'n_trips'],
-                           'washDC': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+                           'washdc': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
                            'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips'],
                            'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips'],
                            'madrid': ['n_trips'],
@@ -190,9 +190,9 @@ split_seed = 42
 
 omit_columns = {
                            'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
-                           'chic': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+                           'chicago': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
                            'nyc': ['percent_mixed', 'n_trips'],
-                           'washDC': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+                           'washdc': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
                            'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips'],
                            'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips'],
                            'madrid': ['n_trips'],
@@ -382,11 +382,11 @@ plt.savefig(f'./figures/LR_model_tests/{city_train}_yealy_vs_monthly_no_month_co
 #%% Compare cities
 
 city_train = 'nyc'
-city_test = ['nyc', 'chic', 'washDC', 'boston', 'london', 'madrid', 'helsinki', 'oslo']
-# city_test = ['nyc', 'chic', 'washDC', 'boston']
+city_test = ['nyc', 'chicago', 'washdc', 'boston', 'london', 'madrid', 'helsinki', 'oslo']
+# city_test = ['nyc', 'chicago', 'washdc', 'boston']
 # city_test =  ['london', 'madrid', 'helsinki', 'oslo']
 
-# city_test= ['minn']
+# city_test= ['minneapolis']
 
 success_rates_all = dict()
 
@@ -423,9 +423,9 @@ for city in city_test:
             
             omit_columns = {
                             'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
-                            'chic': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+                            'chicago': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
                             'nyc': ['percent_mixed', 'n_trips'],
-                            'washDC': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+                            'washdc': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
                             'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips'],
                             'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips'],
                             'madrid': ['n_trips'],

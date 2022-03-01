@@ -160,9 +160,9 @@ if __name__ == '__main__':
     
     omit_columns = {
         'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
-        'chic': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'chicago': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
         'nyc': ['percent_mixed', 'n_trips'],
-        'washDC': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'washdc': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
         'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips'],
         'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips'],
         'madrid': ['n_trips'],
@@ -175,7 +175,7 @@ if __name__ == '__main__':
     month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
           7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
 
-    CITY = 'chic'
+    CITY = 'chicago'
     YEAR = 2019
     MONTH = None
     
@@ -190,7 +190,7 @@ if __name__ == '__main__':
     use_road = False
     add_const = True
     
-    table_type = 'only_coef'
+    table_type = 'us_eu'
 # =============================================================================
 #   Table types
 # =============================================================================
@@ -305,7 +305,7 @@ if __name__ == '__main__':
         print_type = 'only_coefs'
             
     elif table_type == 'city':
-        city_list = ['nyc', 'boston', 'washDC', 'london']
+        city_list = ['nyc', 'boston', 'washdc', 'london']
         
         table = pd.DataFrame([])
         for city in city_list:
@@ -333,7 +333,7 @@ if __name__ == '__main__':
         print_type = None
         
     elif table_type == 'only_coef':
-        city_list = ['boston', 'chic', 'nyc', 'washDC', 'helsinki', 'london', 'madrid', 'oslo']
+        city_list = ['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'london', 'madrid', 'oslo']
         
         table = pd.DataFrame([])
         for city in city_list:
@@ -385,9 +385,9 @@ if __name__ == '__main__':
     
     
     elif table_type == 'us_eu':
-        city_lists = [(['boston', 'chic', 'nyc', 'washDC'], 'USA'),
+        city_lists = [(['boston', 'chicago', 'nyc', 'washdc'], 'USA'),
                       (['helsinki', 'london', 'madrid', 'oslo'], 'EUR'),
-                      (['boston', 'chic', 'nyc', 'washDC', 'helsinki', 'london', 'madrid', 'oslo'], 'All')
+                      (['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'london', 'madrid', 'oslo'], 'All')
                       ]
         
         table = pd.DataFrame([])
@@ -406,7 +406,7 @@ if __name__ == '__main__':
         print_type = 'only_coefs'
     
     if table_type == 'month_all_cities':
-        for city in ['boston', 'chic', 'nyc', 'washDC', 'helsinki', 'london', 'madrid', 'oslo']:
+        for city in ['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'london', 'madrid', 'oslo']:
             month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
                   7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None', YEAR: YEAR}
             

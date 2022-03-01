@@ -117,7 +117,7 @@ class BikeDash(param.Parameterized):
     Variables for the dashboard are introduced as param objects with their
     possible values. In addition, the plotting functions are defined.
     """
-    city = param.Selector(default=CITY, objects=['nyc', 'chic', 'washDC', 'minn', 'boston', 'london', 'helsinki', 'madrid', 'edinburgh', 'oslo'])
+    city = param.Selector(default=CITY, objects=['nyc', 'chicago', 'washdc', 'minneapolis', 'boston', 'london', 'helsinki', 'madrid', 'edinburgh', 'oslo'])
     #if MONTH == None:
     month = param.Selector(default=MONTH, objects=[None, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
     #else:
@@ -517,7 +517,7 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
 @pn.depends(show_census=bike_params.param.show_census,
             city=bike_params.param.city)
 def census_plot(show_census, city):
-    if show_census == 'True' and city in ['nyc', 'chic', 'washDC', 'boston', 'minn']:
+    if show_census == 'True' and city in ['nyc', 'chicago', 'washdc', 'boston', 'minneapolis']:
         return gv.Polygons(bike_params.census_df).opts(color='pop_density', cmap='YlGnBu')
     else:
         return gv.Polygons([])
@@ -596,7 +596,7 @@ day_type_dict = {'weekend': 'w', 'business_days': 'b'}
 
 gif_pane = pn.pane.GIF('Loading_Key.gif')
 
-city_list = ['boston', 'chic', 'minn', 'nyc', 'washDC', 'edinburgh', 'helsinki', 'london', 'madrid', 'oslo']
+city_list = ['boston', 'chicago', 'minneapolis', 'nyc', 'washdc', 'edinburgh', 'helsinki', 'london', 'madrid', 'oslo']
 
 city_dict = dict(zip([bs.name_dict[city] for city in city_list], city_list))
 
