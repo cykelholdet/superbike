@@ -136,6 +136,7 @@ def service_area_figure(data, stat_df, land_use, return_fig=False):
     if return_fig:
         return fig, ax
 
+
 def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='all', return_fig=False):
 
     traffic = data.daily_traffic_average(data.stat.id_index[stat_id], period=period, normalise=normalise, user_type=user_type)    
@@ -259,18 +260,200 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
     return tab_df
 
 
+def make_LR_table(year, k=3):
+    
+    cities = ['nyc', 'chic', 'washDC', 'boston', 
+                  'london', 'helsinki', 'oslo', 'madrid']
+    
+    city_lists = [(['nyc', 'chic', 'washDC', 'boston'], 'USA'),
+                      (['london', 'helsinki', 'oslo', 'madrid'], 'EUR')]
+    
+    
+    percent_index_dict = {
+        'percent_UNKNOWN': '\% Unknown',
+        'percent_residential': '\% Residential',
+        'percent_commercial': '\% Commercial',
+        'percent_industrial': '\% Industrial',
+        'percent_recreational': '\% Recreational',
+        'percent_educational': '\% Educational',
+        'percent_mixed': '\% Mixed',
+        'percent_road': '\% Road',
+        'percent_transportation': '\% Transportation',
+        'n_trips': '\# Trips',
+        'nearest_subway_dist': 'Nearest Subway',
+        'pop_density': 'Pop. Density',
+        }
+    
+    omit_columns = {
+        'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'chic': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'nyc': ['percent_mixed', 'n_trips'],
+        'washDC': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips'],
+        'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'percent_industrial'],
+        'madrid': ['n_trips', 'percent_industrial'],
+        'oslo': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips', 'percent_mixed'],
+        'USA': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
+        'EUR': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
+        'All': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
+        }
+    
+    month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
+          7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
+
+    
+    table = pd.DataFrame([])
+    
+    for city in cities:
+        # print(city)
+        with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+            asdf = pickle.load(file)
+        
+        data = bs.Data(city, year)
+        
+        # traf_mats = data.pickle_daily_traffic(holidays=False, 
+        #                                       user_type='Subscriber',
+        #                                       overwrite=True)
+        
+        traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
+                                             user_type='Subscriber')
+        
+        traf_mat_b = np.concatenate((traf_df_b[0].to_numpy(), 
+                                     traf_df_b[1].to_numpy()),
+                                    axis=1)
+        
+        traf_df_w = data.daily_traffic_average_all(period='w', holidays=False, 
+                                             user_type='Subscriber')
+        
+        traf_mat_w = np.concatenate((traf_df_w[0].to_numpy(), 
+                                     traf_df_w[1].to_numpy()),
+                                    axis=1)
+        
+        
+        traf_mats = (traf_mat_b, traf_mat_w)
+        
+        casual_stations = set(list(asdf.stat_id.unique())) - (set(list(traf_df_b[0].index)) | set(list(traf_df_b[1].index)))
+        
+        for station in list(casual_stations):
+            asdf = asdf[asdf['stat_id'] != station]
+        
+        asdf = asdf.reset_index()
+        
+        asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k)[0]
+        
+        zone_columns = ['percent_residential', 'percent_commercial',
+                        'percent_recreational', 'percent_industrial']
+        
+        for column in omit_columns[data.city]:
+            if column in zone_columns:
+                zone_columns.remove(column)
+    
+        other_columns = ['pop_density', 'nearest_subway_dist']
+        
+        for column in omit_columns[data.city]:
+            if column in other_columns:
+                other_columns.remove(column)
+            
+        lr_results, X, y, _ = ipu.stations_logistic_regression(
+            asdf, zone_columns, other_columns, 
+            use_points_or_percents='percents', 
+            make_points_by='station land use', const=False,
+            test_model=True, test_ratio=0.2, test_seed=42,
+            )
+        
+        # print(lr_results)
+        print(lr_results.summary())
+
+        single_index = lr_results.params[0].index
+
+        parameters = np.concatenate([lr_results.params[i] for i in range(0, k-1)])
+        stdev = np.concatenate([lr_results.bse[i] for i in range(0, k-1)])
+        pvalues = np.concatenate([lr_results.pvalues[i] for i in range(0, k-1)])
+        
+        index = np.concatenate([lr_results.params.index for i in range(0, k-1)])
+    
+        multiindex = pd.MultiIndex.from_product([range(1,k), single_index], names=['Cluster', 'Coef. name'])
+    
+        pars = pd.Series(parameters, index=multiindex, name='coef')
+        sts = pd.Series(stdev, index=multiindex, name='stdev')
+        pvs = pd.Series(pvalues, index=multiindex, name='pvalues')
+        
+        coefs = pd.DataFrame(pars).join((sts, pvs))
+            
+
+        lr_coefs = pd.concat({data.city: coefs}, names="", axis=1)
+
+        table = pd.concat([table, lr_coefs], axis=1)        
+    
+    
+    signif_table = table.xs('pvalues', level=1, axis=1) < 0.05
+    
+    coeftable = table.xs('coef', level=1, axis=1)
+    
+    tuple_table = pd.concat([coeftable,signif_table]).stack(dropna=False).groupby(level=[0,1,2]).apply(tuple).unstack()
+    
+    index_list = list(percent_index_dict.keys())
+    index_renamer = percent_index_dict
+    
+    index_list.insert(0, 'const')
+    
+    #index_list = set(index_list).intersection(set(table.index.get_level_values(1)))
+    
+    index_list = [x for x in index_list if x in table.index.get_level_values(1)]
+    
+    tables = dict()
+    for i in range(1, k):
+        tables[i] = tuple_table.loc[i].loc[index_list] # Reorder according to index_dict
+    
+    tuple_table = pd.concat(tables, names=['Cluster', 'Coef. name'])
+    tuple_table = tuple_table.rename(index=index_renamer)
+    
+    if k == 3:
+        tuple_table = tuple_table.rename(index={1: 'Morning Sink', 2: 'Morning Source'})
+    
+    tuple_table = tuple_table.reindex(columns=cities)
+    
+    latex_table = tuple_table.to_latex(column_format='@{}ll'+('r'*len(tuple_table.columns)) + '@{}', multirow=True, formatters = [tuple_formatter]*len(tuple_table.columns), escape=False)
+    print(latex_table)
+    
+        
+    return tuple_table
+
+
+def formatter(x):
+    if x == np.inf:
+        return "inf"
+    elif np.abs(x) > 10000 or np.abs(x) < 0.001:
+        return f"$\\num{{{x:.2e}}}$"
+    else:
+        return f"${x:.4f}$"
+    
+def tuple_formatter(tup):
+    x, bold = tup
+    if x == np.inf:
+        out = "inf"
+    elif np.isnan(x):
+        out = "--"
+    elif np.abs(x) > 10000 or np.abs(x) < 0.001:
+        if bold:
+            out = f"$\\num[math-rm=\\mathbf]{{{x:.2e}}}$"
+        else:
+            out = f"$\\num{{{x:.2e}}}$"
+    else:
+        if bold:
+            out = f"$\\mathbf{{{x:.3f}}}$"
+        else:
+            out = f"${x:.3f}$"
+    
+    return out
+
+
+
+
 
 if __name__ == "__main__":
-    data = bs.Data('nyc', 2019)
     
-    daily_traffic_figure(data, 252)
-    
-    # stat_df, land_use, census_df = ipu.make_station_df(data, return_land_use=True, return_census=True, overwrite=False)
-    
-    # avg_stat_df = make_summary_statistics_table()
-    
-    # fig, ax = service_area_figure(data, stat_df, land_use)
-    
+    table=make_LR_table(2019)
     
     
     

@@ -371,7 +371,7 @@ def make_neighborhoods(city, year, station_df, land_use):
     
 
 def make_station_df(data, holidays=True, return_land_use=False, 
-                    return_census=False, overwrite=False):
+                    return_census=False, overwrite=False, return_trips=False):
     postfix = "" if data.month == None else f"{data.month:02d}"
     postfix = postfix + "" if holidays else postfix + "_no_holidays"
     
@@ -474,6 +474,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     df['b_trips'] = df['b_arrivals'] + df['b_departures']
     df['w_trips'] = df['w_arrivals'] + df['w_departures']
+    
     
     df['coords'] = list(zip(df['long'], df['lat']))
     df['coords'] = df['coords'].apply(Point)
@@ -941,7 +942,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     land_use['color'] = land_use['zone_type'].map(color_dict).fillna("pink")
     
-    if data.day != None:
+    if data.day is None:
         with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'wb') as file:
             pickle.dump([df, land_use, census_df], file)
     
@@ -1046,9 +1047,13 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
     traffic_matrix, mask, x_trips = mask_traffic_matrix(
         traffic_matrices, station_df, day_type, min_trips, holidays=False, return_mask=True)
     
+    # cluster departures-arrivals
+    # traffic_matrix = traffic_matrix[:,:24] - traffic_matrix[:,24:]
+    
     if clustering == 'k_means':
         clusters = KMeans(k, random_state=random_state).fit(traffic_matrix)
         labels = clusters.predict(traffic_matrix)
+        
         station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
         means = clusters.cluster_centers_
@@ -1117,7 +1122,14 @@ def sort_clusters(station_df, cluster_means, labels, traffic_matrices, day_type,
     # Order the clusters by setting cluster 0 to be closest to the mean traffic.
     
     if day_type == 'business_days':
+        
+        # traffic_matrices = traffic_matrices[0][station_df.index][:,:24] - traffic_matrices[0][station_df.index][:,24:]
+        # mean = np.mean(traffic_matrices)
+        
         mean = np.mean(traffic_matrices[0][station_df.index], axis=0)
+        
+        
+        
     elif day_type == 'weekend':
         mean = np.mean(traffic_matrices[1][station_df.index], axis=0)
     
@@ -1131,7 +1143,14 @@ def sort_clusters(station_df, cluster_means, labels, traffic_matrices, day_type,
     for center in cluster_means:
         dist_from_mean = np.linalg.norm(center-mean)
         peakiness.append(dist_from_mean)
-        rhn = np.sum((center[morning_hours] - center[morning_hours+24]) - (center[afternoon_hours] - center[afternoon_hours+24]))
+        
+        
+        # if clustering normally
+        # rhn = np.sum((center[morning_hours] - center[morning_hours+24]) - (center[afternoon_hours] - center[afternoon_hours+24]))
+        
+        # if clustering the difference
+        rhn = np.sum(center[morning_hours] - center[afternoon_hours])
+        
         rush_houriness.append(rhn)
     
     rush_houriness = np.array(rush_houriness)
@@ -1410,7 +1429,7 @@ def pop_density_in_service_area(station_df, census_df):
     stat_sa = station_df['service_area'].to_crs(epsg=3857)
     cens_df = census_df.to_crs(epsg=3857)
     for station in stat_sa:
-        intersection = cens_df.intersection(station)
+        intersection = cens_df.intersection(station.buffer(0))
         mask = (intersection != Polygon())
         sec_masked = intersection.loc[mask]
         pop_ds.append((cens_df.loc[mask, 'pop_density'] * sec_masked.area).sum() / station.area)
@@ -1509,7 +1528,7 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
         X_train = X_scaled[~mask]
         y_train = y[~mask]
         
-        success_rate, cm, predictions = logistic_regression_test(X_train, y_train, 
+        success_rate, predictions = logistic_regression_test(X_train, y_train, 
                                                     X_test, y_test,
                                                     plot_cm=plot_cm,
                                                     normalise_cm=normalise_cm)
@@ -1555,8 +1574,8 @@ def logistic_regression_test(X_train, y_train, X_test, y_test, plot_cm=True, nor
     
     if plot_cm:
         
-        if normalise_cm == 'true':
-            title='Normalised wrt. true label'
+        if normalise_cm == 'true': 
+            title=f'Normalised wrt. true label'
         
         if normalise_cm == 'pred':
             title='Normalised wrt. predicted label'
@@ -1570,8 +1589,8 @@ def logistic_regression_test(X_train, y_train, X_test, y_test, plot_cm=True, nor
         disp = ConfusionMatrixDisplay(confusion_matrix=cm)
         disp.plot()
         plt.title(title)
-
-    return success_rate, cm, predictions
+        
+    return success_rate, predictions
 
 
 
@@ -1795,62 +1814,9 @@ color_num_dict = {
     
 if __name__ == "__main__":
 
-    
-
-    # create_all_pickles('boston', 2019, overwrite=True)
-
-    data = bs.Data('nyc', 2019, 9)
-
-    pre = time.time()
+    data = bs.Data('nyc', 2019, 9)     
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
     station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
-    #station_df['service_area'], station_df['service_area_size'] = get_service_area(data.city, station_df, land_use, service_radius=500)
     
-    percent_cols = [column for column in station_df.columns if "percent_" in column]
-
-    station_df = station_df.drop(columns=percent_cols).merge(
-        neighborhood_percentages(
-            data.city, station_df, land_use, 
-            service_radius=500, use_road=False
-            ),
-        how='outer', left_index=True, right_index=True)
-    
-    station_df, clusters, labels = get_clusters(
-        traffic_matrices, station_df, day_type='business_days', min_trips=100,
-        clustering='k_means', k=3, random_state=42)
-    
-    print(f'station_df took {time.time() - pre:.2f} seconds')
-    
-    lr = stations_logistic_regression(
-        station_df, ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational'],
-        ['pop_density', 'nearest_subway_dist'], use_points_or_percents='percents', 
-        make_points_by='station location', const=True, test_model=False,
-        test_ratio=0.2, test_seed=None, plot_cm=False, normalise_cm=None)
-    print(lr[0].summary())
-
-
-    
-    # for i, station in station_df.iterrows():
-    #     a = geodesic_point_buffer(station['lat'], station['long'], 1000)
-    
-    
-    # overlaps = []
-    
-    # for i in range(len(land_use)):
-    #     for j in range(i+1, len(land_use)):
-    #         if land_use.iloc[i].geometry.intersection(land_use.iloc[j].geometry).area > 0:
-    #             overlap_perc = land_use.iloc[i].geometry.intersection(land_use.iloc[j].geometry).area/land_use.iloc[i].geometry.union(land_use.iloc[j].geometry).area*100
-    #             print(f'Zone {land_use.iloc[i].name} overlaps with zone {land_use.iloc[j].name}. Pecentage overlap: {overlap_perc:.2f}%')
-    #             overlaps.append([overlap_perc,(land_use.iloc[i].name, land_use.iloc[j].name)])
-
-    # overlaps2 = []
-    
-    # for i in range(len(poly_gdf)):
-    #     for j in range(i+1, len(poly_gdf)):
-    #         if poly_gdf.iloc[i].geometry.intersection(poly_gdf.iloc[j].geometry).area > 0:
-    #             overlap_perc = poly_gdf.iloc[i].geometry.intersection(poly_gdf.iloc[j].geometry).area/poly_gdf.iloc[i].geometry.union(poly_gdf.iloc[j].geometry).area*100
-    #             print(f'Zone {poly_gdf.iloc[i].name} overlaps with zone {poly_gdf.iloc[j].name}. Pecentage overlap: {overlap_perc:.2f}%')
-    #             overlaps2.append([overlap_perc,(poly_gdf.iloc[i].name, poly_gdf.iloc[j].name)])
-
     
 

@@ -16,7 +16,7 @@ from logistic_table import lr_coefficients
 
 CITY = 'nyc'
 YEAR = 2019
-MONTH = 9
+MONTH = 1
 
 day_type = 'business_days' # 'business_days' or 'weekend'
 min_trips = 100
@@ -36,12 +36,12 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 #%% Make station_df
 
-if use_whole_year:
+if MONTH is None:
     for month in bs.get_valid_months(CITY, YEAR):
         
         data = bs.Data(CITY, YEAR, month)
         
-        station_df, land_use = ipu.make_station_df(data, return_land_use=True)
+        station_df, land_use = ipu.make_station_df(data, return_land_use=True, holidays=False)
         
         traffic_matrices = data.pickle_daily_traffic(holidays=False)
          
@@ -67,7 +67,7 @@ if use_whole_year:
 else:
     data = bs.Data(CITY, YEAR, MONTH)
         
-    station_df, land_use = ipu.make_station_df(data, return_land_use=True)
+    station_df, land_use = ipu.make_station_df(data, return_land_use=True, holidays=False)
     
     traffic_matrices = data.pickle_daily_traffic(holidays=False)
      
@@ -98,11 +98,14 @@ LR_results, X, y, predictions = ipu.stations_logistic_regression(station_df, zon
                                                     make_points_by=make_points_by, 
                                                     const=add_const,
                                                     test_model=True,
+                                                    test_seed=69,
                                                     plot_cm=True, 
                                                     normalise_cm='true')
 
 print(LR_results.summary())
 
+plt.savefig(f'./figures/norm_tests/test_/{CITY}{YEAR}{MONTH:02d}.png')
+plt.close()
 #%% Compare whole year model with monthly models 1
 
 city_train = 'nyc'
