@@ -2067,21 +2067,26 @@ class Data:
                 trips_arrivals[i, hour] = np.sum(
                     (end_day == day) & (end_hour == hour))
 
-        if normalise:
-            daily_totals = trips_arrivals.sum(
-                axis=1) + trips_departures.sum(axis=1)
-
-            trips_arrivals = np.divide(trips_arrivals.T, daily_totals, out=np.zeros_like(
-                trips_arrivals.T), where=daily_totals != 0).T
-            trips_departures = np.divide(trips_departures.T, daily_totals, out=np.zeros_like(
-                trips_arrivals.T), where=daily_totals != 0).T
-
         trips_departures_average = np.mean(trips_departures, axis=0)
         trips_arrivals_average = np.mean(trips_arrivals, axis=0)
 
         trips_departures_std = np.std(trips_departures, axis=0)
         trips_arrivals_std = np.std(trips_arrivals, axis=0)
 
+        if normalise:
+            divisor = trips_arrivals.sum(axis=1) + trips_departures.sum(axis=1)
+             
+            trips_arrivals = np.divide(trips_arrivals.T, divisor, out=np.zeros_like(
+                trips_arrivals.T), where=divisor != 0).T
+            trips_departures = np.divide(trips_departures.T, divisor, out=np.zeros_like(
+                trips_arrivals.T), where=divisor != 0).T
+            
+        trips_departures_average = np.mean(trips_departures, axis=0)
+        trips_arrivals_average = np.mean(trips_arrivals, axis=0)
+
+        trips_departures_std = np.std(trips_departures, axis=0)
+        trips_arrivals_std = np.std(trips_arrivals, axis=0)
+        
         if plot:
 
             fig, ax = plt.subplots()
@@ -2275,7 +2280,10 @@ class Data:
         arrivals_std = pd.concat(end_std, axis=1).fillna(0)
 
         if normalise:
+            
+            # normalise with respect to the sum of trips
             divisor = arrivals_mean.sum(axis=0).add(departures_mean.sum(axis=0), fill_value=0)
+                
             arrivals_std = arrivals_std / divisor
             arrivals_mean = arrivals_mean / divisor
 
