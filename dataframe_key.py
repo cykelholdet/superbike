@@ -87,7 +87,19 @@ def get_key(city):
                'bikeid': 'bike_id',
                'usertype': 'user_type',
                'birthyear': 'birth_year',
-               'gender': 'gender'}
+               'gender': 'gender',
+               '01 - Rental Details Rental ID': 'trip_id',
+               '01 - Rental Details Local Start Time': 'start_t',
+               '01 - Rental Details Local End Time': 'end_t',
+               '01 - Rental Details Bike ID': 'bike_id',
+               '01 - Rental Details Duration In Seconds Uncapped': 'duration',
+               '03 - Rental Start Station ID': 'start_stat_id',
+               '03 - Rental Start Station Name': 'start_stat_name',
+               '02 - Rental End Station ID': 'end_stat_id',
+               '02 - Rental End Station Name': 'end_stat_name',
+               'User Type': 'user_type',
+               'Member Gender': 'gender',
+               '05 - Member Details Member Birthday Year': 'birth_year'}
     
     elif city == "minn":
         key = {'ride_id' : 'ride_id',

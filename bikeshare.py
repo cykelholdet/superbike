@@ -89,10 +89,10 @@ def compile_chicago_stations():
     return stat_df
 
 
-def get_JC_blacklist():
+def get_JC_blocklist():
     """
-    Constructs/updates a blacklist of stations in Jersey City area. The
-    blacklist is created using historical biketrip datasets for the area.
+    Constructs/updates a blocklist of stations in Jersey City area. The
+    blocklist is created using historical biketrip datasets for the area.
     Use only if you know what you are doing.
 
     The relevant files can be found at:
@@ -105,24 +105,24 @@ def get_JC_blacklist():
 
     Returns
     -------
-    blacklist : list
+    blocklist : list
         List of IDs of the Jersey City docking stations.
 
     """
 
     try:
-        with open('./python_variables/JC_blacklist', 'rb') as file:
-            blacklist = pickle.load(file)
+        with open('./python_variables/JC_blocklist', 'rb') as file:
+            blocklist = pickle.load(file)
 
     except FileNotFoundError:
-        print('No previous blacklist found. Creating blacklist...')
-        blacklist = set()
+        print('No previous blocklist found. Creating blocklist...')
+        blocklist = set()
 
     JC_files = [file for file in os.listdir('data') if 'JC' in file]
 
     if len(JC_files) == 0:
         raise FileNotFoundError(
-            'No JC files found. Please have a JC file in the data directory to create/update blacklist.')
+            'No JC files found. Please have a JC file in the data directory to create/update blocklist.')
 
     for file in JC_files:
         df = pd.read_csv('data/' + file)
@@ -136,14 +136,14 @@ def get_JC_blacklist():
         stat_IDs = set(
             df['start_stat_id'].iloc[JC_start_stat_indices]) | set(df['end_stat_id'].iloc[JC_end_stat_indices])
 
-        blacklist = blacklist | stat_IDs
+        blocklist = blocklist | stat_IDs
 
-    with open('./python_variables/JC_blacklist', 'wb') as file:
-        pickle.dump(blacklist, file)
+    with open('./python_variables/JC_blocklist', 'wb') as file:
+        pickle.dump(blocklist, file)
 
-    print('JC blacklist updated')
+    print('JC blocklist updated')
 
-    return blacklist
+    return blocklist
 
 
 def days_index(df):
@@ -200,7 +200,7 @@ def pickle_day_index(df, city, year, month):
     return d
 
 
-def get_data_month(city, year, month, blacklist=None, overwrite=False):
+def get_data_month(city, year, month, blocklist=None, overwrite=False):
     """
     Read bikeshare data from provider provided files.
 
@@ -213,7 +213,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
         The year of interest in YYYY format.
     month : int
         The month of interest in MM format.
-    blacklist : list, optional
+    blocklist : list, optional
         List of IDs of stations to remove. Default is None.
     overwrite : bool, optional
         If True, create a new pickle regardless of whether there is an existing
@@ -243,7 +243,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
     if not overwrite:
         print(f'Loading pickle {name_dict[city]} {year:d} {month_dict[month]}... ', end="")
         try:
-            with open(f'./python_variables/{city}{year:d}{month:02d}_dataframe_blcklst={blacklist}.pickle', 'rb') as file:
+            with open(f'./python_variables/{city}{year:d}{month:02d}_dataframe_blcklst={blocklist}.pickle', 'rb') as file:
                 df = pickle.load(file)
             print("Done")
 
@@ -264,16 +264,17 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                     'No trip data found. All relevant files can be found at https://www.citibikenyc.com/system-data') from exc
 
             df = df.rename(columns=dataframe_key.get_key(city))
-
+            
+            # Remove stations in Jersey City using the blocklist pickle.
             try:
-                with open('./python_variables/JC_blacklist', 'rb') as file:
-                    JC_blacklist = pickle.load(file)
+                with open('./python_variables/JC_blocklist', 'rb') as file:
+                    JC_blocklist = pickle.load(file)
 
-                df = df[~df['start_stat_id'].isin(JC_blacklist)]
-                df = df[~df['end_stat_id'].isin(JC_blacklist)]
+                df = df[~df['start_stat_id'].isin(JC_blocklist)]
+                df = df[~df['end_stat_id'].isin(JC_blocklist)]
 
             except FileNotFoundError:
-                print('No JC blacklist found. Continuing...')
+                print('No JC blocklist found. Continuing...')
 
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
@@ -294,27 +295,20 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
 
             df = df.rename(columns=dataframe_key.get_key(city))
 
-            df['start_stat_lat'] = ''
-            df['start_stat_long'] = ''
-            df['end_stat_lat'] = ''
-            df['end_stat_long'] = ''
+            stations = pd.read_csv('data/Capital_Bike_Share_Locations.csv')
+            
+            long_dict = dict(zip(stations['TERMINAL_NUMBER'], stations['LONGITUDE']))
+            lat_dict = dict(zip(stations['TERMINAL_NUMBER'], stations['LATITUDE']))
+            
+            df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
+            df['start_stat_long'] = df['start_stat_id'].map(long_dict)
 
-            stat_df = pd.read_csv('data/Capital_Bike_Share_Locations.csv')
-
-            for _, stat in stat_df.iterrows():
-                start_matches = np.where(
-                    df['start_stat_id'] == stat['TERMINAL_NUMBER'])
-                end_matches = np.where(
-                    df['end_stat_id'] == stat['TERMINAL_NUMBER'])
-
-                df.at[start_matches[0], 'start_stat_lat'] = stat['LATITUDE']
-                df.at[start_matches[0], 'start_stat_long'] = stat['LONGITUDE']
-                df.at[end_matches[0], 'end_stat_lat'] = stat['LATITUDE']
-                df.at[end_matches[0], 'end_stat_long'] = stat['LONGITUDE']
-
-            df.replace('', np.nan, inplace=True)
+            df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
+            df['end_stat_long'] = df['end_stat_id'].map(long_dict)
+            
             df.dropna(inplace=True)
-
+            
+            # Remove stations in towns outside of the main DC area.
             max_lat = 38.961029
             min_lat = 38.792686
             max_long = -76.909415
@@ -399,21 +393,6 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                     raise FileNotFoundError(
                         'No trip data found. All relevant files can be found at https://www.divvybikes.com/system-data') from exc
 
-            if q == 2:
-                col_dict = {'01 - Rental Details Rental ID': 'trip_id',
-                            '01 - Rental Details Local Start Time': 'start_time',
-                            '01 - Rental Details Local End Time': 'end_time',
-                            '01 - Rental Details Bike ID': 'bikeid',
-                            '01 - Rental Details Duration In Seconds Uncapped': 'tripduration',
-                            '03 - Rental Start Station ID': 'from_station_id',
-                            '03 - Rental Start Station Name': 'from_station_name',
-                            '02 - Rental End Station ID': 'to_station_id',
-                            '02 - Rental End Station Name': 'to_station_name',
-                            'User Type': 'usertype',
-                            'Member Gender': 'gender',
-                            '05 - Member Details Member Birthday Year': 'birthyear'}
-                df = df.rename(columns=col_dict)
-
             df = df.rename(columns=dataframe_key.get_key(city))
 
             n_days = calendar.monthrange(year, month)[1]
@@ -425,24 +404,18 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
 
             df.reset_index(inplace=True, drop=True)
 
-            df['start_stat_lat'] = ''
-            df['start_stat_long'] = ''
-            df['end_stat_lat'] = ''
-            df['end_stat_long'] = ''
-
             with open('./python_variables/Chicago_stations.pickle', 'rb') as file:
-                stat_df = pickle.load(file)
+                stations = pickle.load(file)
+                       
+            long_dict = dict(zip(stations['name'], stations['latitude']))
+            lat_dict = dict(zip(stations['name'], stations['longitude']))
+            
+            df['start_stat_lat'] = df['start_stat_name'].map(lat_dict)
+            df['start_stat_long'] = df['start_stat_name'].map(long_dict)
 
-            for _, stat in stat_df.iterrows():
-                start_matches = np.where(df['start_stat_name'] == stat['name'])
-                end_matches = np.where(df['end_stat_name'] == stat['name'])
+            df['end_stat_lat'] = df['end_stat_name'].map(lat_dict)
+            df['end_stat_long'] = df['end_stat_name'].map(long_dict)
 
-                df.at[start_matches[0], 'start_stat_lat'] = stat['latitude']
-                df.at[start_matches[0], 'start_stat_long'] = stat['longitude']
-                df.at[end_matches[0], 'end_stat_lat'] = stat['latitude']
-                df.at[end_matches[0], 'end_stat_long'] = stat['longitude']
-
-            df.replace('', np.nan, inplace=True)
             df.dropna(subset=['start_stat_lat',
                               'start_stat_long',
                               'end_stat_lat',
@@ -510,6 +483,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                 df['rental_access_method'].fillna('N', inplace=True)
             df.dropna(inplace=True)
 
+            # Split stations in San Francisco from San Jose
             df = df.iloc[np.where(df['start_stat_lat'] > 37.593220)]
             df = df.iloc[np.where(df['end_stat_lat'] > 37.593220)]
             df = df.iloc[np.where(df['start_stat_long'] < -80)]
@@ -534,6 +508,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df = df.rename(columns=dataframe_key.get_key(city))
             df.dropna(inplace=True)
 
+            # Split stations in San Francisco from San Jose
             df = df.iloc[np.where(df['start_stat_lat'] < 37.593220)]
             df = df.iloc[np.where(df['end_stat_lat'] < 37.593220)]
 
@@ -574,7 +549,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             
             df.sort_values(by='start_dt', inplace=True)
             
-            df.reset_index(inplace=True)            
+            df.reset_index(inplace=True)
 
             stat_df = pd.read_csv('./data/london_stations.csv')
             stat_df.at[np.where(stat_df['station_id'] == 502)[
@@ -592,6 +567,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df.replace('', np.nan, inplace=True)
             df.dropna(inplace=True)
 
+            # Merge stations with identical coordinates
             merge_id_dict = {361: 154, 374: 154,
                               280: 250, 819: 273, 328: 327, 336: 334,
                               421: 420, 816: 812}    
@@ -624,6 +600,8 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df = df.rename(columns=dataframe_key.get_key(city))
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
+            
+            # Merge stations with identical coordinates
             merge_id_dict = {619: 618}
             merge_name_dict = {f"Bak Niels Treschows hus {i}": "Bak Niels Treschows hus" for i in ['sør', 'nord']}
             
@@ -736,9 +714,11 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                     'No trip data found. All relevant files can be found at https://data.buenosaires.gob.ar/dataset/bicicletas-publicas') from exc
 
             df = df.rename(columns=dataframe_key.get_key(city))
-            #df_year['month'] = pd.to_datetime(df_year['fecha_origen_recorrido']).dt.month
+            
             df['month'] = pd.to_datetime(df['start_t']).dt.month
             df = df[df.month == month]
+            
+            # Fix errors regarding station 159 in the data
             mask = df['start_stat_id'] == "159_0"
             df.loc[mask, 'start_stat_id'] = 159
             df.loc[mask, 'start_stat_lat'] = -34.584953
@@ -765,7 +745,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df.drop(columns=['start_t', 'end_t'], inplace=True)
 
         elif city == "madrid":
-            # df
+            # Depending on the month, the data has different formats
             if year == 2019 and month > 7:
                 try:
                     df = pd.read_json(
@@ -781,12 +761,20 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                         'No trip data found. All relevant files can be found at https://opendata.emtmadrid.es/Datos-estaticos/Datos-generales-(1)') from exc
                 df = df.rename(columns=dataframe_key.get_key(city))
                 df_pre = df_pre.rename(columns=dataframe_key.get_key(city))
-
+                
+                # Convert from UTC to local time. There is no end time in the
+                # data, only start and duration.
+                
+                # df['start_dt'] = pd.to_datetime(
+                #     df['start_t'], format='%Y-%m-%dT%H:%M:%SZ') + pd.DateOffset(hours=2)
+                # df_pre['start_dt'] = pd.to_datetime(
+                #     df_pre['start_t'], format='%Y-%m-%dT%H:%M:%SZ') + pd.DateOffset(hours=2)
+                
                 df['start_dt'] = pd.to_datetime(
-                    df['start_t'], format='%Y-%m-%dT%H:%M:%SZ') + pd.DateOffset(hours=2)
+                    df['start_t'], format='%Y-%m-%dT%H:%M:%SZ').dt.tz_localize(tz='Europe/Madrid', ambiguous=False)
                 df_pre['start_dt'] = pd.to_datetime(
-                    df_pre['start_t'], format='%Y-%m-%dT%H:%M:%SZ') + pd.DateOffset(hours=2)
-
+                    df_pre['start_t'], format='%Y-%m-%dT%H:%M:%SZ').dt.tz_localize(tz='Europe/Madrid', ambiguous=False)
+                
                 df = df[df['start_dt'].dt.month == month]
                 df_pre = df_pre[df_pre['start_dt'].dt.month == month]
 
@@ -802,7 +790,7 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
 
                 df = df.rename(columns=dataframe_key.get_key(city))
                 df['start_dt'] = pd.to_datetime(
-                    df['start_t'], format='%Y-%m-%dT%H:%M:%SZ') + pd.DateOffset(hours=2)
+                    df['start_t'], format='%Y-%m-%dT%H:%M:%SZ').dt.tz_localize(tz='Europe/Madrid', ambiguous=False)
             else:
                 try:
                     df = pd.read_json(
@@ -816,18 +804,20 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                     df['unplug_hourTime'])
                 df.rename(columns = dataframe_key.get_key(city), inplace=True)
                 df['start_t'] = df['start_t'].str[:-6]
-                # Timezone is correct in older data.
+                
+                # Timezone is local in older data.
                 df['start_dt'] = pd.to_datetime(
                     df['start_t'], format='%Y-%m-%dT%H:%M:%S')
 
             df.drop(columns=['start_t'], inplace=True)
             
-            df = df[df['start_dt'].dt.month == month] # Hour adjusted because of timezone... Fix in year data.
+            df = df[df['start_dt'].dt.month == month]
             
             df['end_dt'] = df['start_dt'] + \
                 pd.to_timedelta(df['duration'], unit='s')
-            #df['end_t'] = pd.to_datetime(df['end_dt']).astype(str)
+                
             if year == 2019 and month >= 7:
+                # In the last months of 2019 the station data is UTF-8
                 _, stations = pd.read_json(
                     f"./data/{year:d}{month:02d}_stations_madrid.json",
                     lines=True).iloc[-1]
@@ -873,8 +863,9 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
 
             df.rename(columns=dataframe_key.get_key(city), inplace=True)
 
+            # Remove corrupt data.
             if month == 3 and year == 2019:
-                df.drop(index=df.loc[df['end_date'] == '10'].index, inplace=True) # March 2019
+                df.drop(index=df.loc[df['end_date'] == '10'].index, inplace=True)
                 df.drop(columns="Unnamed: 9", inplace=True)
             if month == 4 and year == 2019:
                 df.drop(index=df.loc[df['start_time'] == '18::'].index, inplace=True)
@@ -889,8 +880,8 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             
             df = df[(df['start_dt'].dt.year == year) & (df['start_dt'].dt.month == month)]
 
-            stations = pd.DataFrame(pd.read_json("./data/stations_mexico.json",
-                                                 lines=True)['stations'][0])
+            stations = pd.DataFrame(pd.read_json(
+                "./data/stations_mexico.json", lines=True)['stations'][0])
 
             stat_name_dict = dict(zip(stations['id'], stations['address']))
             locations = stations['location'].apply(pd.Series)
@@ -928,10 +919,11 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
 
-            files = [file for file in os.listdir(
+            # Get station information from the nomenclatura file.
+            station_files = [file for file in os.listdir(
                 'data') if 'nomenclatura' in file]
             try:
-                stations = pd.read_csv(f"data/{files[0]}", encoding = "ISO-8859-1")
+                stations = pd.read_csv(f"data/{station_files[0]}", encoding = "ISO-8859-1")
             except FileNotFoundError as exc:
                 raise FileNotFoundError(
                     'No trip data found. All relevant files can be found at https://www.mibici.net/en/open-data/') from exc
@@ -1009,17 +1001,21 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
                 raise FileNotFoundError(
                     'No trip data found. All relevant data can be found at https://data.taipei/#/ and https://drive.google.com/drive/folders/1QsROgp8AcER6qkTJDxpuV8Mt1Dy6lGQO') from exc
 
-            # Update names of stations
+            # Fix names of stations to match current naming scheme.
             df.replace(to_replace='信義杭州路口(中華電信總公司',
-                       value='信義杭州路口(中華電信總公司)', inplace=True)
+                            value='信義杭州路口(中華電信總公司)', inplace=True)
             df.replace(to_replace='捷運科技大樓站',
-                       value='捷運科技大樓站(台北教育大學)', inplace=True)
-            df.replace(to_replace='?公公園', value='瑠公公園', inplace=True)
-            df.replace(to_replace='饒河夜市', value='饒河夜市(八德路側)', inplace=True)
+                            value='捷運科技大樓站(台北教育大學)', inplace=True)
+            df.replace(to_replace='?公公園',
+                            value='瑠公公園', inplace=True)
+            df.replace(to_replace='饒河夜市',
+                            value='饒河夜市(八德路側)', inplace=True)
             df.replace(to_replace='捷運大坪林站(3號出口)',
-                       value='捷運大坪林站(1號出口)', inplace=True)
-            df.replace(to_replace='新明路321巷口', value='新明路262巷口', inplace=True)
+                            value='捷運大坪林站(1號出口)', inplace=True)
+            df.replace(to_replace='新明路321巷口',
+                            value='新明路262巷口', inplace=True)
             
+            # Remove header in data containing header.
             if (df.loc[0] == ['rent_time', 'rent_station', 'return_time', 'return_station', 'rent']).all():
                 df.drop(0, inplace=True)
             
@@ -1040,6 +1036,9 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             stations['lat'] = stations['lat'].astype(float)
             stations['lng'] = stations['lng'].astype(float)
             id_dict = dict(zip(stations['sna'], stations['sno']))
+
+            # The data includes origin and destination stations in New Taipei.
+            # It is possible to include these with the commented code below.
 
             # stations_ntpc = pd.read_csv("./data/stations_new_taipei.csv")
             # stations_ntpc['sno'] = stations_ntpc['sno'].astype(int)
@@ -1083,15 +1082,16 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
             df.sort_values(by=['start_dt'], inplace=True)
             df.reset_index(inplace=True, drop=True)
 
-        if blacklist:
-            df = df[~df['start_stat_id'].isin(blacklist)]
-            df = df[~df['end_stat_id'].isin(blacklist)]
+        if blocklist:
+            df = df[~df['start_stat_id'].isin(blocklist)]
+            df = df[~df['end_stat_id'].isin(blocklist)]
 
-        with open(f'./python_variables/{city}{year:d}{month:02d}_dataframe_blcklst={blacklist}.pickle', 'wb') as file:
+        with open(f'./python_variables/{city}{year:d}{month:02d}_dataframe_blcklst={blocklist}.pickle', 'wb') as file:
             pickle.dump(df, file)
 
         print('Pickling done.')
     
+    # Get day index
     if not overwrite:
         try:
             with open(f'./python_variables/day_index_{city}{year:d}{month:02d}.pickle', 'rb') as file:
@@ -1110,10 +1110,38 @@ def get_data_month(city, year, month, blacklist=None, overwrite=False):
     return df, days
 
 
-def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
+def get_data_year(city, year, blocklist=None, day_index=True, overwrite=False):
+    """
+    Read bikeshare data for a whole year from provider provided files.
 
-    supported_cities = ['nyc', 'sfran', 'washDC', 'chic', 'london', 'madrid', 'edinburgh', 'helsinki', 'mexico', 'taipei', 'oslo', 'bergen', 'trondheim', 'boston', 'minn', 'guadalajara', 'montreal', 'buenos_aires', 'la'
-                        ]  # Remember to update this list
+    Parameters
+    ----------
+    city : str
+        The identification of the city. For a list of supported cities, see
+        the documentation for the Data class.
+    year : int
+        The year of interest in YYYY format.
+    blocklist : list, optional
+        List of IDs of stations to remove. Default is None.
+    day_index : bool, optional
+        Whether to return day index. The default is True.
+    overwrite : bool, optional
+        If True, create a new pickle regardless of whether there is an existing
+        pickle.
+
+    Returns
+    -------
+    df : pandas DataFrame
+        Dataframe containing bikeshare trip data.
+    days : dict
+        Contains the indices of the first trip per day.
+
+    """
+    # Remember to update this list when ading support for new cities
+    supported_cities = [
+        'bergen', 'boston', 'buenos_aires', 'chic', 'edinburgh', 'guadalajara',
+        'helsinki', 'la', 'london', 'madrid', 'mexico', 'minn', 'montreal',
+        'nyc', 'oslo', 'sfran', 'taipei', 'trondheim', 'washDC']
 
     if city not in supported_cities:
         raise ValueError(
@@ -1156,14 +1184,14 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
             df = df.rename(columns=dataframe_key.get_key(city))
 
             try:
-                with open('./python_variables/JC_blacklist', 'rb') as file:
-                    JC_blacklist = pickle.load(file)
+                with open('./python_variables/JC_blocklist', 'rb') as file:
+                    JC_blocklist = pickle.load(file)
 
-                df = df[~df['start_stat_id'].isin(JC_blacklist)]
-                df = df[~df['end_stat_id'].isin(JC_blacklist)]
+                df = df[~df['start_stat_id'].isin(JC_blocklist)]
+                df = df[~df['end_stat_id'].isin(JC_blocklist)]
 
             except FileNotFoundError:
-                print('No JC blacklist found. Continuing...')
+                print('No JC blocklist found. Continuing...')
 
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
@@ -1577,9 +1605,9 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
 
         print(' Pickling done.')
 
-    if blacklist:
-        df = df[~df['start_stat_id'].isin(blacklist)]
-        df = df[~df['end_stat_id'].isin(blacklist)]
+    if blocklist:
+        df = df[~df['start_stat_id'].isin(blocklist)]
+        df = df[~df['end_stat_id'].isin(blocklist)]
 
     if day_index:
         days = days_index(df)
@@ -1588,7 +1616,7 @@ def get_data_year(city, year, blacklist=None, day_index=True, overwrite=False):
         return df
 
 
-def get_data_day(city, year, month, day, blacklist=None):
+def get_data_day(city, year, month, day, blocklist=None):
     """
     Get data for a specific day.
 
@@ -1602,7 +1630,7 @@ def get_data_day(city, year, month, day, blacklist=None):
         DESCRIPTION.
     day : TYPE
         DESCRIPTION.
-    blacklist : TYPE, optional
+    blocklist : TYPE, optional
         DESCRIPTION. The default is None.
 
     Returns
@@ -1611,7 +1639,7 @@ def get_data_day(city, year, month, day, blacklist=None):
         DESCRIPTION.
 
     """
-    df, _ = get_data_month(city, year, month, blacklist=blacklist)
+    df, _ = get_data_month(city, year, month, blocklist=blocklist)
     
     # either: Start day and start month as specified 
     # or: End day and end month as specified
@@ -1686,254 +1714,6 @@ def station_names(df, id_index):
     names = c.set_index('start_stat_id').sort_index().to_dict()[
         'start_stat_name']
     return names
-
-
-def diradjacency(df, city, year, month, day_index, days, stations,
-                 threshold=1, remove_self_loops=True):
-    """
-    Calculate the directed adjacency matrix for the network.
-
-    Parameters
-    ----------
-    df : pandas DataFrame
-        bikesharing data.
-    city : str
-        The identification of the city. For a list of supported cities, see
-        the documentation for the Data class.
-    year : int
-        The year of interest in YYYY format.
-    month : int
-        The month of interest in MM format.
-    day_index : list
-        Indices of the first trip per day.
-    days : iterable
-        Days in consideration.
-    stations : Stat class
-        Station class containing station information.
-    threshold : int, optional
-        Threshold for weights. If an edge has a weight below the threshold
-        then the weight is set to zero. The default threshold is 1.
-    remove_self_loops : bool, optional
-        Does not count trips which start and end at the same station if
-        True. The default is True.
-
-    Returns
-    -------
-    d_adj : ndarray
-        Array containing the directed adjacency matrix.
-
-    """
-
-    try:
-        # If Pickle exists, load it
-        with open(f'./python_variables/directedadjacency_{city}{year:d}{month:02d}{tuple(days)}thr_{threshold:d}.pickle', 'rb') as file:
-            d_adj = pickle.load(file)
-        print("Pickle loaded")
-
-    except FileNotFoundError:
-        # If not, calculate weighted adjacency matrix and create Pickle
-        print(
-            f"Pickle does not exist. Pickling directed adjacency matrix: directedadjacency_{city}{year:d}{month:02d}{tuple(days)}thr_{threshold:d}.pickle...")
-        d_adj = np.zeros((stations.n_tot, stations.n_tot))
-
-        for day in days:
-
-            if day is max(days):
-                for _, row in df.iloc[day_index[day]:].iterrows():
-                    d_adj[stations.id_index[row['start_stat_id']],
-                          stations.id_index[row['end_stat_id']]] += 1
-                print('Day {} loaded...'.format(day))
-
-            else:
-                for _, row in df.iloc[day_index[day]:day_index[day+1]].iterrows():
-                    d_adj[stations.id_index[row['start_stat_id']],
-                          stations.id_index[row['end_stat_id']]] += 1
-                print('Day {} loaded...'.format(day))
-
-        d_adj[d_adj <= threshold] = 0
-
-        if remove_self_loops:
-            for i in range(stations.n_tot):
-                d_adj[i, i] = 0
-
-        with open(f'./python_variables/directedadjacency_{city}{year:d}{month:02d}{tuple(days)}thr_{threshold:d}.pickle', 'wb') as file:
-            pickle.dump(d_adj, file)
-        print("Pickling done.")
-
-    return d_adj
-
-
-def diradjacency_hour(data, day, hour, threshold=1, remove_self_loops=True):
-
-    d_adj = np.zeros((data.stat.n_tot, data.stat.n_tot))
-
-    if day == data.num_days:
-        df_slice = data.df.iloc[data.d_index[day]:]
-    else:
-        df_slice = data.df.iloc[data.d_index[day]:data.d_index[day+1]]
-
-    df_slice = df_slice.loc[data.df['start_dt'].dt.hour == hour]
-
-    si = df_slice['start_stat_id'].map(data.stat.id_index)
-    ei = df_slice['end_stat_id'].map(data.stat.id_index)
-    #start_stat_index = id_index(df['start_stat_id'])
-
-    for i, j in zip(si, ei):
-        d_adj[i, j] += 1
-
-    d_adj[d_adj <= threshold] = 0
-
-    if remove_self_loops:
-        for i in range(data.stat.n_tot):
-            d_adj[i, i] = 0
-
-    return d_adj
-
-
-def get_degree_matrix(adj):
-    """
-    Computes the degree matrix of the network.
-
-    Parameters
-    ----------
-    adj : ndarray
-        Adjacency matrix.
-
-    Returns
-    -------
-    deg_matrix: ndarray
-        The degree matrix.
-
-    """
-
-    deg_matrix = np.zeros_like(adj)
-
-    for i in range(len(adj)):
-        deg_matrix[i, i] = np.sum(adj[[i], :])
-
-    return deg_matrix
-
-
-def data_pickle_load(city, year, month):
-    """
-    Load data from a Data class object pickle. See Data.pickle_dump
-
-    Parameters
-    ----------
-    city : str
-        The identification of the city. For a list of supported cities, see
-        the documentation for the Data class.
-    year : int
-        The year of interest in YYYY format.
-    month : int
-        The month of interest in MM format.
-
-    Returns
-    -------
-    object of Data class
-    """
-
-    with open(f'./python_variables/data_{city}{year:d}{month:02d}.pickle', 'rb') as file:
-        return pickle.load(file)
-
-
-def adjacency(df, n_tot, id_index, threshold=1, remove_self_loops=True):
-    """
-    Calculate the weighted adjacency matrix for the network assuming an
-    undirected graph.
-
-    Parameters
-    ----------
-    df : pandas DataFrame
-        Contains the data over which the adjacency matrix is calculated.
-    n_tot : int
-        Number of stations.
-    id_index : dict
-        Translates station id to an index starting from 0.
-    threshold : int, optional
-        Threshold for weights. If an edge has a weight below the threshold
-        then the weight is set to zero. The default threshold is 1.
-    remove_self_loops : bool, optional
-        Does not count trips which start and end at the same station if
-        True. The default is True.
-
-    Returns
-    -------
-    adj : ndarray
-        Adjacency matrix of the network.
-
-    """
-
-    adj = np.zeros((n_tot, n_tot))
-    si = df['start_stat_id'].map(id_index)
-    ei = df['end_stat_id'].map(id_index)
-    #start_stat_index = id_index(df['start_stat_id'])
-
-    for i, j in zip(si, ei):
-        adj[i, j] += 1
-
-    adj = adj + adj.T
-
-    adj[adj <= threshold] = 0
-
-    if remove_self_loops:
-        for i in range(n_tot):
-            adj[i, i] = 0
-
-    return adj
-
-
-def PageRank(adj, d=0.85, iterations=50, initialisation="uniform"):
-    """
-    Calculates the PageRank of each vertex in a graph.
-
-    Parameters
-    ----------
-    adj : ndarray
-        Directed and weighted adjacency matrix.
-    d : float, optional
-        Dampening factor. The default is 0.85.
-    iterations : int, optional
-        The amount of iterations we run the PageRank algortihm. The default is
-        100.
-    initialisation : str, optional
-        Determines if we have random initialisation or 1/n initialisation. The
-        default is "rdm".
-
-    Returns
-    -------
-    v : ndarray
-        contains the PageRank of each vertex.
-
-    """
-
-    N = adj.shape[0]
-    weightlist = []
-
-    for i in range(N):
-        weight = 0
-
-        for n in range(N):
-            weight += adj[i, n]
-
-        weightlist.append(weight)
-
-    if initialisation == "rdm":
-        v = np.random.rand(N, 1)
-        v = v / np.linalg.norm(v, ord=1)
-
-    else:  # Uniform initialisation
-        v = np.linspace(1/N, 1/N, N)
-
-    for i in range(iterations):
-
-        for n in range(N):
-            if weightlist[n] != 0:
-                v[n] = v[n]/weightlist[n]
-
-        v = (1 - d)/(N+1) + d * adj @ v
-
-    return v
 
 
 def get_elevation(lat, long, dataset="mapzen"):
@@ -2098,156 +1878,6 @@ def get_weather_year(city, year):
     return pd.concat(rain)
 
 
-def TotalVariation(adj, cutoff):
-    """
-    Calculates the total variation of given graph with the degree as the signal.
-
-    Parameters
-    ----------
-    adj : ndarray
-        Adjacency matrix.
-    threshold : float
-        Threshold for when the signal is high or low frequency.
-
-    Returns
-    -------
-    filterarray : ndarray
-        Binary array. 1 indicates low frequency and 0 indicates high frequency.
-
-    """
-
-    n = len(adj)
-    Lambda, u = np.linalg.eig(adj)
-    Lambda_max = np.max(abs(Lambda))
-    W_tilde = adj * 1/Lambda_max
-    T = np.zeros(n)
-    filterarray = np.zeros(n)
-    for m in range(n):
-        T[m] = np.linalg.norm(u[:, m] - (W_tilde @ u[:, m]), ord=1)
-        if T[m] < cutoff:
-            filterarray[m] = 1
-    return filterarray
-
-
-def subframe(filterarray, df, id_index, low):
-    """
-    Creates a lowpass- or highpass-filtered dataframe
-
-    Parameters
-    ----------
-    filterarray : ndarray
-        Binary array. 1 indicates low frequency and 0 indicates high frequency.
-    df : pandas dataframe
-        Original city data dataframe.
-    low : Logival, optional
-        Tells us if the filtered dataframe will be low or high frequency.
-        The default is True.
-
-    Returns
-    -------
-    df_done : pandas dataframe
-        Filtered pandas dataframe.
-
-    """
-
-    filtered_positions = np.argwhere(filterarray == 1)
-
-    l = len(filtered_positions)
-    filtered_positions = filtered_positions.reshape(l)
-
-    if low:
-        df_filtered = df[df['start_stat_id'].map(
-            id_index).isin(filtered_positions)]
-        df_done = df_filtered[df_filtered['end_stat_id'].map(
-            id_index).isin(filtered_positions)]
-
-    else:
-        df_filtered = df[~df['start_stat_id'].map(
-            id_index).isin(filtered_positions)]
-        df_done = df_filtered[~df_filtered['end_stat_id'].map(
-            id_index).isin(filtered_positions)]
-
-    return df_done
-
-
-def adjacency_filtered(df, day_index, days, n_tot, id_index, threshold=1, remove_self_loops=True):
-    """
-    Calculate weighted adjacency matrix (undirected)
-
-    Parameters
-    ----------
-    days : tuple
-        Tuple of days in consideration.
-    threshold : int, optional
-        Threshold for weights. If an edge has a weight below the threshold
-        then the weight is set to zero. The default threshold is 1.
-    remove_self_loops : bool, optional
-        Does not count trips which start and end at the same station if
-        True. The default is True.
-
-    Returns
-    -------
-    adj : ndarray
-        Adjacency matrix of the network.
-
-    """
-
-    adj = np.zeros((n_tot, n_tot))
-
-    si = df['start_stat_id'].map(id_index)
-    ei = df['end_stat_id'].map(id_index)
-    for day in days:
-        if day is max(days):
-            for i, j in zip(si[day_index[day]:], ei[day_index[day]:]):
-                adj[i, j] += 1
-                adj[j, i] += 1
-
-        else:
-            for i, j in zip(si[day_index[day]:day_index[day+1]], ei[day_index[day]:day_index[day+1]]):
-                adj[i, j] += 1
-                adj[j, i] += 1
-
-    adj[adj <= threshold] = 0
-
-    if remove_self_loops == True:
-        for i in range(n_tot):
-            adj[i, i] = 0
-
-    return adj
-
-
-def coverage(g, p):
-    """
-    Calculates the covergae of the partition.
-
-    Parameters
-    ----------
-    g : networkx graph class
-        graph of the data.
-    p : dictionary
-        tells which verticies belongs to which communities.
-
-    Returns
-    -------
-    float
-        the coverage of our partition.
-
-    """
-
-    d_i = dict(zip(np.arange(g.number_of_nodes()), list(g.nodes())))
-    n = g.number_of_nodes()
-    ad = nx.adjacency_matrix(g)
-    p_sum = np.sum(ad) / 2
-
-    num = 0
-    for i in range(n):
-        for j in range(i + 1, n):
-            if p[d_i[i]] == p[d_i[j]]:
-                num += ad[i, j]
-
-    return num / p_sum
-
-
 def distance(lat1, lon1, lat2, lon2):
     """
     Calculates the distance between two coordiantes.
@@ -2292,6 +1922,7 @@ def purge_pickles(city, year, month):
             os.remove('python_variables/' + file)
 
     print('Purging done')
+
 
 def nuke_pickles(city):
     lookfor = f'{city}'
@@ -2401,272 +2032,6 @@ def df_subset(df, weekdays=None, days='all', hours='all', minutes='all', activit
             'activity_type should be "arrivals", "departures", or "all"')
     return subset
 
-
-def dist_norm(vec1, vec2):
-    return np.linalg.norm(vec1-vec2)
-
-
-def dist_dtw(vec1, vec2):
-    return dtw.dtw(vec1, vec2)[1]
-
-def Davies_Bouldin_index(data_mat, labels, centroids, dist_func='norm', verbose=False):
-    """
-    Calculates the Davies-Bouldin index of clustered data.
-
-    Parameters
-    ----------
-    data_mat : ndarray
-        Array containing the feature vectors.
-    labels : itr, optional
-        Iterable containg the labels of the feature vectors. If no labels
-        are given, they are calculated using the mass_predict method.
-
-    Returns
-    -------
-    DB_index : float
-        Davies-Bouldin index.
-
-    """
-
-    k = len(centroids)
-
-    if dist_func == 'norm':
-        dist = dist_norm
-
-    elif dist_func == 'dtw':
-        dist = dist_dtw
-
-    if verbose:
-        print('Calculating Davies-Bouldin index...')
-
-    pre = time.time()
-
-    S_scores = np.empty(k)
-
-    for i in range(k):
-        data_mat_cluster = data_mat[np.where(labels == i)]
-        distances = [dist(row, centroids[i]) for row in data_mat_cluster]
-        S_scores[i] = np.mean(distances)
-
-    R = np.empty(shape=(k, k))
-    for i in range(k):
-        for j in range(k):
-            if i == j:
-                R[i, j] = 0
-            else:
-                R[i, j] = (S_scores[i] + S_scores[j]) / \
-                    dist(centroids[i], centroids[j])
-
-    D = [max(row) for row in R]
-
-    DB_index = np.mean(D)
-
-    if verbose:
-        print(f'Done. Time taken: {(time.time()-pre):.1f} s')
-
-    return DB_index
-
-
-def Dunn_index(data_mat, labels, centroids, dist_func='norm', verbose=False):
-    """
-    Calculates the Dunn index of clustered data. WARNING: VERY SLOW.
-
-    Parameters
-    ----------
-    data_mat : ndarray
-        Array containing the feature vectors.
-    labels : itr, optional
-        Iterable containg the labels of the feature vectors. If no labels
-        are given, they are calculated using the mass_predict method.
-
-    Returns
-    -------
-    D_index : float
-        Dunn index.
-
-    """
-    k = len(centroids)
-
-    if dist_func == 'norm':
-        dist = dist_norm
-
-    elif dist_func == 'dtw':
-        dist = dist_dtw
-
-    if verbose:
-        print('Calculating Dunn Index...')
-
-    pre = time.time()
-
-    intra_cluster_distances = np.empty(k)
-    inter_cluster_distances = np.full(shape=(k, k), fill_value=np.inf)
-
-    for i in range(k):
-        data_mat_cluster = data_mat[np.where(labels == i)]
-        cluster_size = len(data_mat_cluster)
-        distances = np.empty(shape=(cluster_size, cluster_size))
-
-        for h in range(cluster_size):
-            for j in range(cluster_size):
-                distances[h, j] = dist(data_mat[h], data_mat[j])
-
-        intra_cluster_distances[i] = np.max(distances)
-
-        for j in range(k):
-            if j != i:
-                data_mat_cluster_j = data_mat[np.where(labels == j)]
-                cluster_size_j = len(data_mat_cluster_j)
-                between_cluster_distances = np.empty(
-                    shape=(cluster_size, cluster_size_j))
-                for m in range(cluster_size):
-                    for n in range(cluster_size_j):
-                        between_cluster_distances[m, n] = dist(
-                            data_mat_cluster[m], data_mat_cluster_j[n])
-                inter_cluster_distances[i, j] = np.min(
-                    between_cluster_distances)
-
-    D_index = np.min(inter_cluster_distances)/np.max(intra_cluster_distances)
-
-    if verbose:
-        print(f'Done. Time taken: {(time.time()-pre):.1f} s')
-
-    return D_index
-
-
-def silhouette_index(data_mat, labels, centroids, dist_func='norm', verbose=False):
-    """
-    Calculates the silhouette index of clustered data.
-
-    Parameters
-    ----------
-    data_mat : ndarray
-        Array containing the feature vectors.
-    labels : itr, optional
-        Iterable containg the labels of the feature vectors. If no labels
-        are given, they are calculated using the mass_predict method.
-
-    Returns
-    -------
-    S_index : float
-        Silhouette index.
-
-    """
-
-    k = len(centroids)
-
-    if dist_func == 'norm':
-        dist = dist_norm
-
-    elif dist_func == 'dtw':
-        dist = dist_dtw
-
-    if verbose:
-        print('Calculating Silhouette index...')
-
-    pre = time.time()
-
-    s_coefs = np.empty(len(data_mat))
-
-    for i, vec1 in enumerate(data_mat):
-        in_cluster = np.delete(data_mat, i, axis=0)
-        in_cluster = in_cluster[np.where(np.delete(labels, i) == labels[i])]
-
-        in_cluster_size = len(in_cluster)
-
-        if in_cluster_size != 0:
-
-            in_cluster_distances = np.empty(in_cluster_size)
-            for j, vec2 in enumerate(in_cluster):
-                in_cluster_distances[j] = dist(vec1, vec2)
-
-            mean_out_cluster_distances = np.full(k, fill_value=np.inf)
-
-            for j in range(k):
-                if j != labels[i]:
-                    out_cluster = data_mat[np.where(labels == j)]
-                    out_cluster_distances = np.empty(len(out_cluster))
-
-                    for l, vec2 in enumerate(out_cluster):
-                        out_cluster_distances[l] = dist(vec1, vec2)
-
-                    mean_out_cluster_distances[j] = np.mean(out_cluster_distances)
-
-            ai = np.mean(in_cluster_distances)
-            bi = np.min(mean_out_cluster_distances)
-
-            s_coefs[i] = (bi-ai)/max(ai, bi)
-
-        else:
-            s_coefs[i] = 0
-
-    S_index = np.mean(s_coefs)
-
-    if verbose:
-        print(f'Done. Time taken: {(time.time()-pre):.1f} s')
-
-    return S_index
-
-def k_test(data_mat, cluster_func, k_max = 10, random_state = 42,
-           tests = 'full', plot = False):
-
-    tests = ['SSE', 'DB', 'D', 'S']
-
-    results = np.zeros(shape=(len(tests),k_max-1))
-
-    # print(f'{f"Test result for {cluster_func}":^{spacing}}')
-    # print('-'*spacing)
-
-    print(f'{"k":5}{"SSE":15}{"DB_index":15}{"D_index":15}{"S_index":15}')
-    print('-'*60)
-
-    for i, k in enumerate(range(2, k_max+1)):
-        clusters = cluster_func(k, random_state = random_state).fit(data_mat)
-        labels = clusters.predict(data_mat)
-        centroids = clusters.cluster_centers_
-
-        results[0, i] = clusters.inertia_
-        results[1, i] = Davies_Bouldin_index(data_mat, labels, centroids)
-        results[2, i] = Dunn_index(data_mat, labels, centroids)
-        results[3, i] = silhouette_index(data_mat, labels, centroids)
-
-        print(
-           f'{k:<5,d}{results[0,i]:<15.8f}{results[1,i]:<15.8f}{results[2,i]:<15.8f}{results[3,i]:<15,.8f}')
-
-
-    res_df = pd.DataFrame(index = range(2,k_max+1),
-                          columns = ['SSE', 'DB', 'D', 'S'])
-    res_df.index.rename('k', inplace=True)
-
-    for test_i, test in enumerate(res_df.columns):
-        res_df[test] = results[test_i]
-
-    if plot:
-
-        plt.subplot(221)
-        plt.plot(range(2,k_max+1), res_df['SSE'])
-        plt.xticks(range(2,k_max+1))
-        # plt.xlabel('$k$')
-        plt.legend(['SSE'])
-
-        plt.subplot(222)
-        plt.plot(range(2,k_max+1), res_df['DB'], c='tab:orange')
-        plt.xticks(range(2,k_max+1))
-        # plt.xlabel('$k$')
-        plt.legend(['DB_index'])
-
-        plt.subplot(223)
-        plt.plot(range(2,k_max+1), res_df['D'], c='tab:green')
-        plt.xticks(range(2,k_max+1))
-        plt.xlabel('$k$')
-        plt.legend(['D_index'])
-
-        plt.subplot(224)
-        plt.plot(range(2,k_max+1), res_df['S'], c='tab:red')
-        plt.xticks(range(2,k_max+1))
-        plt.xlabel('$k$')
-        plt.legend(['S_index'])
-
-    return res_df
 
 class Stations:
     """
@@ -2830,7 +2195,7 @@ class Data:
 
     """
 
-    def __init__(self, city, year, month=None, day=None, blacklist=None, overwrite=False):
+    def __init__(self, city, year, month=None, day=None, blocklist=None, overwrite=False):
         """
         Parameters
         ----------
@@ -2856,7 +2221,7 @@ class Data:
             self.num_days = 1
             self.weekdays = [calendar.weekday(year, month, day)]
             
-            self.df = get_data_day(city, year, month, day, blacklist)
+            self.df = get_data_day(city, year, month, day, blocklist)
             self.d_index = [0]
         
         elif self.month is not None:
@@ -2866,7 +2231,7 @@ class Data:
                              7 for i in range(self.num_days)]
 
             self.df, self.d_index = get_data_month(
-                city, year, month, blacklist, overwrite=overwrite)
+                city, year, month, blocklist, overwrite=overwrite)
 
         else:
             self.num_days = 365 + 1*calendar.isleap(year)
@@ -2875,7 +2240,7 @@ class Data:
             self.weekdays = [(i+(first_weekday)) %
                              7 for i in range(self.num_days)]
             
-            self.df, self.d_index = get_data_year(city, year, blacklist, overwrite=overwrite)
+            self.df, self.d_index = get_data_year(city, year, blocklist, overwrite=overwrite)
 
         self.stat = Stations(self.df)
 
@@ -2884,558 +2249,6 @@ class Data:
         #self.df['end_stat_index'] = self.df['end_stat_id'].map(
         #    self.stat.id_index)
 
-    def adjacency(self, days, threshold=1, remove_self_loops=True):
-        """
-        Calculate weighted adjacency matrix (undirected)
-
-        Parameters
-        ----------
-        days : tuple
-            Tuple of days in consideration.
-        threshold : int, optional
-            Threshold for weights. If an edge has a weight below the threshold
-            then the weight is set to zero. The default threshold is 1.
-        remove_self_loops : bool, optional
-            Does not count trips which start and end at the same station if
-            True. The default is True.
-
-        Returns
-        -------
-        adj : ndarray
-            Adjacency matrix of the network.
-        """
-
-        try:
-            # If Pickle exists, load it
-            with open(f'./python_variables/adjacency_{self.city}{self.year:d}{self.month:02d}{tuple(days)}thr_{threshold:d}_rsl_{remove_self_loops}.pickle', 'rb') as file:
-                adj = pickle.load(file)
-            print("Pickle loaded")
-
-        except FileNotFoundError:
-            # If not, calculate adjacency matrix and create Pickle
-            print(
-                f"Pickle does not exist. Pickling adjacency matrix: adjacency_{self.city}{self.year:d}{self.month:02d}{tuple(days)}thr_{threshold:d}_rsl_{remove_self_loops}.pickle...")
-            adj = np.zeros((self.stat.n_tot, self.stat.n_tot))
-
-            si = self.df['start_stat_id'].map(self.stat.id_index)
-            ei = self.df['end_stat_id'].map(self.stat.id_index)
-
-            for day in days:
-
-                if day is max(days):
-                    for i, j in zip(si[self.d_index[day]:], ei[self.d_index[day]:]):
-                        adj[i, j] += 1
-                        adj[j, i] += 1
-                    print('Adjacency Day {} loaded...'.format(day))
-
-                else:
-                    for i, j in zip(si[self.d_index[day]:self.d_index[day+1]],
-                                    ei[self.d_index[day]:self.d_index[day+1]]):
-                        adj[i, j] += 1
-                        adj[j, i] += 1
-                    print('Adjacency Day {} loaded...'.format(day))
-
-            adj[adj <= threshold] = 0
-
-            if remove_self_loops:
-                for i in range(self.stat.n_tot):
-                    adj[i, i] = 0
-
-            with open(f'./python_variables/adjacency_{self.city}{self.year:d}{self.month:02d}{tuple(days)}thr_{threshold:d}_rsl_{remove_self_loops}.pickle', 'wb') as file:
-                pickle.dump(adj, file)
-            print("Pickling done.")
-
-        return adj
-
-    def adjacency_hour(self, day, hour, threshold=1, remove_self_loops=True):
-        """
-        Calculates the adjacency matrix for the given hour
-
-        Parameters
-        ----------
-        day : int
-            day.
-        hour : int
-            hour.
-        threshold : int, optional
-            threshold. The default is 1.
-        remove_self_loops : bool, optional
-            whether or not to remove self loops. The default is True.
-
-        Returns
-        -------
-        np array
-            adjacency matrix for the given hour.
-
-        """
-
-        adj = np.zeros((self.stat.n_tot, self.stat.n_tot))
-
-        if day == self.num_days:
-            df_slice = self.df.iloc[self.d_index[day]:]
-
-        else:
-            df_slice = self.df.iloc[self.d_index[day]:self.d_index[day+1]]
-
-        df_slice = df_slice.loc[self.df['start_dt'].dt.hour == hour]
-
-        #start_stat_index = id_index(df['start_stat_id'])
-
-        for i, j in zip(df_slice['start_stat_index'], df_slice['end_stat_index']):
-            adj[i, j] += 1
-        adj = adj + adj.T
-
-        adj[adj <= threshold] = 0
-
-        if remove_self_loops:
-            for i in range(self.stat.n_tot):
-                adj[i, i] = 0
-
-        return adj
-
-    def unweightedadjacency_hour(self, day, hour, remove_self_loops=True):
-        """
-        Calculates the adjacency matrix for the given hour
-
-        Parameters
-        ----------
-        day : int
-            day.
-        hour : int
-            hour.
-        threshold : int, optional
-            threshold. The default is 1.
-        remove_self_loops : bool, optional
-            whether or not to remove self loops. The default is True.
-
-        Returns
-        -------
-        np array
-            adjacency matrix for the given hour.
-
-        """
-
-        adj = np.zeros((self.stat.n_tot, self.stat.n_tot))
-
-        if day == self.num_days:
-            df_slice = self.df.iloc[self.d_index[day]:]
-
-        else:
-            df_slice = self.df.iloc[self.d_index[day]:self.d_index[day+1]]
-
-        df_slice = df_slice.loc[self.df['start_dt'].dt.hour == hour]
-
-        #start_stat_index = id_index(df['start_stat_id'])
-
-        for i, j in zip(df_slice['start_stat_index'], df_slice['end_stat_index']):
-            adj[i, j] = 1
-
-        adj = adj + adj.T
-
-        if remove_self_loops:
-            for i in range(self.stat.n_tot):
-                adj[i, i] = 0
-
-        return adj
-
-    def pickle_dump(self):
-        """
-        Dumps pickle of entire Data object to the big_data directory
-
-        """
-
-        with open(f'./python_variables/data_{self.city}{self.year:d}{self.month:02d}.pickle', 'wb') as file:
-            pickle.dump(self, file)
-
-    def get_degree_matrix(self, days, threshold=1, remove_self_loops=True):
-        """
-        Computes the degree matrix of the network.
-
-        Parameters
-        ----------
-        days : tuple
-            Days in consideration.
-
-        Returns
-        -------
-        ndarray
-            Array containing the degree matrix.
-
-        """
-
-        adj_matrix = self.adjacency(days, threshold, remove_self_loops)
-
-        degrees = np.sum(adj_matrix, axis=0)
-
-        deg_matrix = np.diag(degrees)
-
-        return deg_matrix
-
-    def get_laplacian(self, days, threshold=1, remove_self_loops=True):
-        """
-        Computes the Laplacian matrix of the network.
-
-        Parameters
-        ----------
-        days : tuple
-            Days in consideration.
-
-        Returns
-        -------
-        ndarray
-            Array containing the laplacian matrix.
-
-        """
-
-        adj_matrix = self.adjacency(days, threshold, remove_self_loops)
-        deg_matrix = self.get_degree_matrix(days, threshold, remove_self_loops)
-
-        return deg_matrix - adj_matrix
-
-    def get_busy_stations(self, days, normalise=True, sort=True):
-        """
-        Finds the corresponding degree to each docking station and returns a
-        sorted list of the docking stations and their degree.
-
-        Parameters
-        ----------
-        days : tuple
-            Days in consideration.
-        normalise : bool, optional
-            Normalises the degrees with respect to the number of days if set
-            to True, does not if set to False. The default is True.
-
-        Returns
-        -------
-        list
-            List of n tuples with with n being the number of stations. Each
-            tuple contains the station ID, the station name and the degree of
-            the station. The list is sorted with respect to the degrees in
-            descending order.
-        """
-
-        deg_matrix = self.get_degree_matrix(days)
-
-        degrees = np.sum(deg_matrix, axis=0)
-
-        if normalise:
-            degrees = degrees/len(days)
-
-        busy_stations = []
-        for i in range(len(degrees)):
-            busy_station = self.stat.names[i]
-            busy_stations.append(busy_station)
-
-        temp = list(zip(busy_stations, degrees))
-
-        if sort:
-            temp_sorted = sorted(temp, key=lambda x: x[1], reverse=True)
-            return temp_sorted
-        else:
-            return temp
-
-    def get_busy_trips(self, days, directed=False, normalise=True):
-        """
-        Finds the trips with the largest weights, ignoring trips with zero
-        weight. The function assumes a weighted graph.
-
-        Parameters
-        ----------
-        days : tuple
-            Days in consideration.
-        directed : bool, optional
-            Assumes a directed graph. Computations may be slower. The
-            default is False.
-        normalise : bool, optional
-            Normalises the weights with respect to the number of days. The
-            default is True.
-
-        Raises
-        ------
-        ValueError
-            Raised if length of days is zero.
-
-        Returns
-        -------
-        busy_trips : list
-            list of tuples with each tuple containing the index of the start
-            station and end station (as a tuple) and the corresponding weigth.
-            The list is sorted with respect to the weights in descending order.
-
-        """
-        if len(days) == 0:
-            raise ValueError('Number of days can not be zero.')
-
-        if directed:
-            adj = diradjacency(self.df, self.city, self.year, self.month,
-                               self.d_index, days, self.stat)
-
-        else:
-            adj = np.tril(self.adjacency(days))
-
-        if normalise:
-            adj = adj/len(days)
-
-        mask = adj != 0
-
-        max_indices = []
-        weights = []
-
-        while np.sum(mask) != 0:
-            w_max = np.max(adj[mask])
-            where = np.where(adj == w_max)
-
-            max_indices = max_indices + \
-                [(where[0][i], where[1][i]) for i in range(len(where[0]))]
-
-            weights = weights + [w_max for _ in range(len(where[0]))]
-
-            mask[where] = False
-
-        busy_trips = list(zip(max_indices, weights))
-
-        return busy_trips
-
-    def compare_degrees(self, days_ref, days_change, savefig=False):
-        """
-        Normalises the degree of each station with respect to a reference
-        degree and plots the network using the normalised degrees.
-
-        Parameters
-        ----------
-        days_ref : tuple
-            Days used to compute the reference degree of each station.
-        days_change : tuple
-            Days used to compute the degree of each station. These degrees will
-            then be normalised with respect to their reference degrees.
-        savefig : bool, optional
-            Saves the figure if True. The default is False.
-
-        Returns
-        -------
-        deg_compare : ndarray
-            Array of the normalised degrees used for plotting.
-
-        """
-
-        figsize_dict = {'nyc': (5, 8),
-                        'chic': (5, 8),
-                        'london': (8, 5),
-                        'oslo': (6.6, 5),
-                        'sfran': (6, 5),
-                        'washDC': (8, 7.7),
-                        'madrid': (6, 8),
-                        'mexico': (7.2, 8),
-                        'taipei': (7.3, 8)}
-
-        adj_ref = self.adjacency(
-            days_ref, threshold=0, remove_self_loops=False)
-
-        # +1 to work around division by zero
-        ref_degrees = np.sum(adj_ref, axis=0) + 1
-
-        adj_change = self.adjacency(
-            days_change, threshold=0, remove_self_loops=False)
-
-        deg_change = np.sum(adj_change, axis=0)
-
-        deg_compare = deg_change / ref_degrees
-
-        # Plot graph
-        graph = nx.from_numpy_matrix(adj_ref)
-
-        try:
-            fig = plt.subplots(figsize=figsize_dict[self.city])
-        except KeyError:
-            fig = plt.subplots(figsize=(8, 8))
-
-        plt.grid(False)
-        plt.axis(False)
-
-        nx.draw_networkx_nodes(
-            graph, self.stat.loc_merc, node_size=20, node_color=deg_compare,
-            cmap='jet', vmin=0, vmax=1.5)
-
-        nx.draw_networkx_edges(
-            graph, self.stat.loc_merc,
-            alpha=0.8, width=0.2, edge_color='black')
-
-        fig.set_figwidth((1+0.24)*fig.get_size_inches()[0])
-
-        cmap = mpl.cm.jet
-        norm = mpl.colors.Normalize(vmin=0, vmax=1.5)
-        plt.colorbar(mpl.cm.ScalarMappable(norm=norm, cmap=cmap),
-                     orientation='vertical', label='degree')
-
-        # plt.subplots_adjust(bottom = 0.1, top = 0.9, right = 0.8)
-
-        # cax = plt.axes([0.85, 0.1, 0.03, 0.8])
-        # norm = mpl.colors.Normalize(vmin = 0, vmax = 1.5)
-        # plt.colorbar(mpl.cm.ScalarMappable(norm=norm, cmap='jet'),
-        #                      orientation='vertical', label='degree', cax=cax)
-
-        plt.tight_layout()
-
-        if savefig:
-            print('Saving figure...')
-            plt.savefig('figures/graph_compare.png')
-
-        return deg_compare
-
-    def daily_traffic(self, stat_index=None, stat_id=None, month = None, day='all', normalise=True, plot=False, period = None, holidays=True):
-        """
-        Computes the number of arrivals and departures to and from the station
-        in every hour of the specified day.
-
-        Parameters
-        ----------
-        stat_index : int
-            Station index.
-        day : int
-            Day in the month to compute traffic from.
-        plot : bool, optional
-            Plots the daily traffic if set to True. The default is False.
-
-        Returns
-        -------
-        trips_departures : ndarray
-            24-dimensional array with number of departures for every hour, eg.
-            index 0 yields the number of departures from 00:00:00 to 01:00:00.
-        trips_arrivals : ndarray
-            24-dimensional array with number of arrivals for every hour, eg.
-            index 0 yields the number of arrivals from 00:00:00 to 01:00:00.
-
-        """
-        
-        if not month:
-            month = self.month
-            
-        if (stat_index is None) and (stat_id is None):
-            raise ValueError('Please provide either a station index or station id')
-        
-        if stat_index:
-            stat_id = self.stat.inverse[stat_index]
-        
-        if day=='all':
-            
-            if period == 'b':
-                
-                if not month:
-                    days = [datetime.date(self.year, 1, day) for day in range(
-                        1,calendar.monthrange(self.year,1)[1]+1) if calendar.weekday(self.year,1,day) <=4]
-                    
-                    for m in range(2,13):
-                        for day in range(1,calendar.monthrange(self.year,m)[1]+1):
-                            if calendar.weekday(self.year, m, day) <= 4:
-                                days.append(datetime.date(self.year, m, day))
-                
-                else:
-                    days = [datetime.date(self.year, month, day) for day in range(
-                        1,calendar.monthrange(self.year,month)[1]+1) if calendar.weekday(self.year,month,day) <=4]
-                    
-                
-                if not holidays:
-                      holiday_year = pd.DataFrame(
-                          get_cal(self.city).get_calendar_holidays(self.year), columns=['day', 'name'])
-                      holiday_list = holiday_year['day'].tolist()
-                      days =  [day for day in days if day not in holiday_list]
-                    
-            elif period == 'w':
-                
-                if not month:
-                    days = [datetime.date(self.year, 1, day) for day in range(
-                        1,calendar.monthrange(self.year,1)[1]+1) if calendar.weekday(self.year,1,day) >4]
-                    
-                    for m in range(2,13):
-                        for day in range(1,calendar.monthrange(self.year,m)[1]+1):
-                            if calendar.weekday(self.year, m, day) > 4:
-                                days.append(datetime.date(self.year, m, day))
-                
-                    else:
-                        days = [datetime.date(self.year, month, day) for day in range(
-                            1,calendar.monthrange(self.year,month)[1]+1) if calendar.weekday(self.year,month,day) > 4]
-
-            else:
-                
-                if not month:
-                    days = [datetime.date(self.year, 1, day) for day in range(1, calendar.monthrange(self.year, 1)[1]+1)]
-                
-                    for m in range(2,13):
-                        for i in range(1, calendar.monthrange(self.year, m)[1]+1):
-                            days.append(datetime.date(self.year, m, i))
-                
-                else:
-                    days = [datetime.date(self.year, month, day) for day in range(1, calendar.monthrange(self.year, month)[1]+1)]
-                
-                if not holidays:
-                    holiday_year = pd.DataFrame(
-                              get_cal(self.city).get_calendar_holidays(self.year), columns=['day', 'name'])
-                    holiday_list = holiday_year['day'].tolist()    
-                    
-                    days = [day for day in days if day not in holiday_list]
-                    
-            traffic_mat_dep = np.zeros(shape=(len(days), 24))
-            traffic_mat_arr = np.zeros(shape=(len(days), 24))
-            
-            for i, day in enumerate(days):
-                traffic_mat_dep[i,:], traffic_mat_arr[i,:] = self.daily_traffic(
-                    stat_index=stat_index, stat_id=stat_id, month=day.month, day=day.day, normalise=normalise,
-                    plot=False)
-
-            return traffic_mat_dep, traffic_mat_arr
-            
-        
-        else: 
-            
-            if not month:
-                raise ValueError('Please provide a month.')
-            
-            df_stat_start = self.df.iloc[np.where(
-                self.df['start_stat_id'] == stat_id)]
-            df_stat_end = self.df.iloc[np.where(
-                self.df['end_stat_id'] == stat_id)]
-    
-            trips_arrivals = np.zeros(24)
-            trips_departures = np.zeros(24)
-    
-            for hour in range(24):
-    
-                mask = (df_stat_start['start_dt'].dt.day == day) & (
-                    df_stat_start['start_dt'].dt.hour == hour)
-                df_hour_start = df_stat_start.loc[mask]
-    
-                trips_departures[hour] = len(df_hour_start)
-    
-                mask = (df_stat_end['end_dt'].dt.day == day) & (
-                    df_stat_end['end_dt'].dt.hour == hour)
-                df_hour_end = df_stat_end.loc[mask]
-    
-                trips_arrivals[hour] = len(df_hour_end)
-    
-            if normalise:
-                trips_total = sum(trips_departures) + sum(trips_arrivals)
-                trips_departures = trips_departures/trips_total
-                trips_arrivals = trips_arrivals/trips_total
-    
-            if plot:
-    
-                if normalise:
-                    plt.plot(np.arange(24), trips_arrivals*100)
-                    plt.plot(np.arange(24), trips_departures*100)
-                    plt.ylabel('% of total trips')
-                else:
-                    plt.plot(np.arange(24), trips_arrivals)
-                    plt.plot(np.arange(24), trips_departures)
-                    plt.ylabel('# trips')
-    
-                plt.xticks(np.arange(24))
-                plt.legend(['Arrivals', 'Departures'])
-                plt.xlabel('Hour')
-    
-                plt.title(
-                    f'Hourly traffic for {self.stat.names[self.stat.id_index[stat_id]]} \n on {self.year:d}-{self.month:02d}-{day:02d}')
-    
-            return trips_departures, trips_arrivals
 
     def daily_traffic_average(self, stat_index, period='b', normalise=True, plot=False, return_all=False, return_fig=False, return_std=False, user_type='all'):
         """
@@ -3899,6 +2712,7 @@ class Data:
 
         return matrix_b, matrix_w
 
+
     def subset(self, days='all', hours='all', minutes='all', activity_type='all'):
         """
         Get subset of the dataframe df.
@@ -3922,535 +2736,6 @@ class Data:
         """
         return df_subset(self.df, self.weekdays, days, hours, minutes, activity_type)
 
-
-class Classifier:
-    def __init__(self, dist_func):
-
-        if dist_func == 'norm':
-            self.dist = self.dist_norm
-        elif dist_func == 'dtw':
-            self.dist = self.dist_dtw
-
-        self.centroids = None
-        self.Davies_Bouldin_index = None
-        self.Dunn_index = None
-
-    def dist_norm(self, vec1, vec2):
-        return np.linalg.norm(vec1-vec2)
-
-    def dist_dtw(self, vec1, vec2):
-        return dtw.dtw(vec1, vec2)[1]
-
-    def k_means(self, data_matrix, k, init_centroids=None, max_iter=15, seed=None, verbose=False):
-
-        n_stations = len(data_matrix)
-
-        stat_indices = np.arange(n_stations)
-
-        if type(init_centroids) != type(None):
-            centroids = init_centroids
-
-        else:
-            if seed:
-                np.random.seed(seed)
-
-            np.random.shuffle(stat_indices)
-            centroid_indices = stat_indices[:k]
-            centroids = data_matrix[centroid_indices, :]
-
-        labels_old = np.ones(n_stations)
-        labels_new = np.zeros(n_stations)
-
-        if verbose:
-            print('Starting clustering...')
-
-        pre = time.time()
-
-        i = 0
-        while sum(labels_old-labels_new != 0) > np.floor(n_stations/100) and i < max_iter:
-            labels_old = labels_new.copy()
-
-            for stat_index in range(n_stations):
-                distances = np.empty(k)
-                for center_index in range(k):
-                    distances[center_index] = self.dist(
-                        data_matrix[stat_index, :], centroids[center_index, :])
-
-                labels_new[stat_index] = np.argmin(distances)
-
-            for label in range(k):
-                label_mat = data_matrix[np.where(labels_new == label), :]
-                centroids[label, :] = np.mean(label_mat, axis=1)
-
-            i += 1
-
-            if verbose:
-                print(
-                    f'Iteration: {i} - # Changed labels: {sum(labels_old-labels_new != 0)} - Runtime: {time.time()-pre}s')
-
-        self.centroids = centroids
-        if verbose:
-            print('Clustering done')
-
-    def k_medoids(self, data_mat, k, verbose=False):
-
-        if verbose:
-            print('Starting clustering...')
-
-        n = len(data_mat)
-
-        # BUILD
-
-        if verbose:
-            print('Finding distance matrix...')
-
-        d_mat = np.zeros(shape=(n, n))
-
-        for i in range(n-1):
-            for j in range(i+1, n):
-                d_mat[i, j] = np.linalg.norm(data_mat[i]-data_mat[j])
-        d_mat = np.where(d_mat, d_mat, d_mat.T)
-
-        d_sums = np.sum(d_mat, axis=1)
-
-        if verbose:
-            print('Building medoids...')
-
-        m_indices = [int(np.argmin(d_sums))]
-        medoids = np.zeros(shape=(k, data_mat.shape[1]))
-        medoids[0] = data_mat[m_indices[0], :]
-
-        C_mat = np.zeros(shape=(n, n))
-
-        for label in range(1, k):
-
-            for i in range(n):
-                for j in range(n):
-                    if i and j not in m_indices:
-
-                        m_distances = [
-                            d_mat[m_index, j] for m_index in m_indices]
-
-                        closest_m = m_indices[np.argmin(m_distances)]
-                        C_mat[j, i] = max(d_mat[closest_m, j] - d_mat[i, j], 0)
-
-            total_gains = np.sum(C_mat, axis=0)
-
-            m_indices.append(np.argmax(total_gains))
-
-            medoids[label, :] = data_mat[m_indices[label], :]
-
-        if verbose:
-            print('Assigning initial labels...')
-
-        labels = np.empty(n)
-        for stat_index in range(n):
-            distances = np.zeros(k)
-            for label in range(k):
-                distances[label] = d_mat[stat_index, m_indices[label]]
-            labels[stat_index] = np.argmin(distances)
-
-        # SWAP
-
-        if verbose:
-            print('Swapping medoids...')
-
-        current_cost = 0
-        for label, m in enumerate(m_indices):
-            current_cost += np.sum(d_mat[m, np.where(labels == label)])
-
-        old_cost = current_cost
-
-        while True:
-
-            best_cost = old_cost
-
-            swap_label = 0
-            swap_to = m_indices[0]
-
-            for label, m in enumerate(m_indices):
-
-                h_indices = np.where(labels == label)[0]
-                h_indices = h_indices[np.where(h_indices != m)]
-
-                for h in h_indices:
-                    m_indices_prop = m_indices.copy()
-                    m_indices_prop[label] = h
-
-                    labels_prop = np.empty(n)
-                    for stat_index in range(n):
-                        distances = np.zeros(k)
-                        for l in range(k):
-                            distances[l] = d_mat[stat_index, m_indices_prop[l]]
-                        labels_prop[stat_index] = np.argmin(distances)
-
-                    cost = 0
-                    for l, m_prop in enumerate(m_indices_prop):
-                        cost += np.sum(d_mat[m_prop,
-                                       np.where(labels_prop == l)])
-
-                    if cost < best_cost:
-                        best_cost = cost
-                        swap_label = label
-                        swap_to = h
-
-            m_indices[swap_label] = swap_to
-
-            medoids[swap_label] = data_mat[swap_to]
-
-            labels = np.empty(n)
-            for stat_index in range(n):
-                distances = np.zeros(k)
-                for label in range(k):
-                    distances[label] = d_mat[stat_index, m_indices[label]]
-                labels[stat_index] = np.argmin(distances)
-
-            if best_cost >= old_cost:
-                break
-
-            old_cost = best_cost
-
-        self.centroids = medoids
-
-        if verbose:
-            print('clustering done')
-
-    def h_clustering_find_clusters(self, data_mat, init_distance_filename):
-
-        n = len(data_mat)
-
-        try:
-            with open(init_distance_filename, 'rb') as file:
-                distance_matrix = pickle.load(file)
-            print('pickle loaded.')
-
-        except FileNotFoundError:
-            print('No pickle found. Calculating initial distance matrix...')
-
-            distance_matrix = np.full(shape=(n, n), fill_value=np.inf)
-            for i in range(n-1):
-                for j in range(i+1, n):
-                    distance_matrix[i, j] = 1 / \
-                        np.sqrt(2)*self.dist(data_mat[i], data_mat[j])
-
-        cluster_list = np.array([set([i]) for i in range(n)])
-
-        print('Starting clustering...')
-
-        clustering_history = [0 for _ in range(n)]
-        clustering_history[0] = cluster_list
-
-        temp_mat = data_mat.copy()
-        pre = time.time()
-        count = 0
-        while len(cluster_list) > 1:
-            min_indices = np.where(distance_matrix == np.min(distance_matrix))
-            stat_1 = np.min(min_indices)
-            stat_2 = np.max(min_indices)
-
-            cluster_list[stat_1] = cluster_list[stat_1] | cluster_list[stat_2]
-            cluster_list = np.delete(cluster_list, stat_2)
-
-            clustering_history[count+1] = cluster_list
-
-            distance_matrix = np.delete(distance_matrix, stat_2, axis=0)
-            distance_matrix = np.delete(distance_matrix, stat_2, axis=1)
-
-            temp_mat = np.delete(temp_mat, stat_2, axis=0)
-
-            cluster_mat = data_mat[list(cluster_list[stat_1])]
-            centroid = np.mean(cluster_mat, axis=0)
-
-            temp_mat[stat_1] = centroid
-
-            for i, stat in enumerate(temp_mat):
-                stat_cluster_size = len(cluster_list[i])
-                centroid_cluster_size = len(cluster_list[stat_1])
-                w = np.sqrt(stat_cluster_size * centroid_cluster_size /
-                            (stat_cluster_size + centroid_cluster_size))
-
-                if i < stat_1:
-                    distance_matrix[i, stat_1] = w*self.dist(stat, centroid)
-                elif i > stat_1:
-                    distance_matrix[stat_1, i] = w*self.dist(stat, centroid)
-
-            count += 1
-            if count % 100 == 0:
-                print(
-                    f'{count} iterations done. Current runtime: {time.time()-pre}s')
-
-        print(f'Clustering done. Time taken: {(time.time()-pre):.1f} s')
-
-        return clustering_history
-
-    def h_clustering(self, data_mat, k, results_filename, init_distance_filename):
-
-        try:
-            with open(results_filename, 'rb') as file:
-                clustering_history = pickle.load(file)
-                print('Pickle loaded.')
-
-        except FileNotFoundError:
-            print('No previous clustering has been found. Performing clustering...')
-            clustering_history = self.h_clustering_find_clusters(
-                data_mat, init_distance_filename)
-            print('Pickling clustering history...')
-            # with open(results_filename, 'wb') as file:
-            # pickle.dump(clustering_history, file)
-            # print('Pickling done.')
-
-        cluster_list = clustering_history[-k]
-        centroids = np.empty(shape=(k, data_mat.shape[1]))
-
-        for i in range(k):
-            cluster_mat = data_mat[list(cluster_list[i])]
-            centroids[i, :] = np.mean(cluster_mat, axis=0)
-
-        self.centroids = centroids
-
-        return centroids, cluster_list
-
-    def predict(self, vec):
-        if self.centroids is None:
-            raise ValueError(
-                'No centroids have been computed. Please run a clustering algorithm first.')
-
-        if len(vec) != len(self.centroids[0]):
-            raise ValueError(
-                'Vector must be the same dimension as the centroids.')
-
-        distances = np.empty(len(self.centroids))
-        for center_index in range(len(self.centroids)):
-            distances[center_index] = self.dist(
-                vec, self.centroids[center_index])
-
-        return np.argmin(distances)
-
-    def mass_predict(self, data_mat):
-
-        labels = np.empty(len(data_mat))
-        for stat_index in range(len(data_mat)):
-            labels[stat_index] = self.predict(data_mat[stat_index])
-
-        return labels
-
-    def get_Davies_Bouldin_index(self, data_mat, labels=None, verbose=False):
-        """
-        Calculates the Davies-Bouldin index of clustered data.
-
-        Parameters
-        ----------
-        data_mat : ndarray
-            Array containing the feature vectors.
-        labels : itr, optional
-            Iterable containg the labels of the feature vectors. If no labels
-            are given, they are calculated using the mass_predict method.
-
-        Returns
-        -------
-        DB_index : float
-            Davies-Bouldin index.
-
-        """
-        if labels is None:
-            if verbose:
-                print('Getting labels...')
-            labels = self.mass_predict(data_mat)
-
-        k = len(self.centroids)
-
-        if verbose:
-            print('Calculating Davies-Bouldin index...')
-
-        pre = time.time()
-
-        S_scores = np.empty(k)
-
-        for i in range(k):
-            data_mat_cluster = data_mat[np.where(labels == i)]
-            distances = [self.dist(row, self.centroids[i])
-                         for row in data_mat_cluster]
-            S_scores[i] = np.mean(distances)
-
-        R = np.empty(shape=(k, k))
-        for i in range(k):
-            for j in range(k):
-                if i == j:
-                    R[i, j] = 0
-                else:
-                    R[i, j] = (S_scores[i] + S_scores[j]) / \
-                        self.dist(self.centroids[i], self.centroids[j])
-
-        D = [max(row) for row in R]
-
-        DB_index = np.mean(D)
-
-        if verbose:
-            print(f'Done. Time taken: {(time.time()-pre):.1f} s')
-
-        self.Davies_Bouldin_index = DB_index
-
-        return DB_index
-
-    def get_Dunn_index(self, data_mat, labels=None, verbose=False):
-        """
-        Calculates the Dunn index of clustered data. WARNING: VERY SLOW.
-
-        Parameters
-        ----------
-        data_mat : ndarray
-            Array containing the feature vectors.
-        labels : itr, optional
-            Iterable containg the labels of the feature vectors. If no labels
-            are given, they are calculated using the mass_predict method.
-
-        Returns
-        -------
-        D_index : float
-            Dunn index.
-
-        """
-        if labels is None:
-            if verbose:
-                print('Getting labels...')
-            labels = self.mass_predict(data_mat)
-
-        k = len(self.centroids)
-
-        if verbose:
-            print('Calculating Dunn Index...')
-
-        pre = time.time()
-
-        intra_cluster_distances = np.empty(k)
-        inter_cluster_distances = np.full(shape=(k, k), fill_value=np.inf)
-
-        for i in range(k):
-            data_mat_cluster = data_mat[np.where(labels == i)]
-            cluster_size = len(data_mat_cluster)
-            distances = np.empty(shape=(cluster_size, cluster_size))
-
-            for h in range(cluster_size):
-                for j in range(cluster_size):
-                    distances[h, j] = self.dist(data_mat[h], data_mat[j])
-
-            intra_cluster_distances[i] = np.max(distances)
-
-            for j in range(k):
-                if j != i:
-                    data_mat_cluster_j = data_mat[np.where(labels == j)]
-                    cluster_size_j = len(data_mat_cluster_j)
-                    between_cluster_distances = np.empty(
-                        shape=(cluster_size, cluster_size_j))
-                    for m in range(cluster_size):
-                        for n in range(cluster_size_j):
-                            between_cluster_distances[m, n] = self.dist(
-                                data_mat_cluster[m], data_mat_cluster_j[n])
-                    inter_cluster_distances[i, j] = np.min(
-                        between_cluster_distances)
-
-        D_index = np.min(inter_cluster_distances) / \
-            np.max(intra_cluster_distances)
-
-        if verbose:
-            print(f'Done. Time taken: {(time.time()-pre):.1f} s')
-
-        self.Dunn_index = D_index
-
-        return D_index
-
-    def get_silhouette_index(self, data_mat, labels=None, verbose=False):
-        """
-        Calculates the silhouette index of clustered data.
-
-        Parameters
-        ----------
-        data_mat : ndarray
-            Array containing the feature vectors.
-        labels : itr, optional
-            Iterable containg the labels of the feature vectors. If no labels
-            are given, they are calculated using the mass_predict method.
-
-        Returns
-        -------
-        S_index : float
-            Silhouette index.
-
-        """
-        if labels is None:
-            if verbose:
-                print('Getting labels...')
-            labels = self.mass_predict(data_mat)
-
-        k = len(self.centroids)
-
-        if verbose:
-            print('Calculating Silhouette index...')
-
-        pre = time.time()
-
-        s_coefs = np.empty(len(data_mat))
-
-        for i, vec1 in enumerate(data_mat):
-            in_cluster = np.delete(data_mat, i, axis=0)
-            in_cluster = in_cluster[np.where(
-                np.delete(labels, i) == labels[i])]
-
-            in_cluster_size = len(in_cluster)
-
-            in_cluster_distances = np.empty(in_cluster_size)
-            for j, vec2 in enumerate(in_cluster):
-                in_cluster_distances[j] = self.dist(vec1, vec2)
-
-            mean_out_cluster_distances = np.full(k, fill_value=np.inf)
-
-            for j in range(k):
-                if j != labels[i]:
-                    out_cluster = data_mat[np.where(labels == j)]
-                    out_cluster_distances = np.empty(len(out_cluster))
-
-                    for l, vec2 in enumerate(out_cluster):
-                        out_cluster_distances[l] = self.dist(vec1, vec2)
-
-                    mean_out_cluster_distances[j] = np.mean(
-                        out_cluster_distances)
-
-            ai = np.mean(in_cluster_distances)
-            bi = np.min(mean_out_cluster_distances)
-
-            s_coefs[i] = (bi-ai)/max(ai, bi)
-
-        S_index = np.mean(s_coefs)
-
-        if verbose:
-            print(f'Done. Time taken: {(time.time()-pre):.1f} s')
-
-        self.Silhouette_index = S_index
-
-        return S_index
-
-    def k_means_test(self, data_mat, k_min=2, k_max=10, seed=None):
-
-        k_range = range(k_min, k_max+1)
-
-        results = [0 for _ in k_range]
-
-        for i, k in enumerate(k_range):
-            self.k_means(data_mat, k, seed=seed, verbose=False)
-            labels = self.mass_predict(data_mat)
-            DB_index = self.get_Davies_Bouldin_index(
-                data_mat, labels, verbose=False)
-            D_index = self.get_Dunn_index(data_mat, labels, verbose=False)
-            S_index = self.get_silhouette_index(data_mat, labels, verbose=False)
-
-            results[i] = (k, DB_index, D_index, S_index)
-
-        print(f'{"Test result for k-means":^50}')
-        print('='*50)
-        print(f'{"k":5}{"DB_index":15}{"D_index":15}{"S_index":15}')
-        for result in results:
-            print(
-                f'{result[0]:<5,d}{result[1]:<15.8f}{result[2]:<15.8f}{result[3]:<15,.8f}')
 
 def get_cal(city):
     if city == 'bergen':
@@ -4541,9 +2826,9 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('nyc', 2019, 9)
+    data = Data('madrid', 2019, 10, overwrite=True)
     print(time.time() - pre)
-    traffic_arr, traffic_dep = data.daily_traffic_average(247, plot=True)
+    traffic_arr, traffic_dep = data.daily_traffic_average_all()
     # print(time.time() - pre)
     # pre = time.time()
     # traffic_arr, traffic_dep = data.pickle_daily_traffic(overwrite=True, holidays=False, normalise=False, user_type='Subscriber')
