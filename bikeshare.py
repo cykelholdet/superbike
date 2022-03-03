@@ -1971,7 +1971,7 @@ class Data:
 
     """
 
-    def __init__(self, city, year, month=None, day=None, blocklist=None, overwrite=False, day_type=None):
+    def __init__(self, city, year, month=None, day=None, blocklist=None, overwrite=False, day_type=None, user_type=None):
         """
         Parameters
         ----------
@@ -2026,6 +2026,12 @@ class Data:
         elif day_type == 'weekend':
             self.df = self.df[self.df['start_dt'].dt.weekday > 4] # weekend
         # else: Keep dataframe as is.
+        
+        if (user_type == 'Subscriber') and ('user_type' in self.df.columns):
+            self.df = self.df[self.df['user_type'] == 'Subscriber'] # weekend
+        elif (user_type == 'Customer') and ('user_type' in self.df.columns):
+            self.df = self.df[self.df['user_type'] == 'Customer'] # weekend
+        # else: Keep dataframe as is
         
         self.stat = Stations(self.df)
 
@@ -2701,6 +2707,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('nyc', 2019, 9, overwrite=False)
+    data = Data('nyc', 2019, 9, overwrite=False, user_type='all')
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()
