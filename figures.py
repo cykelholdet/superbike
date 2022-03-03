@@ -27,7 +27,31 @@ import interactive_plot_utils as ipu
 from logistic_table import lr_coefficients
 
 def service_area_figure(data, stat_df, land_use, return_fig=False):
-    
+    """
+    Makes a figure of the stations and their service areas in a network.
+
+    Parameters
+    ----------
+    data : bikeshare.Data object
+        Data object containing trip data for the network.
+    stat_df : Dataframe
+        DataFrame containing innformation of the stations in the network 
+        including their service areas, obtained from
+        interactive_plot_utils.make_station_df().
+    land_use : DataFrame
+        DataFrame containing the land use data, obtained from
+        interactive_plot_utils.make_station_df().
+    return_fig : bool, optional
+        Returns the figure and ax object if True. The default is False.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure object
+        Object containing the figure.
+    ax : matplotlib.axes._subplots.AxesSubplot object
+        Object ontaining the ax.
+
+    """
     
     extend = (stat_df['lat'].min(), stat_df['long'].min(), 
           stat_df['lat'].max(), stat_df['long'].max())
@@ -138,7 +162,31 @@ def service_area_figure(data, stat_df, land_use, return_fig=False):
 
 
 def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='all', return_fig=False):
+    """
+    Makes a figure of the average daily traffic for a station.
 
+    Parameters
+    ----------
+    data : bikeshare.Data object
+        Data object containing trip data for the network.
+    stat_id : int
+        ID of the station.
+    period : str, optional
+        Either 'b' for business days or 'w' for weekends. The default is 'b'.
+    normalise : bool, optional
+        Normalises the traffic with respect to the total number of trips before
+        averaging if True. The default is True.
+    user_type : str, optional
+        Either 'Subscribers' for subscription trips, 'Casual' for casual trips
+        or 'all' for both. The default is 'all'.
+    return_fig : bool, optional
+        Returns the figure object if True. The default is False.
+
+    Returns
+    -------
+    None.
+
+    """
     traffic = data.daily_traffic_average(data.stat.id_index[stat_id], period=period, normalise=normalise, user_type=user_type)    
     
     departures = traffic[0]
@@ -171,7 +219,32 @@ def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='
 
 
 def make_summary_statistics_table(cities=None, variables=None, year=2019, print_only=False):
-    
+    """
+    Makes a table containing the summary statistics of the variables used in
+    the model for all cities. Also calculates the variables for each station
+    averaged over all days in which the station was used. 
+    WARNING: VERY SLOW, IT WILL TAKE DAYS TO RUN THIS.
+
+    Parameters
+    ----------
+    cities : iterable, optional
+        Iterable containing the cities in which to make summary statistics for. 
+        Does all cities if set to None. The default is None.
+    variables : iterable, optional
+        Iterable containing the variables to make summary statistics for. 
+        Does all variables if None. The default is None.
+    year : int, optional
+        The year to make the tabl for. The default is 2019.
+    print_only : bool, optional
+        Only prints the table and skips the calculations if True. The default 
+        is False.
+
+    Returns
+    -------
+    tab_df : pandas.DataFrame
+        DataFrame conaining the summary statistics table.
+
+    """
     if cities is None:
         cities = ['nyc', 'chicago', 'washdc', 'boston', 
                   'london', 'helsinki', 'oslo', 'madrid']
@@ -273,7 +346,23 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
 
 
 def make_LR_table(year, k=3):
-    
+    """
+    Makes a table containing the coefficients of the Logistics Regression 
+    model for all cities.
+
+    Parameters
+    ----------
+    year : int
+        Year to train the model for.
+    k : int, optional
+        Number of clusters in the k-means custering. The default is 3.
+
+    Returns
+    -------
+    tuple_table : TYPE
+        DESCRIPTION.
+
+    """
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
                   'london', 'helsinki', 'oslo', 'madrid']
     

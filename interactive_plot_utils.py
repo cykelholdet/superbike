@@ -454,7 +454,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
     postfix = "" if data.month == None else f"{data.month:02d}"
     postfix = postfix + "" if holidays else postfix + "_no_holidays"
     
-    # If the data only contains a daywe don't save a pickle. If overwrite is
+    # If the data only contains a day we don't save a pickle. If overwrite is
     # True, we create a new pickle regardless of whether it exists.
     if (not overwrite) and (data.day == None): 
         try:
@@ -491,6 +491,44 @@ def make_station_df(data, holidays=True, return_land_use=False,
                 return df
         except FileNotFoundError:
             print("Pickle does not exist. ", end="")
+    
+    # return empty DataFrames if data.df is empty
+    if len(data.df) == 0:
+        df = gpd.GeoDataFrame(
+            columns = ['long', 'lat', 'stat_id', 'easting', 'northing', 'name', 
+                       'n_arrivals', 'n_departures', 'n_trips', 'b_departures', 
+                       'sub_b_departures', 'cus_b_departures', 'w_departures', 
+                       'sub_w_departures', 'cus_w_departures', 'b_arrivals', 
+                       'sub_b_arrivals', 'cus_b_arrivals', 'w_arrivals', 
+                       'sub_w_arrivals', 'cus_w_arrivals', 'b_trips', 'w_trips', 
+                       'coords', 'label', 'color', 'zone_type', 'census_geo_id', 
+                       'population', 'census_area', 'pop_density', 
+                       'nearest_subway', 'nearest_subway_dist', 
+                       'nearest_railway', 'nearest_railway_dist', 
+                       'service_area', 'service_area_size', 
+                       'neighborhood_recreational', 'neighborhood_industrial', 
+                       'neighborhood_residential', 'neighborhood_commercial', 
+                       'neighborhood_mixed', 'percent_industrial', 
+                       'percent_commercial', 'percent_residential', 
+                       'percent_recreational','percent_mixed'], 
+            geometry = 'service_area')
+        
+        land_use = gpd.GeoDataFrame(columns = ['zone_type', 'geometry', 'color'])
+        
+        census_df = gpd.GeoDataFrame(columns = ['census_geo_id', 'population', 
+                                                'geometry', 'census_area',
+                                                'pop_density'])
+        
+        if return_land_use and not return_census:
+            return df, land_use
+        elif return_census and not return_land_use:
+            return df, census_df
+        elif return_land_use and return_census:
+            return df, land_use, census_df
+        
+        else:
+            return df
+            
     
     # Basic information about stations from data object
     print("Making Station DataFrame", end="")
@@ -1785,7 +1823,7 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('nyc', 2019, 9)
+    data = bs.Data('nyc', 2019, 9,2, day_type='business_days')
 
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
