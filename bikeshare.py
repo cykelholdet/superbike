@@ -155,9 +155,9 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
             df = df.rename(columns=dataframe_key.get_key(city))
             
-            # Remove stations in Jersey City by splitting at the -74.02 degree
+            # Remove stations in Jersey City by splitting at the -74.026 degree
             # meridian.
-            df = df[(df['start_stat_long'] > -74.02) & (df['end_stat_long'] > -74.02)]
+            df = df[(df['start_stat_long'] > -74.026) & (df['end_stat_long'] > -74.026)]
 
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
@@ -1052,9 +1052,9 @@ def get_data_year(city, year, blocklist=None, day_index=True, overwrite=False):
 
             df = df.rename(columns=dataframe_key.get_key(city))
 
-            # Remove stations in Jersey City by splitting at the 74.02 degree
+            # Remove stations in Jersey City by splitting at the 74.026 degree
             # meridian.
-            df = df[(df['start_stat_long'] > -74.02) & (df['end_stat_long'] > -74.02)]
+            df = df[(df['start_stat_long'] > -74.026) & (df['end_stat_long'] > -74.026)]
 
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
@@ -1521,7 +1521,7 @@ def station_locations(df, id_index):
     
     if sum(locs['stat_id'].duplicated()) > 0:
         print(f'There are {sum(locs["stat_id"].duplicated())} duplicates in station coordinates.'
-              'Keeping the first.')
+              ' Keeping first instance of each.')
     
         locs = locs[~locs['stat_id'].duplicated()]
 
@@ -1842,11 +1842,6 @@ class Stations:
             zip(np.arange(self.n_tot), sorted(total_station_id)))
         print(".", end="")
         self.locations = station_locations(df, self.id_index)
-        # self.loc = np.array(list(self.locations.values()))
-        # trans = Transformer.from_crs("EPSG:4326", "EPSG:3857")
-        # if len(df) > 0:
-        #     self.loc_merc = np.vstack(trans.transform(
-        #         self.loc[:, 1], self.loc[:, 0])).T
         print(".", end="")
         self.names = station_names(df, self.id_index)
 
@@ -1937,7 +1932,7 @@ class Data:
 
     """
 
-    def __init__(self, city, year, month=None, day=None, blocklist=None, overwrite=False):
+    def __init__(self, city, year, month=None, day=None, blocklist=None, overwrite=False, day_type=None):
         """
         Parameters
         ----------
@@ -1982,7 +1977,17 @@ class Data:
                              7 for i in range(self.num_days)]
             
             self.df = get_data_year(city, year, blocklist, overwrite=overwrite)
-
+        
+        if day_type == 'business_days':
+            self.df = self.df[self.df['start_dt'].dt.weekday <= 4] # business days minus holidays
+            holiday_year = pd.DataFrame(
+                get_cal(city).get_calendar_holidays(year), columns=['day', 'name'])
+            holiday_list = holiday_year['day'].tolist()
+            self.df = self.df[~self.df['start_dt'].dt.date.isin(holiday_list)] # Rows which are not in holiday list
+        elif day_type == 'weekend':
+            self.df = self.df[self.df['start_dt'].dt.weekday > 4] # weekend
+        # else: Keep dataframe as is.
+        
         self.stat = Stations(self.df)
 
 
@@ -2657,6 +2662,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('nyc', 2019, 9, overwrite=False)
-    print(time.time() - pre)
-    traffic_arr, traffic_dep = data.daily_traffic_average_all()
+    data = Data('nyc', 2019, overwrite=False)
+    print(f"time taken: {time.time() - pre:.2f}s")
+    #traffic_arr, traffic_dep = data.daily_traffic_average_all()

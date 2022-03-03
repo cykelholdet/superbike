@@ -366,7 +366,7 @@ def make_neighborhoods(city, year, station_df, land_use):
     Returns
     -------
     neighborhoods : GeoDataFrame
-        contains polygons in the neighborhood of station..
+        contains polygons in the neighborhood of station.
 
     """
     pre = time.time()
@@ -626,11 +626,9 @@ def make_station_df(data, holidays=True, return_land_use=False,
         
         df = gpd.tools.sjoin(df, census_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
-        
-        subways_df = gpd.read_file('./data/nyc/nyc_subways_data.geojson')
 
     elif data.city in ['madrid', 'helsinki', 'london', 'oslo', 'bergen', 'trondheim', 'edinburgh']:
-        
+        # Land use data
         land_use = gpd.read_file(f'data/{data.city}/{data.city}_UA2018_v013.gpkg', bbox=bbox)
         land_use = land_use[['code_2018', 'class_2018', 'area', 'Pop2018', 'geometry']].to_crs('EPSG:4326')
         print(".", end="")
@@ -659,7 +657,6 @@ def make_station_df(data, holidays=True, return_land_use=False,
         # land_use = land_use[land_use['zone_type'] != 'road']
         land_use = land_use[land_use['zone_type'] != 'water']
         print(".", end="")
-        subways_df = gpd.read_file(f'./data/{data.city}/{data.city}_transit_data.geojson')
         
         df['pop_density'] = (df['Pop2018'] / df['area'])*1000000
         
@@ -670,17 +667,14 @@ def make_station_df(data, holidays=True, return_land_use=False,
         
     elif data.city == 'chicago':
         
-        zoning_df = gpd.read_file('./data/chicago/chicago_zoning_data.geojson', bbox=bbox)
-        zoning_df = zoning_df[['zone_class', 'geometry']]
+        land_use = gpd.read_file('./data/chicago/chicago_zoning_data.geojson', bbox=bbox)
         
-        land_use = zoning_df[['zone_class', 'geometry']]
+        land_use = land_use[['zone_class', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
 
-        df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
+        df = gpd.tools.sjoin(df, land_use, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
-    
-        df['zone_type'] = df['zone_class'].apply(lambda x: zone_code_transform(data.city, x))
         
         census_df = pd.read_csv('./data/chicago/chicago_census_data.csv', 
                                 usecols=['P1_001N', 'GEO_ID'],
@@ -705,9 +699,6 @@ def make_station_df(data, holidays=True, return_land_use=False,
         
         df = gpd.tools.sjoin(df, census_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
-        
-        gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'rw'
-        subways_df = gpd.read_file('./data/chicago/chicago_subways_data.kml', driver='KML')
         
     elif data.city == 'washdc':
         
@@ -773,24 +764,17 @@ def make_station_df(data, holidays=True, return_land_use=False,
         
         df = gpd.tools.sjoin(df, census_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
-    
-        subways_df = gpd.read_file('./data/washdc/washdc_subways_data.geojson')
         
     elif data.city == 'minneapolis':
         
+        land_use = gpd.read_file('./data/minneapolis/minneapolis_zoning_data.geojson', bbox=bbox)
         
-        
-        zoning_df = gpd.read_file('./data/minneapolis/minneapolis_zoning_data.geojson', bbox=bbox)
-        zoning_df = zoning_df[['ZONE_CODE', 'geometry']]
-        
-        land_use = zoning_df[['ZONE_CODE', 'geometry']]
+        land_use = land_use[['ZONE_CODE', 'geometry']]
         land_use.rename(columns=dataframe_key.get_land_use_key(data.city), inplace=True)
         land_use['zone_type'] = land_use['zone_type'].apply(lambda x: zone_code_transform(data.city, x))
 
-        df = gpd.tools.sjoin(df, zoning_df, op='within', how='left')
+        df = gpd.tools.sjoin(df, land_use, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
-    
-        df['zone_type'] = df['ZONE_CODE'].apply(lambda x: zone_code_transform(data.city, x))
         
         census_df = pd.read_csv('./data/minneapolis/minneapolis_census_data.csv', 
                                 usecols=['P1_001N', 'GEO_ID'],
@@ -818,8 +802,6 @@ def make_station_df(data, holidays=True, return_land_use=False,
         
         df = gpd.tools.sjoin(df, census_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
-        
-        subways_df = gpd.read_file('./data/minneapolis/minneapolis_subways_data.geojson')
     
     elif data.city == 'boston':
         
@@ -889,8 +871,6 @@ def make_station_df(data, holidays=True, return_land_use=False,
 
         df = gpd.tools.sjoin(df, zoning_df, op='within', how='left') 
         df.drop('index_right', axis=1, inplace=True)
-    
-        # df['zone_type'] = df['ZONE_CODE'].apply(lambda x: zone_code_transform(data.city, x))
         
         census_df = pd.read_csv('./data/boston/boston_census_data.csv', 
                                 usecols=['P1_001N', 'GEO_ID'],
@@ -898,21 +878,10 @@ def make_station_df(data, holidays=True, return_land_use=False,
         
         census_df['GEO_ID'] = census_df['GEO_ID'].apply(lambda x: x[9:]) # remove state code from GEO_ID
         
-        
-        
-        
         CTracts_df = gpd.read_file('./data/boston/boston_CT_data.shp', bbox=bbox)
         CTracts_df.set_crs(epsg=4326, allow_override=True, inplace=True)
         CTracts_df = CTracts_df[['GEOID', 'geometry']]
-        CTracts_df = CTracts_df.rename({'GEOID' : 'GEO_ID'}, axis=1)
-        
-        # CTracts_df.to_crs(epsg=3857, inplace=True)
-        # CTracts_df = CTracts_df.cx[df['easting'].min()-1000:df['easting'].max()+1000,
-        #                            df['northing'].min()-1000:df['northing'].max()+1000]
-        
-        # CTracts_df['geometry'] = CTracts_df['geometry'].apply(lambda area: area.buffer(0).intersection(land_use_extent))
-        # CTracts_df.to_crs(epsg=4326, inplace=True)
-        
+        CTracts_df = CTracts_df.rename({'GEOID' : 'GEO_ID'}, axis=1)        
         
         census_df = gpd.GeoDataFrame(census_df.merge(CTracts_df, on='GEO_ID'),
                                      geometry='geometry', crs='EPSG:4326')
@@ -924,31 +893,9 @@ def make_station_df(data, holidays=True, return_land_use=False,
         
         census_df.rename(columns=dataframe_key.get_census_key(data.city), inplace=True)
         
-        # census_df = pd.read_file('./data/boston/boston_census_data.csv')
-        
-        
-        
-        # CTracts_df.set_crs(epsg=4326)
-        
-        
-        
-        # CTracts_df = CTracts_df[['GEOID20', 'ALAND20', 'geometry']]
-        
         df = gpd.tools.sjoin(df, census_df, op='within', how='left')
-        # df['GEOID20'] = df['GEOID20'].apply(lambda x: int(x) if pd.notnull(x) else x)
+
         df.drop('index_right', axis=1, inplace=True)
-        
-        # census_df = pd.read_csv('./data/boston/boston_census_data.csv')
-        # census_df = census_df[['GEOCODE', 'P0020001']].iloc[1:]
-        # census_df['GEOCODE'] = census_df['GEOCODE'].apply(lambda x: int(x) if pd.notnull(x) else x)
-        
-        # pop_map = dict(zip(census_df['GEOCODE'], census_df['P0020001']))
-        
-        # df['population'] = df['GEOID20'].map(pop_map).apply(lambda x: int(x) if pd.notnull(x) else x)
-        # df['pop_density'] = df['P1_001N'] / df['census_area']
-        
-        
-        subways_df = gpd.read_file('./data/boston/boston_subways_data.shp').to_crs(epsg = 4326)
         
     else:
         
@@ -965,11 +912,19 @@ def make_station_df(data, holidays=True, return_land_use=False,
         land_use['zone_type'] = 'UNKNOWN'
     
     print(".")
-    
+    try:
+        subways_df = gpd.read_file(f'./data/{data.city}/{data.city}-transit-data.geojson')
+    except FileNotFoundError:
+        print(f'File ./data/{data.city}/{data.city}-transit-data.geojson not '
+              'found. Please get transit data for {bs.name_dict[data.city]} '
+              'from OpenStreetMap. Continuing without transit data, i.e. no '
+              '"nearest_subway" or "nearest_subway_dist"')
+    # If transit data is available and there is a subway_df.    
     if len(subways_df) > 0:
         df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
         df['nearest_subway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]).meters, axis=1)
         
+    # Fix some issues with Shapely polygons.
     census_df.geometry = census_df.geometry.buffer(0)
     
     df['service_area'], df['service_area_size'] = get_service_area(data.city, df, land_use, service_radius=500)
@@ -1809,7 +1764,7 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('nyc', 2019, 9)
+    data = bs.Data('london', 2019, 9, day_type='business_days')
 
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
