@@ -1474,7 +1474,7 @@ def get_data_day(city, year, month, day, blocklist=None):
         Dataframe containing bikeshare trip data.
 
     """
-    df, _ = get_data_month(city, year, month, blocklist=blocklist)
+    df = get_data_month(city, year, month, blocklist=blocklist)
     
     # either: Start day and start month as specified 
     # or: End day and end month as specified
@@ -1756,9 +1756,9 @@ def purge_pickles(city, year, month):
     print('Purging done')
 
 
-def nuke_pickles(city):
+def nuke_pickles(cities):
     """
-    Delete all pickles for a city.
+    Delete all pickles for a city, except for average station dataframes.
 
     Parameters
     ----------
@@ -1774,16 +1774,56 @@ def nuke_pickles(city):
     None.
 
     """
-    lookfor = f'{city}'
+    
+    if isinstance(cities, str):
+        
+        if cities == 'all':
+        
+            cities = [ 'bergen', 'boston', 'buenos_aires', 'chicago', 
+                      'edinburgh', 'guadalajara', 'helsinki', 'la', 'london', 
+                      'madrid', 'mexico', 'minneapolis', 'montreal','nyc', 
+                      'oslo', 'sfran', 'sjose', 'taipei', 'trondheim', 'washdc'] 
 
-    print("Nuking in 'python_variables'...")
+            for city in cities:
+                
+                lookfor = f'{city}'
+            
+                print(f"Nuking {city} in 'python_variables'...")
+            
+                for file in os.listdir('python_variables'):
+                    if lookfor in file:
+                        if 'avg_stat_df' not in file:
+                            os.remove('python_variables/' + file)
+            
+            print('Nuke succesful. What have we done...')
+        
+        else: 
+            lookfor = f'{cities}'
+        
+            print(f"Nuking {cities} in 'python_variables'...")
+        
+            for file in os.listdir('python_variables'):
+                if lookfor in file:
+                    if 'avg_stat_df' not in file:
+                        os.remove('python_variables/' + file)
+        
+            print('Nuke succesful. What have we done...')
 
-    for file in os.listdir('python_variables'):
-        if lookfor in file:
-            os.remove('python_variables/' + file)
+    else:
+        for city in cities:
+            
+            lookfor = f'{city}'
+        
+            print(f"Nuking in {city} 'python_variables'...")
+        
+            for file in os.listdir('python_variables'):
+                if lookfor in file:
+                    if 'avg_stat_df' not in file:
+                        os.remove('python_variables/' + file)
+        
+        print('Nuke succesful. What have we done...')
 
-    print('Nuke succesful. What have we done...')
-
+            
 
 class Stations:
     """
@@ -2660,3 +2700,5 @@ if __name__ == "__main__":
     data = Data('nyc', 2019, 9, overwrite=False)
     print(time.time() - pre)
     traffic_arr, traffic_dep = data.daily_traffic_average_all()
+
+    

@@ -184,9 +184,11 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
     
     if variables is None:
         variables = ['percent_residential', 'percent_commercial',
-                     'percent_recreational', 'percent_industrial', 
-                     'percent_transportation', 'percent_mixed',
-                     'pop_density', 'nearest_subway_dist', 'n_trips']
+                     'percent_recreational', 'percent_industrial',
+                     'percent_mixed', 'percent_transportation', 
+                     'percent_educational', 'percent_road', 'percent_UNKNOWN',
+                     'pop_density', 'nearest_subway_dist', 'nearest_railway_dist'
+                     'n_trips', 'b_trips', 'w_trips']
 
     if not print_only:
         
@@ -207,7 +209,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
                 for day in range(1, calendar.monthrange(year, month)[1]+1):
                     data_day = bs.Data(city, year, month, day)
                     if len(data_day.df) > 0: # Avoid the issue of days with no traffic. E.g. Oslo 2019-04-01
-                        stat_df = ipu.make_station_df(data_day)
+                        stat_df = ipu.make_station_df(data_day, holidays=False)
                         
                         for var in variables:
                             if var in stat_df.columns:
@@ -223,25 +225,30 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
             with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
                 pickle.dump(avg_stat_df, file)
         
-        
-    tab_df = pd.DataFrame(columns = ['city', 'Variable', 'Mean', 'Std. Dev.', 'Min', 'Max'])
     
-    for city in cities:
+    multiindex = pd.MultiIndex.from_product((cities, 
+                                             ['Mean', 'Std. Dev.', 'Min.', 'Max.']))   
+    
+    tab_df = pd.DataFrame(index=variables, columns = multiindex)
+    
+    
+    
+    for city_index, city in enumerate(cities):
         
         with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
                 avg_stat_df = pickle.load(file)
         
-        city_df = pd.DataFrame(columns=['city', 'Variable', 'Mean', 
-                                        'Std. Dev.', 'Min', 'Max'],
-                               index=variables)
-        city_df['city'] = city
-        city_df['Variable'] = variables
-        city_df['Mean'] = avg_stat_df.mean()
-        city_df['Std. Dev.'] = avg_stat_df.std()
-        city_df['Min'] = avg_stat_df.min()
-        city_df['Max'] = avg_stat_df.max()
+        # city_df = pd.DataFrame(columns=['Variable', 'Mean', 
+        #                                 'Std. Dev.', 'Min', 'Max'],
+        #                        index=variables)
+        # city_df['City'] = bs.name_dict[city]
+        # city_df['Variable'] = variables
+        tab_df[(city, 'Mean')] = avg_stat_df.mean()
+        tab_df[(city, 'Std. Dev.')] = avg_stat_df.std()
+        tab_df[(city, 'Min.')] = avg_stat_df.min()
+        tab_df[(city, 'Max.')] = avg_stat_df.max()
         
-        tab_df = pd.concat([tab_df, city_df])
+        # tab_df = pd.concat([tab_df, city_df])
     
     var_renames = {'percent_residential' : 'Share of residential use',
                    'percent_commercial' : 'Share of commercial use',
@@ -250,45 +257,50 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
                    'percent_mixed' : 'Share of mixed use',
                    'percent_transportation' : 'Share of transportation use',
                    'n_trips' : 'Number of daily trips',
-                   'pop_density' : 'Population density',
-                   'nearest_subway_dist' : 'Distance to nearest subway/railway'}
-    tab_df = tab_df.replace(var_renames)
-    print(tab_df.to_latex(index=False, na_rep = '--', float_format='%.2f'))
+                   'pop_density' : 'Population density [per sq. km]',
+                   'nearest_subway_dist' : 'Distance to nearest subway/railway [m]'}
+    # tab_df = tab_df.replace(var_renames)
     
-    tab_df = pd.DataFrame(columns = ['city', 'Variable', 'Mean', 'Std. Dev.', 'Min', 'Max'])
+    # city_names = [bs.name_dict[city] for city in cities]
+    
+    tab_df = tab_df.rename(index=var_renames, columns=bs.name_dict)
+    
+    print(tab_df.to_latex(column_format='@{}l'+('r'*len(tab_df.columns)) + '@{}',
+                          index=True, na_rep = '--', float_format='%.2f',
+                          multirow=True, multicolumn=True, multicolumn_format='c'))
     
     return tab_df
 
 
 def make_LR_table(year, k=3):
     
-    cities = ['nyc', 'chic', 'washDC', 'boston', 
+    cities = ['nyc', 'chicago', 'washdc', 'boston', 
                   'london', 'helsinki', 'oslo', 'madrid']
     
-    city_lists = [(['nyc', 'chic', 'washDC', 'boston'], 'USA'),
+    city_lists = [(['nyc', 'chicago', 'washdc', 'boston'], 'USA'),
                       (['london', 'helsinki', 'oslo', 'madrid'], 'EUR')]
     
     
     percent_index_dict = {
-        'percent_UNKNOWN': '\% Unknown',
-        'percent_residential': '\% Residential',
-        'percent_commercial': '\% Commercial',
-        'percent_industrial': '\% Industrial',
-        'percent_recreational': '\% Recreational',
-        'percent_educational': '\% Educational',
-        'percent_mixed': '\% Mixed',
-        'percent_road': '\% Road',
-        'percent_transportation': '\% Transportation',
-        'n_trips': '\# Trips',
-        'nearest_subway_dist': 'Nearest Subway',
-        'pop_density': 'Pop. Density',
+        'percent_UNKNOWN': 'Share of unknown use',
+        'percent_residential': 'Share of residential use',
+        'percent_commercial': 'Share of commercial use',
+        'percent_industrial': 'Share of industrial use',
+        'percent_recreational': 'Share of recreatinal use',
+        'percent_educational': 'Share of educational use',
+        'percent_mixed': 'Share of mixed use',
+        'percent_road': 'Share of road use',
+        'percent_transportation': 'Share of transportational use',
+        'pop_density': 'Population density [per sq. km]',
+        'nearest_subway_dist': 'Distance to nearest subway/railway [m]',
+        'n_trips': 'Number of daily trips',
         }
     
     omit_columns = {
         'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
-        'chic': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'chicago': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
         'nyc': ['percent_mixed', 'n_trips'],
-        'washDC': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'washdc': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
         'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips'],
         'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'percent_industrial'],
         'madrid': ['n_trips', 'percent_industrial'],
@@ -393,7 +405,9 @@ def make_LR_table(year, k=3):
     tuple_table = pd.concat([coeftable,signif_table]).stack(dropna=False).groupby(level=[0,1,2]).apply(tuple).unstack()
     
     index_list = list(percent_index_dict.keys())
+    
     index_renamer = percent_index_dict
+    column_renamer = dict(zip(cities, [bs.name_dict[city] for city in cities]))
     
     index_list.insert(0, 'const')
     
@@ -405,13 +419,14 @@ def make_LR_table(year, k=3):
     for i in range(1, k):
         tables[i] = tuple_table.loc[i].loc[index_list] # Reorder according to index_dict
     
+    
     tuple_table = pd.concat(tables, names=['Cluster', 'Coef. name'])
-    tuple_table = tuple_table.rename(index=index_renamer)
+    tuple_table = tuple_table.reindex(columns=cities)
+    tuple_table = tuple_table.rename(index=index_renamer, columns=column_renamer)
     
     if k == 3:
-        tuple_table = tuple_table.rename(index={1: 'Morning Sink', 2: 'Morning Source'})
-    
-    tuple_table = tuple_table.reindex(columns=cities)
+        tuple_table = tuple_table.rename(index={1: 'Morning Sink', 
+                                                2: 'Morning Source'})
     
     latex_table = tuple_table.to_latex(column_format='@{}ll'+('r'*len(tuple_table.columns)) + '@{}', multirow=True, formatters = [tuple_formatter]*len(tuple_table.columns), escape=False)
     print(latex_table)
@@ -453,6 +468,7 @@ def tuple_formatter(tup):
 
 if __name__ == "__main__":
     
+    # table=make_summary_statistics_table(print_only=True)
     table=make_LR_table(2019)
     
     
