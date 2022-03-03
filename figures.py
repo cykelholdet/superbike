@@ -207,7 +207,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
             
             for month in bs.get_valid_months(city, year):
                 for day in range(1, calendar.monthrange(year, month)[1]+1):
-                    data_day = bs.Data(city, year, month, day, day_type='business_days', holidays=False)
+                    data_day = bs.Data(city, year, month, day, day_type='business_days', user_type='Subscriber')
                     if len(data_day.df) > 0: # Avoid the issue of days with no traffic. E.g. Oslo 2019-04-01
                         stat_df = ipu.make_station_df(data_day, holidays=False, overwrite=True)
                         
