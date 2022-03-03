@@ -764,7 +764,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
         
         df = gpd.tools.sjoin(df, census_df, op='within', how='left')
         df.drop('index_right', axis=1, inplace=True)
-        
+       
     elif data.city == 'minneapolis':
         
         land_use = gpd.read_file('./data/minneapolis/minneapolis_zoning_data.geojson', bbox=bbox)
@@ -921,8 +921,19 @@ def make_station_df(data, holidays=True, return_land_use=False,
               '"nearest_subway" or "nearest_subway_dist"')
     # If transit data is available and there is a subway_df.    
     if len(subways_df) > 0:
-        df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
+        
+        subways = subways_df[
+            (subways_df['station']=='subway') | (subways_df['subway']=='yes')]
+        
+        railways = subways_df[
+            ~((subways_df['station']=='subway') | (subways_df['subway']=='yes'))]
+        
+        df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways.geometry.unary_union)[1], axis=1)
         df['nearest_subway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]).meters, axis=1)
+        
+        df['nearest_railway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], railways.geometry.unary_union)[1], axis=1)
+        df['nearest_railway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_railway'].coords[0][::-1]).meters, axis=1)
+        
         
     # Fix some issues with Shapely polygons.
     census_df.geometry = census_df.geometry.buffer(0)
@@ -1041,6 +1052,8 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
     traffic_matrix, mask, x_trips = mask_traffic_matrix(
         traffic_matrices, station_df, day_type, min_trips, holidays=False, return_mask=True)
     
+    traffic_matrix = traffic_matrix[:,:24] - traffic_matrix[:,24:]
+    
     if clustering == 'k_means':
         clusters = KMeans(k, random_state=random_state).fit(traffic_matrix)
         labels = clusters.predict(traffic_matrix)
@@ -1112,7 +1125,11 @@ def sort_clusters(station_df, cluster_means, labels, traffic_matrices, day_type,
     # Order the clusters by setting cluster 0 to be closest to the mean traffic.
     
     if day_type == 'business_days':
-        mean = np.mean(traffic_matrices[0][station_df.index], axis=0)
+        
+        traffic_matrices = traffic_matrices[0][station_df.index][:,:24] - traffic_matrices[0][station_df.index][:,24:]
+        mean = np.mean(traffic_matrices)
+        
+        # mean = np.mean(traffic_matrices[0][station_df.index], axis=0)
     elif day_type == 'weekend':
         mean = np.mean(traffic_matrices[1][station_df.index], axis=0)
     
@@ -1126,7 +1143,11 @@ def sort_clusters(station_df, cluster_means, labels, traffic_matrices, day_type,
     for center in cluster_means:
         dist_from_mean = np.linalg.norm(center-mean)
         peakiness.append(dist_from_mean)
-        rhn = np.sum((center[morning_hours] - center[morning_hours+24]) - (center[afternoon_hours] - center[afternoon_hours+24]))
+        # rhn = np.sum((center[morning_hours] - center[morning_hours+24]) - (center[afternoon_hours] - center[afternoon_hours+24]))
+        
+        rhn = np.sum(center[morning_hours] - center[afternoon_hours])
+        
+        
         rush_houriness.append(rhn)
     
     rush_houriness = np.array(rush_houriness)
@@ -1764,34 +1785,34 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('london', 2019, 9, day_type='business_days')
+    data = bs.Data('nyc', 2019, 9)
 
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
     station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
     #station_df['service_area'], station_df['service_area_size'] = get_service_area(data.city, station_df, land_use, service_radius=500)
     
-    percent_cols = [column for column in station_df.columns if "percent_" in column]
+    # percent_cols = [column for column in station_df.columns if "percent_" in column]
 
-    station_df = station_df.drop(columns=percent_cols).merge(
-        neighborhood_percentages(
-            data.city, station_df, land_use, 
-            service_radius=500, use_road=False
-            ),
-        how='outer', left_index=True, right_index=True)
+    # station_df = station_df.drop(columns=percent_cols).merge(
+    #     neighborhood_percentages(
+    #         data.city, station_df, land_use, 
+    #         service_radius=500, use_road=False
+    #         ),
+    #     how='outer', left_index=True, right_index=True)
     
-    station_df, clusters, labels = get_clusters(
-        traffic_matrices, station_df, day_type='business_days', min_trips=100,
-        clustering='k_means', k=3, random_state=42)
+    # station_df, clusters, labels = get_clusters(
+    #     traffic_matrices, station_df, day_type='business_days', min_trips=100,
+    #     clustering='k_means', k=3, random_state=42)
     
-    print(f'station_df took {time.time() - pre:.2f} seconds')
+    # print(f'station_df took {time.time() - pre:.2f} seconds')
     
-    lr = stations_logistic_regression(
-        station_df, ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational'],
-        ['pop_density', 'nearest_subway_dist'], use_points_or_percents='percents', 
-        make_points_by='station location', const=True, test_model=False,
-        test_ratio=0.2, test_seed=None, plot_cm=False, normalise_cm=None)
-    print(lr[0].summary())
+    # lr = stations_logistic_regression(
+    #     station_df, ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational'],
+    #     ['pop_density', 'nearest_subway_dist'], use_points_or_percents='percents', 
+    #     make_points_by='station location', const=True, test_model=False,
+    #     test_ratio=0.2, test_seed=None, plot_cm=False, normalise_cm=None)
+    # print(lr[0].summary())
 
 
     
