@@ -557,8 +557,8 @@ def tuple_formatter(tup):
 
 if __name__ == "__main__":
     
-    # table=make_summary_statistics_table(print_only=True)
-    table=make_LR_table(2019)
+    table=make_summary_statistics_table(['oslo'])
+    #table=make_LR_table(2019)
     
     
     

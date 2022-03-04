@@ -1434,7 +1434,7 @@ def get_data_year(city, year, blocklist=None, day_index=True, overwrite=False):
                 'montreal']:
             dfs = []
             for month in get_valid_months(city, year):
-                dfs.append(get_data_month(city, year, month, overwrite=overwrite)[0])
+                dfs.append(get_data_month(city, year, month, overwrite=overwrite))
                 print(".", end="")
             df = pd.concat(dfs)
 
