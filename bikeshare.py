@@ -178,7 +178,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
             df = df.rename(columns=dataframe_key.get_key(city))
 
-            stations = pd.read_csv('data/{city}/Capital_Bike_Share_Locations.csv')
+            stations = pd.read_csv(f'data/{city}/Capital_Bike_Share_Locations.csv')
             
             long_dict = dict(zip(stations['TERMINAL_NUMBER'], stations['LONGITUDE']))
             lat_dict = dict(zip(stations['TERMINAL_NUMBER'], stations['LATITUDE']))
@@ -567,7 +567,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
             try:
                 stations = pd.read_csv(
-                    './data/{city}/Helsingin_ja_Espoon_kaupunkipyöräasemat_avoin.csv')
+                    f'./data/{city}/Helsingin_ja_Espoon_kaupunkipyöräasemat_avoin.csv')
             except FileNotFoundError as exc:
                 raise FileNotFoundError(
                     'No station data found. All relevant files can be found at https://hri.fi/data/en_GB/dataset/helsingin-ja-espoon-kaupunkipyorilla-ajatut-matkat') from exc
