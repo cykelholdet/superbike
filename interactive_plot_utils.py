@@ -985,7 +985,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     land_use['color'] = land_use['zone_type'].map(color_dict).fillna("pink")
     
-    if data.day != None:
+    if data.day == None:
         with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'wb') as file:
             pickle.dump([df, land_use, census_df], file)
     
@@ -1379,7 +1379,8 @@ def get_service_area(city, station_df, land_use, service_radius=500):
     
     mask = service_areas.apply(isinstance, args=[shapely.geometry.collection.GeometryCollection])
     
-    print(f"Number of 'GeometryCollection's: {mask.sum()}")
+    if mask.sum() > 0:
+        print(f"GeometryCollection found!\nNumber of 'GeometryCollection's: {mask.sum()}")
     
     service_areas[mask].apply(shapely.ops.unary_union)
     
@@ -1823,7 +1824,7 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('nyc', 2019, 9,2, day_type='business_days')
+    data = bs.Data('madrid', 2019, 9, overwrite=True)
 
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
