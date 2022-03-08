@@ -260,7 +260,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
                      'percent_recreational', 'percent_industrial',
                      'percent_mixed', 'percent_transportation', 
                      'percent_educational', 'percent_road', 'percent_UNKNOWN',
-                     'pop_density', 'nearest_subway_dist', 'nearest_railway_dist'
+                     'pop_density', 'nearest_subway_dist', 'nearest_railway_dist',
                      'n_trips', 'b_trips', 'w_trips']
 
     if not print_only:
@@ -557,7 +557,7 @@ def tuple_formatter(tup):
 
 if __name__ == "__main__":
     
-    table=make_summary_statistics_table(['oslo'])
+    table=make_summary_statistics_table(['boston'])
     #table=make_LR_table(2019)
     
     
