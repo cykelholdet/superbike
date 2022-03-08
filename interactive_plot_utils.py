@@ -1824,10 +1824,10 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('madrid', 2019, 9, overwrite=True)
+    data = bs.Data('london', 2019, 9, 1)
 
     pre = time.time()
-    traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
+    # traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
     station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
     #station_df['service_area'], station_df['service_area_size'] = get_service_area(data.city, station_df, land_use, service_radius=500)
     
