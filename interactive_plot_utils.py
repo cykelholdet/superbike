@@ -26,6 +26,7 @@ from geopy.distance import great_circle
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.mixture import GaussianMixture
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.neighbors import BallTree
 from sklearn_extra.cluster import KMedoids
 from statsmodels.discrete.discrete_model import MNLogit
 from scipy.spatial import Voronoi
