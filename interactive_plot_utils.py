@@ -1179,7 +1179,8 @@ def sort_clusters(station_df, cluster_means, labels, traffic_matrices, day_type,
     peakiness = [] # Distance to mean
     rush_houriness = [] # difference between arrivals and departures
     for center in cluster_means:
-        dist_from_mean = np.linalg.norm(center-mean)
+        # dist_from_mean = np.linalg.norm(center-mean)
+        dist_from_mean = np.linalg.norm(center)
         peakiness.append(dist_from_mean)
         # rhn = np.sum((center[morning_hours] - center[morning_hours+24]) - (center[afternoon_hours] - center[afternoon_hours+24]))
         
@@ -1446,7 +1447,7 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
                                  make_points_by='station location', 
                                  const=False, test_model=False, test_ratio=0.2, 
                                  test_seed=None, plot_cm=False, 
-                                 normalise_cm=None):
+                                 normalise_cm=None, return_scaled=False):
     df = station_df[~station_df['label'].isna()]
     
     if len(df) == 0:
@@ -1498,8 +1499,15 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
     X_scaled = X.copy()
     if 'n_trips' in X_scaled.columns:
         X_scaled['n_trips'] = X_scaled['n_trips']/X_scaled['n_trips'].sum() # percentage of total trips
+    if 'b_trips' in X_scaled.columns:
+        X_scaled['b_trips'] = X_scaled['b_trips']/X_scaled['b_trips'].sum() # percentage of business trips
+    if 'w_trips' in X_scaled.columns:
+        X_scaled['w_trips'] = X_scaled['w_trips']/X_scaled['w_trips'].sum() # percentage of weekend trips
     if 'nearest_subway_dist' in X_scaled.columns:
         X_scaled['nearest_subway_dist'] = X_scaled['nearest_subway_dist']/1000 # Convert to km
+    if 'nearest_railway_dist' in X_scaled.columns:
+        X_scaled['nearest_railway_dist'] = X_scaled['nearest_railway_dist']/1000 # Convert to km
+    
     if 'pop_density' in X_scaled.columns:
         X_scaled['pop_density'] = X_scaled['pop_density']/10000 # population per 100 m²
     
@@ -1547,6 +1555,9 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
         print("Singular matrix")
         LR_results = None
     
+    if return_scaled:
+        X = X_scaled
+        
     if test_model:
         return LR_results, X, y, predictions
     else:

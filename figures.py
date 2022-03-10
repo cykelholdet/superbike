@@ -260,7 +260,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
                      'percent_recreational', 'percent_industrial',
                      'percent_mixed', 'percent_transportation', 
                      'percent_educational', 'percent_road', 'percent_UNKNOWN',
-                     'pop_density', 'nearest_subway_dist', 'nearest_railway_dist'
+                     'pop_density', 'nearest_subway_dist', 'nearest_railway_dist',
                      'n_trips', 'b_trips', 'w_trips']
 
     if not print_only:
@@ -311,6 +311,15 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
         with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
                 avg_stat_df = pickle.load(file)
         
+        
+        avg_stat_df['pop_density'] = avg_stat_df['pop_density']/10000 # convert to population per 100 m^2
+        avg_stat_df['nearest_subway_dist']  = avg_stat_df['nearest_subway_dist']/1000 # convert to km
+        avg_stat_df['nearest_railway_dist']  = avg_stat_df['nearest_railway_dist']/1000 # convert to km
+        # avg_stat_df['n_trips'] = avg_stat_df['n_trips']/avg_stat_df['n_trips'].sum() # convert to percentage
+        # avg_stat_df['b_trips'] = avg_stat_df['b_trips']/avg_stat_df['b_trips'].sum() # convert to percentage
+        # avg_stat_df['w_trips'] = avg_stat_df['w_trips']/avg_stat_df['w_trips'].sum() # convert to percentage
+        
+        
         # city_df = pd.DataFrame(columns=['Variable', 'Mean', 
         #                                 'Std. Dev.', 'Min', 'Max'],
         #                        index=variables)
@@ -329,9 +338,15 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
                    'percent_recreational' : 'Share of recreational use',
                    'percent_mixed' : 'Share of mixed use',
                    'percent_transportation' : 'Share of transportation use',
+                   'percent_educational' : 'Share of educational use',
+                   'percent_road' : 'Share of road use',
+                   'percent_UNKNOWN' : 'Share of unknown use',
                    'n_trips' : 'Number of daily trips',
-                   'pop_density' : 'Population density [per sq. km]',
-                   'nearest_subway_dist' : 'Distance to nearest subway/railway [m]'}
+                   'b_trips' : 'Number of daily business trips',
+                   'w_trips' : 'Number of daily weekend trips',
+                   'pop_density' : 'Population density [per 100 sq. m]',
+                   'nearest_subway_dist' : 'Distance to nearest subway [km]',
+                   'nearest_railway_dist' : 'Distance to nearest railway [km]'}
     # tab_df = tab_df.replace(var_renames)
     
     # city_names = [bs.name_dict[city] for city in cities]
@@ -375,14 +390,17 @@ def make_LR_table(year, k=3):
         'percent_residential': 'Share of residential use',
         'percent_commercial': 'Share of commercial use',
         'percent_industrial': 'Share of industrial use',
-        'percent_recreational': 'Share of recreatinal use',
+        'percent_recreational': 'Share of recreational use',
         'percent_educational': 'Share of educational use',
         'percent_mixed': 'Share of mixed use',
         'percent_road': 'Share of road use',
         'percent_transportation': 'Share of transportational use',
-        'pop_density': 'Population density [per sq. km]',
-        'nearest_subway_dist': 'Distance to nearest subway/railway [m]',
-        'n_trips': 'Number of daily trips',
+        'pop_density': 'Population density [per 100 sq. m]',
+        'nearest_subway_dist': 'Distance to nearest subway [km]',
+        'nearest_railway_dist': 'Distance to nearest railway [km]',
+        'n_trips': 'Share of daily trips',
+        'b_trips': 'Share of business trips',
+        'w_trips': 'Share of business trips',
         }
     
     omit_columns = {
@@ -440,7 +458,7 @@ def make_LR_table(year, k=3):
         
         asdf = asdf.reset_index()
         
-        asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k)[0]
+        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k)
         
         zone_columns = ['percent_residential', 'percent_commercial',
                         'percent_recreational', 'percent_industrial']
@@ -449,7 +467,8 @@ def make_LR_table(year, k=3):
             if column in zone_columns:
                 zone_columns.remove(column)
     
-        other_columns = ['pop_density', 'nearest_subway_dist']
+        other_columns = ['pop_density', 'nearest_subway_dist', 
+                         'nearest_railway_dist', 'b_trips']
         
         for column in omit_columns[data.city]:
             if column in other_columns:
@@ -540,7 +559,7 @@ def tuple_formatter(tup):
         out = "--"
     elif np.abs(x) > 10000 or np.abs(x) < 0.001:
         if bold:
-            out = f"$\\num[math-rm=\\mathbf]{{{x:.2e}}}$"
+            out = f"$\\mathbf{{\\num{{{x:.2e}}}}}$"
         else:
             out = f"$\\num{{{x:.2e}}}$"
     else:
@@ -551,24 +570,206 @@ def tuple_formatter(tup):
     
     return out
 
+def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42, 
+               res='success_rates'):
+    """
+    
+    1. for each city: split data into training and test sets and train LR model.
+    2. test eac model on the 8 test sets
+    3. show scces rates in a nice figure
+    
+    bonus: redefine succes rate as rate at which a model does not confuse
+           morning sinks and morning sources.
+    
+    
+    
+    """
+    
+    omit_columns = {
+        'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'chicago': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'nyc': ['percent_mixed', 'n_trips'],
+        'washdc': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips'],
+        'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'percent_industrial'],
+        'madrid': ['n_trips', 'percent_industrial'],
+        'oslo': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips', 'percent_mixed'],
+        'USA': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
+        'EUR': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
+        'All': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
+        }
+   
+    
+    if cities is None:
+        cities = ['nyc', 'chicago', 'washdc', 'boston', 
+                  'london', 'helsinki', 'oslo', 'madrid']
+    
+    if test_ratio < 0 or test_ratio > 1:
+            raise ValueError("test_ratio must be between 0 and 1")
+        
+    X = dict()
+    y = dict()
+    
+    X_train_sets = dict()
+    y_train_sets = dict()
+    
+    X_test_sets = dict()
+    y_test_sets = dict()
+    
+    # Split data into training and test data
+    
+    for city in cities:
+            
+        with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+                asdf = pickle.load(file)
+            
+        data = bs.Data(city, year)
+        
+        # traf_mats = data.pickle_daily_traffic(holidays=False, 
+        #                                       user_type='Subscriber',
+        #                                       overwrite=True)
+        
+        traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
+                                             user_type='Subscriber')
+        
+        traf_mat_b = np.concatenate((traf_df_b[0].to_numpy(), 
+                                     traf_df_b[1].to_numpy()),
+                                    axis=1)
+        
+        traf_df_w = data.daily_traffic_average_all(period='w', holidays=False, 
+                                             user_type='Subscriber')
+        
+        traf_mat_w = np.concatenate((traf_df_w[0].to_numpy(), 
+                                     traf_df_w[1].to_numpy()),
+                                    axis=1)
+        
+        
+        traf_mats = (traf_mat_b, traf_mat_w)
+        
+        casual_stations = set(list(asdf.stat_id.unique())) - (set(list(traf_df_b[0].index)) | set(list(traf_df_b[1].index)))
+        
+        for station in list(casual_stations):
+            asdf = asdf[asdf['stat_id'] != station]
+        
+        asdf = asdf.reset_index()
+        
+        asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k)[0]
+        
+        zone_columns = ['percent_residential', 'percent_commercial',
+                        'percent_recreational', 'percent_industrial']
+        
+        for column in omit_columns[data.city]:
+            if column in zone_columns:
+                zone_columns.remove(column)
+    
+        other_columns = ['pop_density', 'nearest_subway_dist', 
+                         'nearest_railway_dist', 'b_trips']
+        
+        for column in omit_columns[data.city]:
+            if column in other_columns:
+                other_columns.remove(column)
+        
+        lr_results, X[city], y[city] = ipu.stations_logistic_regression(
+            asdf, zone_columns, other_columns, 
+            use_points_or_percents='percents', 
+            make_points_by='station land use', const=False, return_scaled=True)
 
 
+        if test_seed:
+            if isinstance(test_seed, int):
+                np.random.seed(test_seed)
+            else:
+                raise ValueError("test_seed must be an integer")
+        
 
+        mask = np.random.rand(len(X[city])) < test_ratio
+        
+        X_test_sets[city] = X[city][mask]
+        y_test_sets[city] = y[city][mask]
+        
+        X_train_sets[city] = X[city][~mask]
+        y_train_sets[city] = y[city][~mask]
+        
+    # Train and test models
+    
+    sr_mat = np.zeros(shape=(len(cities), len(cities)))
+    
+    for i, city_train in enumerate(cities):
+        for j, city_test in enumerate(cities):
+            
+            if (city := city_train) == city_test:
+                
+                X_train = X_train_sets[city]
+                y_train = y_train_sets[city]
+                
+                X_test = X_test_sets[city]
+                y_test = y_test_sets[city]
+                
+            else:
+                X_train = X[city_train]
+                y_train = y[city_train]
+                
+                X_test = X[city_test]
+                y_test = y[city_test]
+            
+            
+            
+            if res == 'success_rates':
+                sr_mat[i,j] = ipu.logistic_regression_test(X_train, y_train, 
+                                                           X_test, y_test, 
+                                                           plot_cm=False)[0]
+            
+            elif res == 'confusion':
+                cm = ipu.logistic_regression_test(X_train, y_train, 
+                                                           X_test, y_test, 
+                                                           plot_cm=False,
+                                                           normalise_cm='all')[1]
+                sr_mat[i,j] = 1 - cm[1,2] - cm[2,1]
+            
+    fig, ax = plt.subplots()
+    
+    im = ax.matshow(sr_mat, cmap=plt.cm.Blues, vmin=0, vmax=1)
+    
+    fig.colorbar(im, label='Success rate')
+    
+    for i in range(len(cities)):
+        for j in range(len(cities)):
+            c = sr_mat[j,i]
+                
+            if res == 'confusion':
+                ax.text(i, j, f'{c:.2f}', va='center', ha='center', c='white')
+            else:
+                ax.text(i, j, f'{c:.2f}', va='center', ha='center')
+    
+    city_names = [bs.name_dict[city] for city in cities]
+    
+    ax.set_xticks(range(len(cities)))
+    ax.set_yticks(range(len(cities)))
+    ax.set_xticklabels(city_names)
+    ax.set_yticklabels(city_names)
+    ax.tick_params(axis="x", bottom=False, labelbottom=False, top=True, labeltop=True)
+    plt.setp([tick.label2 for tick in ax.xaxis.get_major_ticks()], rotation=45,
+         ha="left", va="center",rotation_mode="anchor")
+    
+    ax.set_xlabel('Test city')
+    ax.set_ylabel('Train city')
+    plt.tight_layout()
+    
+    if res == 'confusion':
+        plt.savefig('./figures/paper_figures/city_tests_conf.pdf')
+    
+    else:
+        plt.savefig('./figures/paper_figures/city_tests.pdf')
+    
+    return sr_mat
 
 if __name__ == "__main__":
     
-    # table=make_summary_statistics_table(print_only=True)
-    table=make_LR_table(2019)
+    # sum_stat_table=make_summary_statistics_table(print_only=True)
+    LR_table=make_LR_table(2019)
     
+    # sr = city_tests()
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
+  
     
     
