@@ -985,7 +985,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     land_use['color'] = land_use['zone_type'].map(color_dict).fillna("pink")
     
-    if data.day != None:
+    if data.day is None:
         with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'wb') as file:
             pickle.dump([df, land_use, census_df], file)
     

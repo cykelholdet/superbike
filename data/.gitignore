@@ -1,4 +1,8 @@
-*
-!*/
-!.gitignore
-!.gitkeep
+nyc/
+chicago/
+boston/
+washdc/
+london/
+madrid/
+oslo/
+helsinki/
