@@ -272,7 +272,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
                      'percent_mixed', 'percent_transportation', 
                      'percent_educational', 'percent_road', 'percent_UNKNOWN',
                      'pop_density', 'nearest_subway_dist', 'nearest_railway_dist',
-                     'n_trips', 'b_trips', 'w_trips']
+                     'nearest_transit_dist', 'n_trips', 'b_trips', 'w_trips']
 
     if not print_only:
         
