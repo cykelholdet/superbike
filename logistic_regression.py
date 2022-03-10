@@ -508,12 +508,12 @@ station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use
 traffic_matrices = data.pickle_daily_traffic(holidays=False)
 station_df, clusters, labels = ipu.get_clusters(
     traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
-station_df = station_df.merge(
-    ipu.neighborhood_percentages(
-        data.city, station_df, land_use, 
-        service_radius=service_radius, use_road=use_road
-        ),
-    how='outer', left_index=True, right_index=True)
+# station_df = station_df.merge(
+#     ipu.neighborhood_percentages(
+#         data.city, station_df, land_use, 
+#         service_radius=service_radius, use_road=use_road
+#         ),
+#     how='outer', left_index=True, right_index=True)
 
 df = station_df
 
