@@ -4,6 +4,8 @@ Created on Tue Feb 15 09:41:40 2022
 
 @author: Nicolai
 """
+import multiprocessing as mp
+from functools import partial
 
 import numpy as np
 import pandas as pd
@@ -218,6 +220,15 @@ def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='
         return fig, ax
 
 
+def stat_df_day(day, city, year, month, columns):
+    data_day = bs.Data(city, year, month, day, day_type='business_days', user_type='Subscriber')
+    if len(data_day.df) > 0: # Avoid the issue of days with no traffic. E.g. Oslo 2019-04-01
+        stat_df = ipu.make_station_df(data_day, holidays=False, overwrite=True)
+    else:
+        stat_df = pd.DataFrame(columns=columns)
+    return stat_df[stat_df.columns & columns]
+        
+
 def make_summary_statistics_table(cities=None, variables=None, year=2019, print_only=False):
     """
     Makes a table containing the summary statistics of the variables used in
@@ -261,7 +272,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
                      'percent_mixed', 'percent_transportation', 
                      'percent_educational', 'percent_road', 'percent_UNKNOWN',
                      'pop_density', 'nearest_subway_dist', 'nearest_railway_dist',
-                     'n_trips', 'b_trips', 'w_trips']
+                     'nearest_transit_dist', 'n_trips', 'b_trips', 'w_trips']
 
     if not print_only:
         
@@ -278,17 +289,35 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
                 
                 var_dfs[var] = var_df
             
+            stat_dfs = dict()
+            
+            # for month in bs.get_valid_months(city, year):
+            #     for day in range(1, calendar.monthrange(year, month)[1]+1):
+            #         data_day = bs.Data(city, year, month, day, day_type='business_days', user_type='Subscriber')
+            #         if len(data_day.df) > 0: # Avoid the issue of days with no traffic. E.g. Oslo 2019-04-01
+            #             stat_df = ipu.make_station_df(data_day, holidays=False, overwrite=True)
+                        
+                        # for var in variables:
+                        #     if var in stat_df.columns:
+                        #         var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
+                        #         var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
+            
+            with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version            
+                for month in bs.get_valid_months(city, year):
+                    stat_df_day_part = partial(stat_df_day, city=city, year=year, month=month, columns=variables + ['stat_id'])
+                    days = range(1, calendar.monthrange(year, month)[1]+1)
+                    stat_dfs[month] = pool.map(stat_df_day_part, days)
+            
+            print(stat_dfs)
+            
             for month in bs.get_valid_months(city, year):
                 for day in range(1, calendar.monthrange(year, month)[1]+1):
-                    data_day = bs.Data(city, year, month, day, day_type='business_days', user_type='Subscriber')
-                    if len(data_day.df) > 0: # Avoid the issue of days with no traffic. E.g. Oslo 2019-04-01
-                        stat_df = ipu.make_station_df(data_day, holidays=False, overwrite=True)
-                        
-                        for var in variables:
-                            if var in stat_df.columns:
-                                var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
-                                var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
-                
+                    stat_df = stat_dfs[month][day-1]
+                    for var in variables:
+                        if var in stat_df.columns:
+                            var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
+                            var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
+            
             avg_stat_df = pd.DataFrame()
             avg_stat_df['stat_id'] = stat_ids
             for var in variables:

@@ -178,7 +178,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
             df = df.rename(columns=dataframe_key.get_key(city))
 
-            stations = pd.read_csv('data/{city}/Capital_Bike_Share_Locations.csv')
+            stations = pd.read_csv(f'data/{city}/Capital_Bike_Share_Locations.csv')
             
             long_dict = dict(zip(stations['TERMINAL_NUMBER'], stations['LONGITUDE']))
             lat_dict = dict(zip(stations['TERMINAL_NUMBER'], stations['LATITUDE']))
@@ -567,7 +567,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
             try:
                 stations = pd.read_csv(
-                    './data/{city}/Helsingin_ja_Espoon_kaupunkipyöräasemat_avoin.csv')
+                    f'./data/{city}/Helsingin_ja_Espoon_kaupunkipyöräasemat_avoin.csv')
             except FileNotFoundError as exc:
                 raise FileNotFoundError(
                     'No station data found. All relevant files can be found at https://hri.fi/data/en_GB/dataset/helsingin-ja-espoon-kaupunkipyorilla-ajatut-matkat') from exc
@@ -1434,7 +1434,7 @@ def get_data_year(city, year, blocklist=None, day_index=True, overwrite=False):
                 'montreal']:
             dfs = []
             for month in get_valid_months(city, year):
-                dfs.append(get_data_month(city, year, month, overwrite=overwrite)[0])
+                dfs.append(get_data_month(city, year, month, overwrite=overwrite))
                 print(".", end="")
             df = pd.concat(dfs)
 
@@ -2707,6 +2707,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('nyc', 2019, 9, overwrite=False, user_type='all')
+    data = Data('madrid', 2019, 9, overwrite=True, user_type='all')
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()
