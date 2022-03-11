@@ -652,11 +652,17 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
                 #     df['start_t'], format='%Y-%m-%dT%H:%M:%SZ') + pd.DateOffset(hours=2)
                 # df_pre['start_dt'] = pd.to_datetime(
                 #     df_pre['start_t'], format='%Y-%m-%dT%H:%M:%SZ') + pd.DateOffset(hours=2)
-                
                 df['start_dt'] = pd.to_datetime(
-                    df['start_t'], format='%Y-%m-%dT%H:%M:%SZ').dt.tz_localize(tz='Europe/Madrid', ambiguous=False)
+                    df['start_t'], format='%Y-%m-%dT%H:%M:%SZ').dt.tz_localize(tz='UTC', ambiguous=False)
+                
+                df['start_dt'] = df['start_dt'].dt.tz_convert(tz='Europe/Madrid')
+                
                 df_pre['start_dt'] = pd.to_datetime(
-                    df_pre['start_t'], format='%Y-%m-%dT%H:%M:%SZ').dt.tz_localize(tz='Europe/Madrid', ambiguous=False)
+                    df_pre['start_t'], format='%Y-%m-%dT%H:%M:%SZ').dt.tz_localize(tz='UTC', ambiguous=False)
+                
+                df_pre['start_dt'] = df_pre['start_dt'].dt.tz_convert(tz='Europe/Madrid')
+                # df_pre['start_dt'] = pd.to_datetime(
+                #     df_pre['start_t'], format='%Y-%m-%dT%H:%M:%SZ').dt.tz_localize(tz='Europe/Madrid', ambiguous=False)
                 
                 df = df[df['start_dt'].dt.month == month]
                 df_pre = df_pre[df_pre['start_dt'].dt.month == month]
@@ -673,7 +679,9 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
                 df = df.rename(columns=dataframe_key.get_key(city))
                 df['start_dt'] = pd.to_datetime(
-                    df['start_t'], format='%Y-%m-%dT%H:%M:%SZ').dt.tz_localize(tz='Europe/Madrid', ambiguous=False)
+                    df['start_t'], format='%Y-%m-%dT%H:%M:%SZ').dt.tz_localize(tz='UTC', ambiguous=False)
+                
+                df['start_dt'] = df['start_dt'].dt.tz_convert(tz='Europe/Madrid')
             else:
                 try:
                     df = pd.read_json(
@@ -690,7 +698,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
                 
                 # Timezone is local in older data.
                 df['start_dt'] = pd.to_datetime(
-                    df['start_t'], format='%Y-%m-%dT%H:%M:%S')
+                    df['start_t'], format='%Y-%m-%dT%H:%M:%S').dt.tz_localize(tz='Europe/Madrid', ambiguous=False)
 
             df.drop(columns=['start_t'], inplace=True)
             
@@ -1437,6 +1445,8 @@ def get_data_year(city, year, blocklist=None, day_index=True, overwrite=False):
                 dfs.append(get_data_month(city, year, month, overwrite=overwrite))
                 print(".", end="")
             df = pd.concat(dfs)
+            df.sort_values(by=['start_dt'], inplace=True)
+            df.reset_index(inplace=True, drop=True)
 
         with open(f'./python_variables/{city}{year:d}_dataframe.pickle', 'wb') as file:
             pickle.dump(df, file)
@@ -2707,6 +2717,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('madrid', 2019, 9, overwrite=True, user_type='all')
+    data = Data('madrid', 2019, overwrite=True, user_type='all')
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()

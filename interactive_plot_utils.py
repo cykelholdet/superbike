@@ -1912,7 +1912,7 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('london', 2019, 9, 1)
+    data = bs.Data('madrid', 2019)
 
     pre = time.time()
     # traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
