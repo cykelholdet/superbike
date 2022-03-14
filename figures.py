@@ -487,7 +487,7 @@ def make_LR_table(year, k=3):
         
         asdf = asdf.reset_index()
         
-        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k)
+        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
         
         zone_columns = ['percent_residential', 'percent_commercial',
                         'percent_recreational', 'percent_industrial']
@@ -800,17 +800,17 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
     data = bs.Data(city, year, month, day)
 
     traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
-                                         user_type='Subscriber')
+                                          user_type='Subscriber')
     
     traf_mat_b = np.concatenate((traf_df_b[0].to_numpy(), 
-                                 traf_df_b[1].to_numpy()),
+                                  traf_df_b[1].to_numpy()),
                                 axis=1)
     
     traf_df_w = data.daily_traffic_average_all(period='w', holidays=False, 
-                                         user_type='Subscriber')
+                                          user_type='Subscriber')
     
     traf_mat_w = np.concatenate((traf_df_w[0].to_numpy(), 
-                                 traf_df_w[1].to_numpy()),
+                                  traf_df_w[1].to_numpy()),
                                 axis=1)
     
     
@@ -823,7 +823,7 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
     
     asdf = asdf.reset_index()
     
-    asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k)
+    asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
     
     plt.style.use('seaborn-darkgrid')
     
@@ -840,7 +840,7 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
 
     plt.style.use('default')
 
-    return clusters    
+    return clusters
 
 if __name__ == "__main__":
     
@@ -849,6 +849,5 @@ if __name__ == "__main__":
     # sr = city_tests()
     clusters = plot_cluster_centers('chicago')
     
-   
     
     
