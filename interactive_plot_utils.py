@@ -1915,7 +1915,7 @@ if __name__ == "__main__":
     data = bs.Data('oslo', 2019)
 
     pre = time.time()
-    traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=False, overwrite=False)
+    traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=False)
     station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
     #station_df['service_area'], station_df['service_area_size'] = get_service_area(data.city, station_df, land_use, service_radius=500)
     

@@ -2445,6 +2445,8 @@ class Data:
             monstr = monstr + "_no_holidays"
         if user_type != 'all' and 'user_type' in self.df.columns:
             monstr = monstr + f"_{user_type}"
+        if normalise:
+            monstr = monstr + "_normalised"
         if not overwrite:
             try:
                 with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}.pickle', 'rb') as file:
