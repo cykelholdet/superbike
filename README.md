@@ -29,6 +29,20 @@ conda activate bike_env
 Then install the remaining packages
 ```
 pip install scikit-learn-extra scikit-image statsmodels workalendar geopy openpyxl smopy
+pip install --upgrade shapely
+```
+
+#### Conda-forge
+Alternatively, if you want to get more recent versions of packages, including Python 3.10, you can get packages from conda-forge. As of March 2022, cartopy and scikit-learn-extra are not available from PyPI as wheels for Python 3.10, but we can get them from conda-forge.
+
+```
+conda create -n bike_env
+conda activate bike_env
+
+conda install -c conda-forge cartopy
+conda install -c conda-forge scikit-learn-extra
+
+pip install numpy matplotlib pandas scipy holoviews hvplot geoviews geopandas scikit-image statsmodels workalendar geopy openpyxl smopy
 ```
 
 ## Directory structure
