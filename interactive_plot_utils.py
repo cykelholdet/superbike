@@ -1523,6 +1523,8 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
         X_scaled['nearest_subway_dist'] = X_scaled['nearest_subway_dist']/1000 # Convert to km
     if 'nearest_railway_dist' in X_scaled.columns:
         X_scaled['nearest_railway_dist'] = X_scaled['nearest_railway_dist']/1000 # Convert to km
+    if 'nearest_transit_dist' in X_scaled.columns:
+        X_scaled['nearest_transit_dist'] = X_scaled['nearest_transit_dist']/1000 # Convert to km
     
     if 'pop_density' in X_scaled.columns:
         X_scaled['pop_density'] = X_scaled['pop_density']/10000 # population per 100 m²
