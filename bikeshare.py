@@ -496,9 +496,10 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             
             # remove timezone information as data is erroneously tagged as UTC
             # while actually being wall time.
-            df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_localize(None)
-            df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_localize(None)
+            df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_convert('Europe/Oslo')
+            df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_convert('Europe/Oslo')
             df.drop(columns=['start_t', 'end_t'], inplace=True)
+            df = df[df['start_dt'].dt.month == month]
 
         elif city == "edinburgh":
 
@@ -512,9 +513,10 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
 
-            df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_localize(None)
-            df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_localize(None)
+            df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_convert('Europe/Edinburgh')
+            df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_convert('Europe/Edinburgh')
             df.drop(columns=['start_t', 'end_t'], inplace=True)
+            df = df[df['start_dt'].dt.month == month]
 
         elif city == "bergen":
 
@@ -528,9 +530,10 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
 
-            df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_localize(None)
-            df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_localize(None)
+            df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_convert('Europe/Oslo')
+            df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_convert('Europe/Oslo')
             df.drop(columns=['start_t', 'end_t'], inplace=True)
+            df = df[df['start_dt'].dt.month == month]
         
         elif city == "trondheim":
 
@@ -544,9 +547,10 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
 
-            df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_localize(None)
-            df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_localize(None)
+            df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_convert('Europe/Oslo')
+            df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_convert('Europe/Oslo')
             df.drop(columns=['start_t', 'end_t'], inplace=True)
+            df = df[df['start_dt'].dt.month == month]
 
         elif city == "helsinki":
 
@@ -1436,6 +1440,45 @@ def get_data_year(city, year, blocklist=None, day_index=True, overwrite=False):
             df['end_dt'] = pd.to_datetime(df['end_t'])
             df.drop(columns=['start_t', 'end_t'], inplace=True)
         
+        elif city in ['edinburgh', 'bergen', 'trondheim', 'oslo']:
+            dfs = []
+            for month in get_valid_months(city, year):
+                try:
+                    df = pd.read_csv(f'./data/{city}/{year:d}{month:02d}-{city}.csv')
+                except FileNotFoundError as exc:
+                    raise FileNotFoundError(
+                        'No trip data found. All relevant files can be found at') from exc
+    
+                df = df.rename(columns=dataframe_key.get_key(city))
+                df.dropna(inplace=True)
+                df.reset_index(inplace=True, drop=True)
+                
+                if city == 'oslo':
+                    # Merge stations with identical coordinates
+                    merge_id_dict = {619: 618}
+                    merge_name_dict = {f"Bak Niels Treschows hus {i}": "Bak Niels Treschows hus" for i in ['sør', 'nord']}
+                    
+                    df['start_stat_id'] = df['start_stat_id'].replace(merge_id_dict)
+                    df['start_stat_name'] = df['start_stat_name'].replace(merge_name_dict)
+                    
+                    df['end_stat_id'] = df['end_stat_id'].replace(merge_id_dict)
+                    df['end_stat_name'] = df['end_stat_name'].replace(merge_name_dict)
+                
+                # Change timezone from UTC to wall time
+                if city == 'edinburgh':
+                    df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_convert('Europe/Edinburgh')
+                    df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_convert('Europe/Edinburgh')
+                else:
+                    df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_convert('Europe/Oslo')
+                    df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_convert('Europe/Oslo')
+                df.drop(columns=['start_t', 'end_t'], inplace=True)
+                dfs.append(df)
+                print(".", end="")
+            
+            df = pd.concat(dfs)
+            df.reset_index(inplace=True, drop=True)
+            
+        
         # For the other cities, the data is more nicely split into months, so
         # we can just import the data month by month and concatenate.
         elif city in [
@@ -1445,7 +1488,6 @@ def get_data_year(city, year, blocklist=None, day_index=True, overwrite=False):
             dfs = []
             for month in get_valid_months(city, year):
                 dfs.append(get_data_month(city, year, month, overwrite=overwrite))
-                print(".", end="")
             df = pd.concat(dfs)
             df.sort_values(by=['start_dt'], inplace=True)
             df.reset_index(inplace=True, drop=True)
@@ -2721,6 +2763,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('oslo', 2019, 9, overwrite=True, user_type='all')
+    data = Data('oslo', 2019, overwrite=True, user_type='all')
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()
