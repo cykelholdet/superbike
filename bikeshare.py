@@ -494,8 +494,10 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df['end_stat_id'] = df['end_stat_id'].replace(merge_id_dict)
             df['end_stat_name'] = df['end_stat_name'].replace(merge_name_dict)
             
-            df['start_dt'] = pd.to_datetime(df['start_t'])
-            df['end_dt'] = pd.to_datetime(df['end_t'])
+            # remove timezone information as data is erroneously tagged as UTC
+            # while actually being wall time.
+            df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_localize(None)
+            df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_localize(None)
             df.drop(columns=['start_t', 'end_t'], inplace=True)
 
         elif city == "edinburgh":
@@ -510,8 +512,8 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
 
-            df['start_dt'] = pd.to_datetime(df['start_t'])
-            df['end_dt'] = pd.to_datetime(df['end_t'])
+            df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_localize(None)
+            df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_localize(None)
             df.drop(columns=['start_t', 'end_t'], inplace=True)
 
         elif city == "bergen":
@@ -526,8 +528,8 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
 
-            df['start_dt'] = pd.to_datetime(df['start_t'])
-            df['end_dt'] = pd.to_datetime(df['end_t'])
+            df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_localize(None)
+            df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_localize(None)
             df.drop(columns=['start_t', 'end_t'], inplace=True)
         
         elif city == "trondheim":
@@ -542,8 +544,8 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
 
-            df['start_dt'] = pd.to_datetime(df['start_t'])
-            df['end_dt'] = pd.to_datetime(df['end_t'])
+            df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_localize(None)
+            df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_localize(None)
             df.drop(columns=['start_t', 'end_t'], inplace=True)
 
         elif city == "helsinki":
@@ -2719,6 +2721,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('madrid', 2019, overwrite=True, user_type='all')
+    data = Data('oslo', 2019, 9, overwrite=True, user_type='all')
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()

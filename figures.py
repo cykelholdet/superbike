@@ -840,14 +840,14 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
 
     plt.style.use('default')
 
-    return clusters    
+    return traf_mats, clusters    
 
 if __name__ == "__main__":
     
     # sum_stat_table=make_summary_statistics_table(print_only=True)
     # LR_table=make_LR_table(2019)
     # sr = city_tests()
-    clusters = plot_cluster_centers('chicago')
+    traf_mats, clusters = plot_cluster_centers('oslo')
     
    
     
