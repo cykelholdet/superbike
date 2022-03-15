@@ -823,7 +823,7 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
     
     asdf = asdf.reset_index()
     
-    asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k)
+    asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
     
     plt.style.use('seaborn-darkgrid')
     
@@ -840,14 +840,14 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
 
     plt.style.use('default')
 
-    return traf_mats, clusters    
+    return clusters
 
 if __name__ == "__main__":
     
     # sum_stat_table=make_summary_statistics_table(print_only=True)
     # LR_table=make_LR_table(2019)
     # sr = city_tests()
-    traf_mats, clusters = plot_cluster_centers('oslo')
+    clusters = plot_cluster_centers('chicago')
     
    
     
