@@ -793,61 +793,148 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42,
     return sr_mat
 
 def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
+    if city != 'all':
+        with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+            asdf = pickle.load(file)
+        
+        data = bs.Data(city, year, month, day)
     
-    with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
-        asdf = pickle.load(file)
+        traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
+                                             user_type='Subscriber')
+        
+        traf_mat_b = np.concatenate((traf_df_b[0].to_numpy(), 
+                                     traf_df_b[1].to_numpy()),
+                                    axis=1)
+        
+        traf_df_w = data.daily_traffic_average_all(period='w', holidays=False, 
+                                             user_type='Subscriber')
+        
+        traf_mat_w = np.concatenate((traf_df_w[0].to_numpy(), 
+                                     traf_df_w[1].to_numpy()),
+                                    axis=1)
+        
+        
+        traf_mats = (traf_mat_b, traf_mat_w)
+        
+        casual_stations = set(list(asdf.stat_id.unique())) - (set(list(traf_df_b[0].index)) | set(list(traf_df_b[1].index)))
+        
+        for station in list(casual_stations):
+            asdf = asdf[asdf['stat_id'] != station]
+        
+        asdf = asdf.reset_index()
+        
+        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 5)
+        
+        plt.style.use('seaborn-darkgrid')
+        
+        fig, ax = plt.subplots()
+        
+        for i in range(k):
+            ax.plot(clusters.cluster_centers_[i], label=f'Cluster {i}')
+        ax.set_xticks(range(24))
+        ax.set_xlabel('Hour')
+        ax.set_xlim(0,23)
+        ax.set_ylim(-0.1,0.1)
+        ax.set_ylabel('Relative difference')
+        ax.legend()
+        
+        plt.savefig(f'./figures/paper_figures/{city}_clusters.pdf')
+        
+        plt.style.use('default')
     
-    data = bs.Data(city, year, month, day)
+        return clusters
 
-    traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
-                                         user_type='Subscriber')
-    
-    traf_mat_b = np.concatenate((traf_df_b[0].to_numpy(), 
-                                 traf_df_b[1].to_numpy()),
-                                axis=1)
-    
-    traf_df_w = data.daily_traffic_average_all(period='w', holidays=False, 
-                                         user_type='Subscriber')
-    
-    traf_mat_w = np.concatenate((traf_df_w[0].to_numpy(), 
-                                 traf_df_w[1].to_numpy()),
-                                axis=1)
-    
-    
-    traf_mats = (traf_mat_b, traf_mat_w)
-    
-    casual_stations = set(list(asdf.stat_id.unique())) - (set(list(traf_df_b[0].index)) | set(list(traf_df_b[1].index)))
-    
-    for station in list(casual_stations):
-        asdf = asdf[asdf['stat_id'] != station]
-    
-    asdf = asdf.reset_index()
-    
-    asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
-    
-    plt.style.use('seaborn-darkgrid')
-    
-    fig, ax = plt.subplots()
-    
-    for i in range(k):
-        ax.plot(clusters.cluster_centers_[i], label=f'Cluster {i}')
-    ax.set_xticks(range(24))
-    ax.set_xlabel('Hour')
-    ax.set_xlim(0,23)
-    ax.set_ylim(-0.1,0.1)
-    ax.set_ylabel('Relative difference')
-    ax.legend()
-
-    plt.style.use('default')
-
-    return clusters
-
+    else:
+        
+        cities = np.array([['nyc', 'chicago'], 
+                           ['washdc', 'boston'], 
+                           ['london', 'helsinki'], 
+                           ['oslo', 'madrid']])
+        
+        fig, ax = plt.subplots(nrows=4, ncols=2, figsize=(10,10))
+        plt.style.use('seaborn-darkgrid')
+        
+        clusters_list = []
+        
+        for row in range(4):
+            for col in range(2):
+        
+                city = cities[row,col]
+                
+                with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+                    asdf = pickle.load(file)
+                
+                data = bs.Data(city, year, month, day)
+            
+                traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
+                                                     user_type='Subscriber')
+                
+                traf_mat_b = np.concatenate((traf_df_b[0].to_numpy(), 
+                                             traf_df_b[1].to_numpy()),
+                                            axis=1)
+                
+                traf_df_w = data.daily_traffic_average_all(period='w', holidays=False, 
+                                                     user_type='Subscriber')
+                
+                traf_mat_w = np.concatenate((traf_df_w[0].to_numpy(), 
+                                             traf_df_w[1].to_numpy()),
+                                            axis=1)
+                
+                
+                traf_mats = (traf_mat_b, traf_mat_w)
+                
+                casual_stations = set(list(asdf.stat_id.unique())) - (set(list(traf_df_b[0].index)) | set(list(traf_df_b[1].index)))
+                
+                for station in list(casual_stations):
+                    asdf = asdf[asdf['stat_id'] != station]
+                
+                asdf = asdf.reset_index()
+                
+                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 5)
+                
+                clusters_list.append(clusters)
+                
+                for i in range(k):
+                    ax[row,col].plot(clusters.cluster_centers_[i], label=f'Cluster {i}')
+                
+                ax[row,col].set_xticks(range(24))
+                ax[row,col].set_xlim(0,23)
+                ax[row,col].set_ylim(-0.125,0.125)
+                
+                if row != 3:
+                    ax[row,col].xaxis.set_ticklabels([])
+                else:
+                    ax[row,col].set_xlabel('Hour')
+                
+                if col == 1:
+                    ax[row,col].yaxis.set_ticklabels([])
+                else:
+                    ax[row,col].set_ylabel('Relative difference')
+                
+                ax[row,col].set_title(bs.name_dict[city])
+        
+        ax[0,0].legend()
+        plt.tight_layout()
+        plt.savefig(f'./figures/paper_figures/clusters_all_cities.pdf')
+            
+        plt.style.use('default')
+        
+        return clusters_list
+        
+        
+        
+        
+        
 if __name__ == "__main__":
+    
+    cities = ['nyc', 'chicago', 'washdc', 'boston', 
+                  'london', 'helsinki', 'oslo', 'madrid']
     
     # sum_stat_table=make_summary_statistics_table(print_only=True)
     # LR_table=make_LR_table(2019)
     # sr = city_tests()
-    clusters = plot_cluster_centers('chicago')
+ 
+    clusters = plot_cluster_centers('all')
     
    
     

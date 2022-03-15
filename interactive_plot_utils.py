@@ -1113,7 +1113,10 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
         means = clusters.cluster_centers_
-        station_df, means, labels = sort_clusters(station_df, means, labels, traffic_matrices, day_type, k)
+        # station_df, means, labels = sort_clusters(station_df, means, labels, traffic_matrices, day_type, k)
+        
+        station_df, means, labels = sort_clusters2(station_df, means, labels)
+        
         clusters.cluster_centers_ = means
         station_df['color'] = station_df['label'].map(cluster_color_dict)
 
@@ -1172,7 +1175,6 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         station_df['color'] = None
 
     return station_df, clusters, labels
-
 
 def sort_clusters(station_df, cluster_means, labels, traffic_matrices, day_type, k, cluster_type=None, mask=None):
     # Order the clusters by setting cluster 0 to be closest to the mean traffic.
@@ -1255,6 +1257,78 @@ def sort_clusters(station_df, cluster_means, labels, traffic_matrices, day_type,
     return station_df, cluster_means, labels
 
 
+def sort_clusters2(station_df, cluster_means, labels, cluster_type=None, mask=None):
+    
+    k = len(cluster_means)
+    
+    max_peak = np.max(np.abs(cluster_means))
+    
+    morning_hours = np.array([6,7,8,9,10])
+    afternoon_hours = np.array([15,16,17,18,19])
+    
+    morning_source = np.zeros(24)
+    morning_source[morning_hours] = max_peak
+    morning_source[afternoon_hours] = -max_peak
+    
+    morning_sink = np.zeros(24)
+    morning_sink[morning_hours] = -max_peak
+    morning_sink[afternoon_hours] = max_peak
+    
+    order = np.zeros(k)
+    
+    sinks_and_sources = set() # set containing label of all centers except reference
+    
+    center = cluster_means.copy()
+    
+    count = 1
+    while count < k:
+        
+        dist_to_morning_source = np.full(k, np.inf)
+        dist_to_morning_sink = np.full(k, np.inf)
+        
+        for i, center in enumerate(cluster_means):
+            if i not in sinks_and_sources: # Don't check previous winners
+                dist_to_morning_source[i] = np.linalg.norm(center-morning_source)
+                dist_to_morning_sink[i] = np.linalg.norm(center-morning_sink)
+            
+        # Compare the two closest and pick the winner
+        if np.min(dist_to_morning_source) < np.min(dist_to_morning_sink):
+            sinks_and_sources = sinks_and_sources | {np.argmin(dist_to_morning_source)}
+        else:
+            sinks_and_sources = sinks_and_sources | {np.argmin(dist_to_morning_sink)}
+    
+        count+=1
+    
+    dist_to_sink = np.full(k, np.inf)
+    for label, center in enumerate(cluster_means):
+        if label not in sinks_and_sources:
+            order[0] = label
+    
+        else:
+            dist_to_sink[label] = np.linalg.norm(center-morning_sink)
+    
+    order[1:] = np.argsort(dist_to_sink)[:k-1]
+    
+    labels_dict = dict(zip(order, range(len(order))))
+    print(labels_dict)
+    
+    if cluster_type == 'gaussian_mixture':
+        values = np.zeros_like(labels)
+        values[:,order] = labels[:,range(k)]
+        
+        station_df['label'].loc[mask] = pd.Series(list(values), index=mask[mask].index)
+    else:
+        station_df = station_df.replace({'label' : labels_dict})
+    labels = station_df['label']
+    
+    centers = np.zeros_like(cluster_means)
+    for i in range(k):
+        centers[labels_dict[i]] = cluster_means[i]
+    cluster_means = centers
+    
+    return station_df, cluster_means, labels
+    
+    
 def cluster_mean(traffic_matrix, station_df, labels, k):
     mean_vector = np.zeros((k, traffic_matrix.shape[1]))
     for j in range(k):
