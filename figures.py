@@ -37,7 +37,7 @@ def service_area_figure(data, stat_df, land_use, return_fig=False):
     data : bikeshare.Data object
         Data object containing trip data for the network.
     stat_df : Dataframe
-        DataFrame containing innformation of the stations in the network 
+        DataFrame containing information of the stations in the network 
         including their service areas, obtained from
         interactive_plot_utils.make_station_df().
     land_use : DataFrame
@@ -487,7 +487,7 @@ def make_LR_table(year, k=3):
         
         asdf = asdf.reset_index()
         
-        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k)
+        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
         
         zone_columns = ['percent_residential', 'percent_commercial',
                         'percent_recreational', 'percent_industrial']
@@ -682,7 +682,7 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42,
         
         asdf = asdf.reset_index()
         
-        asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k)[0]
+        asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)[0]
         
         zone_columns = ['percent_residential', 'percent_commercial',
                         'percent_recreational', 'percent_industrial']
@@ -754,7 +754,9 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42,
                                                            plot_cm=False,
                                                            normalise_cm='all')[1]
                 sr_mat[i,j] = 1 - cm[1,2] - cm[2,1]
-            
+    
+    plt.style.use('default')
+    
     fig, ax = plt.subplots()
     
     im = ax.matshow(sr_mat, cmap=plt.cm.Blues, vmin=0, vmax=1)
@@ -823,7 +825,7 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
         
         asdf = asdf.reset_index()
         
-        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 5)
+        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
         
         plt.style.use('seaborn-darkgrid')
         
@@ -834,7 +836,7 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
         ax.set_xticks(range(24))
         ax.set_xlabel('Hour')
         ax.set_xlim(0,23)
-        ax.set_ylim(-0.1,0.1)
+        ax.set_ylim(-0.125,0.125)
         ax.set_ylabel('Relative difference')
         ax.legend()
         
@@ -890,7 +892,7 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
                 
                 asdf = asdf.reset_index()
                 
-                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 5)
+                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
                 
                 clusters_list.append(clusters)
                 
@@ -931,10 +933,10 @@ if __name__ == "__main__":
                   'london', 'helsinki', 'oslo', 'madrid']
     
     # sum_stat_table=make_summary_statistics_table(print_only=True)
-    # LR_table=make_LR_table(2019)
+    LR_table=make_LR_table(2019)
     # sr = city_tests()
  
-    clusters = plot_cluster_centers('all')
+    # clusters = plot_cluster_centers('all')
     
    
     
