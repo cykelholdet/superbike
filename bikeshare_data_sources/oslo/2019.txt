@@ -1,0 +1,9 @@
+https://data.urbansharing.com/oslobysykkel.no/trips/v1/2019/12.csv
+https://data.urbansharing.com/oslobysykkel.no/trips/v1/2019/11.csv
+https://data.urbansharing.com/oslobysykkel.no/trips/v1/2019/10.csv
+https://data.urbansharing.com/oslobysykkel.no/trips/v1/2019/09.csv
+https://data.urbansharing.com/oslobysykkel.no/trips/v1/2019/08.csv
+https://data.urbansharing.com/oslobysykkel.no/trips/v1/2019/07.csv
+https://data.urbansharing.com/oslobysykkel.no/trips/v1/2019/06.csv
+https://data.urbansharing.com/oslobysykkel.no/trips/v1/2019/05.csv
+https://data.urbansharing.com/oslobysykkel.no/trips/v1/2019/04.csv

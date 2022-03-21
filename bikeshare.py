@@ -9,6 +9,8 @@ import pickle
 import calendar
 import warnings
 import datetime
+import zipfile
+import io
 
 import pandas as pd
 import numpy as np
@@ -26,6 +28,26 @@ from workalendar.usa import NewYork, Massachusetts, ChicagoIllinois, \
     DistrictOfColumbia, Minnesota, CaliforniaSanFrancisco, California
 from workalendar.asia import Taiwan
 from workalendar.america import Mexico, Argentina, Quebec
+
+
+def download_data(city, year):
+    if not os.path.exists(f'data/{city}'):
+        os.makedirs(f'data/{city}')
+    with open(f'bikeshare_data_sources/{city}/{year}.txt', 'r') as file:
+        filenames = file.read().splitlines()
+    for url in filenames:
+        r = requests.get(url, stream=True)
+        if (city in ['bergen', 'oslo', 'trondheim',]) and year >= 2019:
+            with open(f'data/{city}/{year}{r.url[-6:-4]}-{city}.csv', 'wb') as file:
+                file.write(r.content)
+        elif city == 'london':
+            with open(f'data/{city}/{r.url.rsplit("/", 1)[-1]}', 'wb') as file:
+                file.write(r.content)
+        else:
+            z = zipfile.ZipFile(io.BytesIO(r.content))
+            z.extractall("data/city/")
+
+    return filenames
 
 
 def compile_chicago_stations():
