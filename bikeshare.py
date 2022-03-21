@@ -43,10 +43,16 @@ def download_data(city, year):
         elif city == 'london':
             with open(f'data/{city}/{r.url.rsplit("/", 1)[-1]}', 'wb') as file:
                 file.write(r.content)
+        elif city == 'helsinki':
+            z = zipfile.ZipFile(io.BytesIO(r.content))
+            zipinfos = z.infolist()
+            for zipinfo in zipinfos:
+                zipinfo.filename = f'{zipinfo.filename[:-4]}-helsinki.csv'
+                z.extract(zipinfo, f'data/{city}/')
         else:
             z = zipfile.ZipFile(io.BytesIO(r.content))
-            z.extractall("data/city/")
-
+            z.extractall(f'data/{city}/')
+            
     return filenames
 
 
