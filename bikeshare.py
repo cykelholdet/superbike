@@ -36,7 +36,7 @@ def download_data(city, year):
     with open(f'bikeshare_data_sources/{city}/{year}.txt', 'r') as file:
         filenames = file.read().splitlines()
     for url in filenames:
-        r = requests.get(url, stream=True)
+        r = get(url, stream=True)
         if (city in ['bergen', 'oslo', 'trondheim',]) and year >= 2019:
             with open(f'data/{city}/{year}{r.url[-6:-4]}-{city}.csv', 'wb') as file:
                 file.write(r.content)
