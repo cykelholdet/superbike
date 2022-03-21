@@ -348,7 +348,7 @@ def zone_code_transform(city, zone_code):
     return zone_type
     
 
-def make_neighborhoods(city, year, station_df, land_use):
+def make_neighborhoods(city, year, land_use, overwrite=False):
     """
     Determine which land use/zoning polygons are near each station in station_df.
     The neighborhoods are determined at a 1000 m radius.
@@ -359,8 +359,6 @@ def make_neighborhoods(city, year, station_df, land_use):
         the city of interest.
     year : int
         the year.
-    station_df : pandas DataFrame
-        contains information about the stations.
     land_use : geopandas GeoDataFrame
         polygons for land use.
 
@@ -370,6 +368,16 @@ def make_neighborhoods(city, year, station_df, land_use):
         contains polygons in the neighborhood of station.
 
     """
+    if overwrite is False:
+        try:
+            with open(f'./python_variables/neighborhoods_{city}{year}.pickle', 'rb') as file:
+                neighborhoods = pickle.load(file)
+            
+            return neighborhoods
+        
+        except FileNotFoundError:
+            print(f'No neighborhoods found. Pickling neighborhoods using {city}{year} data...')
+    
     pre = time.time()
     print(f"Determining neighborhoods for {bs.name_dict[city]} {year}")
     data_year = bs.Data(city, year)
@@ -382,38 +390,59 @@ def make_neighborhoods(city, year, station_df, land_use):
     print("Getting the hood ready to go", end="")
     if len(land_use) > 0:
         
-        # Merge the polygons of each different type of land use.
-        lu_merge = {}
-        for zone_type in land_use['zone_type'].unique():
-            lu_merge[zone_type] = land_use[land_use['zone_type'] == zone_type].unary_union
-            print(".", end="")
-        print(" ", end="")
-        
-        # Add buffer
-        buffers = neighborhoods['coords'].apply(
-            lambda coord: geodesic_point_buffer(coord.y, coord.x, 1000))
-        
-        for zone_type in lu_merge.keys():
-            neighborhoods[f"neighborhood_{zone_type}"] = buffers.intersection(lu_merge[zone_type])
-            neighborhoods[f"neighborhood_{zone_type}"].set_crs(epsg=4326, inplace=True)
-            print(".", end="")
-        print(" ")
-        
-        neighborhoods.drop(columns=['coords'], inplace=True)
+        neighborhoods = point_neighborhoods(neighborhoods['coords'], land_use)
+        neighborhoods['stat_id'] = list(data_year.stat.id_index.keys())
         
         with open(f'./python_variables/neighborhoods_{city}{year}.pickle', 'wb') as file:
             pickle.dump(neighborhoods, file)
         
         print(f'Pickling done. Time taken: {time.time()-pre:.2f} seconds.')
-        
-        land_use.to_crs(epsg=4326, inplace=True)
+
     
     else:
         neighborhoods.drop(columns=['coords'], inplace=True)
         neighborhoods['neighborhood_UNKNOWN'] = None
     
     return neighborhoods
+
+
+def point_neighborhoods(coords, land_use):
+    """
+    Get the neighborhoods of geographical shapely points in the list coords
+
+    Parameters
+    ----------
+    coords : TYPE
+        DESCRIPTION.
+    land_use : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    neighborhoods : TYPE
+        DESCRIPTION.
+
+    """
+    neighborhoods = gpd.GeoDataFrame()
+    # Merge the polygons of each different type of land use.
+    lu_merge = {}
+    for zone_type in land_use['zone_type'].unique():
+        lu_merge[zone_type] = land_use[land_use['zone_type'] == zone_type].unary_union
+        print(".", end="")
+    print(" ", end="")
     
+    # Add buffer
+    buffers = coords.apply(
+        lambda coord: geodesic_point_buffer(coord.y, coord.x, 1000))
+    
+    for zone_type in lu_merge.keys():
+        neighborhoods[f"neighborhood_{zone_type}"] = buffers.intersection(lu_merge[zone_type])
+        neighborhoods[f"neighborhood_{zone_type}"].set_crs(epsg=4326, inplace=True)
+        print(".", end="")
+    print(" ")
+    
+    return neighborhoods
+
 
 def make_station_df(data, holidays=True, return_land_use=False, 
                     return_census=False, overwrite=False):
@@ -462,13 +491,8 @@ def make_station_df(data, holidays=True, return_land_use=False,
             with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'rb') as file:
                 df, land_use, census_df = pickle.load(file)
             
-            try:
-                with open(f'./python_variables/neighborhoods_{data.city}{data.year}.pickle', 'rb') as file:
-                    neighborhoods = pickle.load(file)
-            
-            except FileNotFoundError:
-                print(f'No neighborhoods found. Pickling neighborhoods using {data.city}{data.year} data...')
-                neighborhoods = make_neighborhoods(data.city, data.year, df, land_use)
+
+            neighborhoods = make_neighborhoods(data.city, data.year, land_use)
             
             # Neighborhoods are pickled per year, while station_df is pickled
             # per month. Here they are merged.
@@ -951,43 +975,16 @@ def make_station_df(data, holidays=True, return_land_use=False,
         land_use['zone_type'] = 'UNKNOWN'
     
     print(".")
-    try:
-        subways_df = gpd.read_file(f'./data/{data.city}/{data.city}-transit-data.geojson')
-    except FileNotFoundError:
-        print(f'File ./data/{data.city}/{data.city}-transit-data.geojson not '
-              'found. Please get transit data for {bs.name_dict[data.city]} '
-              'from OpenStreetMap. Continuing without transit data, i.e. no '
-              '"nearest_subway" or "nearest_subway_dist"')
-    # If transit data is available and there is a subway_df.    
-    if len(subways_df) > 0:
-        
-        subways = subways_df[
-            (subways_df['station']=='subway') | (subways_df['subway']=='yes')]
-        
-        railways = subways_df[
-            ~((subways_df['station']=='subway') | (subways_df['subway']=='yes'))]
-        
-        # df['nearest_subway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways.geometry.unary_union)[1], axis=1)
-        # df['nearest_subway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_subway'].coords[0][::-1]).meters, axis=1)
-        
-        nearest_subway = nearest_neighbor(df, subways[['geometry']])
-        df['nearest_subway'] = nearest_subway['geometry']
-        df['nearest_subway_dist'] = nearest_subway['distance']
-        
-        nearest_railway = nearest_neighbor(df, railways[['geometry']])
-        df['nearest_railway'] = nearest_railway['geometry']
-        df['nearest_railway_dist'] = nearest_railway['distance']
-        
-        nearest_transit = nearest_neighbor(df, subways_df[['geometry']])
-        df['nearest_transit'] = nearest_transit['geometry']
-        df['nearest_transit_dist'] = nearest_transit['distance']
-        
-        # df['nearest_railway'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], railways.geometry.unary_union)[1], axis=1)
-        # df['nearest_railway_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_railway'].coords[0][::-1]).meters, axis=1)
-        
-        # df['nearest_transit'] = df.apply(lambda stat: shapely.ops.nearest_points(stat['coords'], subways_df.geometry.unary_union)[1], axis=1)
-        # df['nearest_transit_dist'] = df.apply(lambda stat: great_circle(stat['coords'].coords[0][::-1], stat['nearest_transit'].coords[0][::-1]).meters, axis=1)
-        
+    
+    station_df = nearest_transit(data.city, df)
+    
+    df[['nearest_subway', 'nearest_subway_dist',
+        'nearest_railway', 'nearest_railway_dist',
+        'nearest_transit', 'nearest_transit_dist']
+       ] = station_df[['nearest_subway', 'nearest_subway_dist',
+                       'nearest_railway', 'nearest_railway_dist',
+                       'nearest_transit', 'nearest_transit_dist']]
+    
     # Fix some issues with Shapely polygons.
     census_df.geometry = census_df.geometry.buffer(0)
     
@@ -1004,14 +1001,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
         with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'wb') as file:
             pickle.dump([df, land_use, census_df], file)
     
-    
-    try:
-        with open(f'./python_variables/neighborhoods_{data.city}{data.year}.pickle', 'rb') as file:
-            neighborhoods = pickle.load(file)
-    
-    except FileNotFoundError:
-        print(f'No neighborhoods found. Pickling neighborhoods using {data.city}{data.year} data...')
-        neighborhoods = make_neighborhoods(data.city, data.year, df, land_use)
+    neighborhoods = make_neighborhoods(data.city, data.year, land_use)
     
     df = df.merge(neighborhoods, on='stat_id')
 
@@ -1032,6 +1022,38 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     else:
         return df
+
+
+def nearest_transit(city, station_df):
+    try:
+        subways_df = gpd.read_file(f'./data/{city}/{city}-transit-data.geojson')
+    except FileNotFoundError:
+        raise FileNotFoundError(f'File ./data/{city}/{city}-transit-data.geojson not '
+              'found. Please get transit data for {bs.name_dict[city]} '
+              'from OpenStreetMap. Continuing without transit data, i.e. no '
+              '"nearest_subway" or "nearest_subway_dist"')
+
+    subways = subways_df[
+        (subways_df['station']=='subway') | (subways_df['subway']=='yes')]
+    
+    railways = subways_df[
+        ~((subways_df['station']=='subway') | (subways_df['subway']=='yes'))]
+    
+    df = station_df[['coords']].copy()
+    
+    nearest_subway = nearest_neighbor(df, subways[['geometry']])
+    df['nearest_subway'] = nearest_subway['geometry']
+    df['nearest_subway_dist'] = nearest_subway['distance']
+    
+    nearest_railway = nearest_neighbor(df, railways[['geometry']])
+    df['nearest_railway'] = nearest_railway['geometry']
+    df['nearest_railway_dist'] = nearest_railway['distance']
+    
+    nearest_transit = nearest_neighbor(df, subways_df[['geometry']])
+    df['nearest_transit'] = nearest_transit['geometry']
+    df['nearest_transit_dist'] = nearest_transit['distance']
+    
+    return df
 
 
 def mask_traffic_matrix(traffic_matrices, station_df, day_type, min_trips, holidays=False, return_mask=False):
@@ -1344,13 +1366,14 @@ def neighborhood_percentages(city, station_df, land_use, service_radius=500, use
     
     percentages = pd.DataFrame()
     
-    if 'road' in station_df['zone_type'].unique() and use_road in ['False', False]: # Ignore road
+    zone_types = land_use['zone_type'].unique()
+    
+    if 'road' in zone_types and use_road in ['False', False]: # Ignore road
         
     
         sa_no_road = station_df['service_area'].difference(station_df['neighborhood_road']).rename('sa_no_road').to_crs(epsg=3857)  
         
-        zone_types = station_df['zone_type'].unique()[
-            station_df['zone_type'].unique() != 'road']
+        zone_types = zone_types[zone_types != 'road']
 
         sa_no_road = sa_no_road.buffer(0)
         
@@ -1371,7 +1394,7 @@ def neighborhood_percentages(city, station_df, land_use, service_radius=500, use
         
     else:
         
-        for zone_type in station_df['zone_type'].unique(): #This is where all the time goes
+        for zone_type in zone_types: #This is where all the time goes
             
             zone_percents = np.zeros(len(station_df))
             
@@ -1413,14 +1436,14 @@ def get_service_area(city, station_df, land_use, service_radius=500):
 
     """
     
-    points = station_df[['easting', 'northing']].to_numpy()
-    points_gdf = gpd.GeoDataFrame(
-        geometry=[Point(station_df.iloc[i]['easting'], 
-                        station_df.iloc[i]['northing'])
-                  for i in range(len(station_df))],
-        crs='EPSG:3857')
-
-    points_gdf['point'] = points_gdf['geometry']
+    points_gdf = station_df[['coords']].to_crs(epsg=3857)
+    
+    points = np.vstack((points_gdf['coords'].x, points_gdf['coords'].y)).T
+    
+    points_gdf['geometry'] = points_gdf['coords']
+    points_gdf.set_geometry('geometry', inplace=True)
+    
+    points_gdf = points_gdf[['geometry', 'coords']]
     
     mean_point = np.mean(points, axis=0)
     edge_dist = 1000000
@@ -1443,7 +1466,7 @@ def get_service_area(city, station_df, land_use, service_radius=500):
     poly_gdf.drop('index_right', axis=1, inplace=True)
     poly_gdf['geometry'] = poly_gdf['vor_poly']
     
-    buffers = poly_gdf['point'].buffer(service_radius)
+    buffers = poly_gdf['coords'].buffer(service_radius)
     
     poly_gdf['service_area'] = poly_gdf.intersection(buffers)
     
@@ -1453,12 +1476,17 @@ def get_service_area(city, station_df, land_use, service_radius=500):
     poly_gdf.set_crs(epsg=3857, inplace=True)
     poly_gdf.to_crs(epsg=4326, inplace=True)
     poly_gdf['service_area'] = poly_gdf['geometry']
+    coords = poly_gdf['coords'].to_crs(epsg=4326)
+    poly_gdf.drop(columns='coords', inplace=True)
+    
     
     sa_df = gpd.tools.sjoin(station_df[['coords']], poly_gdf, op='within', how='left')
-    sa_df.drop(columns=['index_right', 'vor_poly', 'point'], inplace=True)
+    sa_df.drop(columns=['index_right', 'vor_poly', 'coords'], inplace=True)
     
     service_areas = sa_df['service_area']
     service_area_size = sa_df['service_area_size']
+    
+    service_areas = service_areas.to_crs(epsg=4326)
     
     if len(land_use) > 0:
         union = land_use_union(city, land_use)
@@ -1474,8 +1502,11 @@ def get_service_area(city, station_df, land_use, service_radius=500):
     
     service_areas[mask].apply(shapely.ops.unary_union)
     
-    service_areas = service_areas.apply(
-        lambda poly: Point(0,0).buffer(0.0001) if poly.area==0 else poly)
+    
+    service_areas[service_areas.area == 0] = coords[service_areas.area == 0].buffer(0.0001)
+    
+    # service_areas = service_areas.apply(
+    #     lambda poly: Point(0,0).buffer(0.0001) if poly.area==0 else poly)
     
     service_areas = service_areas.buffer(0)
     
@@ -1988,7 +2019,7 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('oslo', 2019, overwrite=True)
+    data = bs.Data('oslo', 2019, 9, overwrite=True)
 
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=False)
