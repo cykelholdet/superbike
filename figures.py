@@ -691,8 +691,7 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42,
             if column in zone_columns:
                 zone_columns.remove(column)
     
-        other_columns = ['pop_density', 'nearest_subway_dist', 
-                         'nearest_railway_dist', 'b_trips']
+        other_columns = ['pop_density', 'nearest_transit_dist', 'b_trips']
         
         for column in omit_columns[data.city]:
             if column in other_columns:
@@ -856,7 +855,7 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
         fig, ax = plt.subplots(nrows=4, ncols=2, figsize=(10,10))
         plt.style.use('seaborn-darkgrid')
         
-        clusters_list = []
+        clusters_dict = dict()
         
         for row in range(4):
             for col in range(2):
@@ -894,14 +893,26 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
                 
                 asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
                 
-                clusters_list.append(clusters)
+                clusters_dict[city] = clusters
+                
+                cluster_name_dict = {0 : 'Cluster 0', 
+                                     1 : 'Cluster 1', 
+                                     2 : 'Cluster 2',
+                                     3 : 'Cluster 3',
+                                     4 : 'Cluster 4',
+                                     5 : 'Cluster 5',
+                                     6 : 'Cluster 6',
+                                     7 : 'Cluster 7',
+                                     8 : 'Cluster 8',
+                                     9 : 'Cluster 9',
+                                     10 : 'Cluster 10',}
                 
                 for i in range(k):
-                    ax[row,col].plot(clusters.cluster_centers_[i], label=f'Cluster {i}')
+                    ax[row,col].plot(clusters.cluster_centers_[i], label=cluster_name_dict[i])
                 
                 ax[row,col].set_xticks(range(24))
                 ax[row,col].set_xlim(0,23)
-                ax[row,col].set_ylim(-0.125,0.125)
+                ax[row,col].set_ylim(-0.15,0.15)
                 
                 if row != 3:
                     ax[row,col].xaxis.set_ticklabels([])
@@ -914,16 +925,112 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
                     ax[row,col].set_ylabel('Relative difference')
                 
                 ax[row,col].set_title(bs.name_dict[city])
+        plt.tight_layout(pad=2)
+        ax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.2), ncol=len(ax[3,0].get_lines()))
         
-        ax[0,0].legend()
-        plt.tight_layout()
-        plt.savefig(f'./figures/paper_figures/clusters_all_cities.pdf')
+        
+        try:
+            plt.savefig(f'./figures/paper_figures/clusters_all_cities_k={k}.pdf')
+        except PermissionError:
+            print('Permission Denied. Continuing...')
             
+        
+        
         plt.style.use('default')
         
-        return clusters_list
+        return clusters_dict
+        
+def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10):
+    
+    if cities is None:
+        cities = ['nyc', 'chicago', 'washdc', 'boston', 
+                  'london', 'helsinki', 'oslo', 'madrid']
+    
+    k_list = [i for i in range(k_min, k_max+1)]
+    
+    multiindex = pd.MultiIndex.from_product((cities, ['DB', 'D', 'S', 'SS']))  
+    
+    res_table = pd.DataFrame(index=k_list, columns=multiindex)
+    
+    for city in cities:
+        
+        with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+            asdf = pickle.load(file)
+        
+        data = bs.Data(city, year, month)
+        
+        traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
+                                             user_type='Subscriber')
+        
+        traf_mat_b = np.concatenate((traf_df_b[0].to_numpy(), 
+                                     traf_df_b[1].to_numpy()),
+                                    axis=1)
+        
+        traf_df_w = data.daily_traffic_average_all(period='w', holidays=False, 
+                                             user_type='Subscriber')
+        
+        traf_mat_w = np.concatenate((traf_df_w[0].to_numpy(), 
+                                     traf_df_w[1].to_numpy()),
+                                    axis=1)
         
         
+        traf_mats = (traf_mat_b, traf_mat_w)
+        
+        casual_stations = set(list(asdf.stat_id.unique())) - (set(list(traf_df_b[0].index)) | set(list(traf_df_b[1].index)))
+        
+        for station in list(casual_stations):
+            asdf = asdf[asdf['stat_id'] != station]
+        
+        asdf = asdf.reset_index()
+        
+        DB_list = []
+        D_list = []
+        S_list = []
+        SS_list = []
+        
+        for k in k_list:
+            
+            print(f'\nCalculating for k={k}...\n')
+            
+            asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
+            
+            mask = ~labels.isna()
+            
+            labels = labels.to_numpy()[mask]
+            
+            data_mat = (traf_mat_b[:,:24] - traf_mat_b[:,24:])[mask]
+            
+            DB_list.append(ipu.get_Davies_Bouldin_index(data_mat, 
+                                                        clusters.cluster_centers_,
+                                                        labels,
+                                                        verbose=True))
+            
+            D_list.append(ipu.get_Dunn_index(data_mat, 
+                                             clusters.cluster_centers_,
+                                             labels,
+                                             verbose=True))
+            
+            S_list.append(ipu.get_silhouette_index(data_mat, 
+                                                   clusters.cluster_centers_,
+                                                   labels,
+                                                   verbose=True))
+            
+            SS_list.append(clusters.inertia_)
+            
+        res_table[(city, 'DB')] = DB_list
+        res_table[(city, 'D')] = D_list
+        res_table[(city, 'S')] = S_list
+        res_table[(city, 'SS')] = SS_list
+    
+    res_table = res_table.rename(columns=bs.name_dict)
+    
+    print(res_table.to_latex(column_format='@{}l'+('r'*len(res_table.columns)) + '@{}',
+                             index=True, na_rep = '--', float_format='%.3f',
+                             multirow=True, multicolumn=True, multicolumn_format='c'))
+    
+    return res_table
+    
+    
         
         
         
@@ -933,10 +1040,15 @@ if __name__ == "__main__":
                   'london', 'helsinki', 'oslo', 'madrid']
     
     # sum_stat_table=make_summary_statistics_table(print_only=True)
-    LR_table=make_LR_table(2019)
+    # LR_table=make_LR_table(2019)
+    # k_table = k_test_table()
     # sr = city_tests()
- 
-    # clusters = plot_cluster_centers('all')
+    
+    clusters_list = []
+    
+    for k in [5,6,7,8,9,10]:
+        clusters_list.append(plot_cluster_centers('all', k=k))
+        plt.close()
     
    
     
