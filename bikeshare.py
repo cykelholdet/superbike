@@ -63,6 +63,8 @@ def download_data(city, year, verbose=True):
                 except rarfile.BadRarFile:
                     with open(f'data/{city}/{r.url.rsplit("/", 1)[-1]}', 'wb') as file:
                         file.write(r.content)
+                except rarfile.RarCannotExec:
+                    raise rarfile.RarCannotExec("Please install unrar from your distribution's package manager or install unrar.dll")
     return filenames
 
 
@@ -806,7 +808,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
                     f"./data/{city}/{year:d}{month:02d}_stations_madrid.json",
                     lines=True).iloc[-1]
             elif (datetime.datetime(year, month, 1) <= datetime.datetime(2018, 10, 1)) and (datetime.datetime(year, month, 1) >= datetime.datetime(2018, 8, 1)):
-                _, stations2 = pd.read_json(
+                _, stations = pd.read_json(
                     f"./data/{city}/Bicimad_Estacions_{year:d}{month:02d}.json",
                     lines=True, encoding = "ISO-8859-1").iloc[-1]
             # There is no station information prior to July 2018, so the earliest
@@ -2862,6 +2864,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('madrid', 2018, 7, overwrite=False, user_type='all')
+    data = Data('madrid', 2018, 8a, overwrite=False, user_type='all')
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()
