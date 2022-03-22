@@ -7,3 +7,5 @@ https://data-legacy.urbansharing.com/oslobysykkel.no/2018/07.csv.zip
 https://data-legacy.urbansharing.com/oslobysykkel.no/2018/06.csv.zip
 https://data-legacy.urbansharing.com/oslobysykkel.no/2018/05.csv.zip
 https://data-legacy.urbansharing.com/oslobysykkel.no/2018/04.csv.zip
+https://data-legacy.urbansharing.com/legacy_station_locations.csv
+https://data-legacy.urbansharing.com/legacy_new_station_id_mapping.csv

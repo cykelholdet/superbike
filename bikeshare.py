@@ -38,7 +38,7 @@ def download_data(city, year):
     for url in filenames:
         r = get(url, stream=True)
         if (city in ['bergen', 'oslo', 'trondheim',]) and year >= 2019:
-            with open(f'data/{city}/{year}{r.url[-6:-4]}-{city}.csv', 'wb') as file:
+            with open(f'data/{city}/{year}{r.url.rsplit("/", 1)[-1][:-4]}-{city}.csv', 'wb') as file:
                 file.write(r.content)
         elif city == 'london':
             with open(f'data/{city}/{r.url.rsplit("/", 1)[-1]}', 'wb') as file:
@@ -50,9 +50,12 @@ def download_data(city, year):
                 zipinfo.filename = f'{zipinfo.filename[:-4]}-helsinki.csv'
                 z.extract(zipinfo, f'data/{city}/')
         else:
-            z = zipfile.ZipFile(io.BytesIO(r.content))
-            z.extractall(f'data/{city}/')
-            
+            try:
+                z = zipfile.ZipFile(io.BytesIO(r.content))
+                z.extractall(f'data/{city}/')
+            except zipfile.BadZipFile:
+                with open(f'data/{city}/{r.url.rsplit("/", 1)[-1]}', 'wb') as file:
+                    file.write(r.content)
     return filenames
 
 
@@ -195,10 +198,15 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df.drop(columns=['start_t', 'end_t'], inplace=True)
 
         elif city == "washdc":
+            
+            if datetime.datetime(year, month, 1) == datetime.datetime(2018, 1, 1):
+                systemname = '_capitalbikeshare_'
+            else:
+                systemname = '-capitalbikeshare-'
 
             try:
                 df = pd.read_csv(
-                    f'./data/{city}/{year:d}{month:02d}-capitalbikeshare-tripdata.csv')
+                    f'./data/{city}/{year:d}{month:02d}{systemname}tripdata.csv')
 
             except FileNotFoundError as exc:
                 raise FileNotFoundError(
@@ -270,9 +278,15 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df.drop(columns=['start_t', 'end_t'], inplace=True)
 
         elif city == 'boston':
+            if datetime.datetime(year, month, 1) <= datetime.datetime(2018, 3, 1):
+                systemname = '_hubway_'
+            elif datetime.datetime(year, month, 1) == datetime.datetime(2018, 4, 1):
+                systemname = '-hubway-'
+            else:
+                systemname = '-bluebikes-'
             try:
                 df = pd.read_csv(
-                    f'./data/{city}/{year:d}{month:02d}-bluebikes-tripdata.csv')
+                    f'./data/{city}/{year:d}{month:02d}{systemname}tripdata.csv')
 
             except FileNotFoundError as exc:
                 raise FileNotFoundError(
@@ -501,33 +515,68 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df.reset_index(inplace=True, drop=True)
 
         elif city == "oslo":
+            
+            if datetime.datetime(year, month, 1) <= datetime.datetime(2018, 12, 1):
+                try:
+                    df = pd.read_csv(f'./data/{city}/oslo-trips-{year:d}.{month:d}.csv')
+                except FileNotFoundError as exc:
+                    raise FileNotFoundError(
+                        'No trip data found. All relevant files can be found at https://oslobysykkel.no/en/open-data/historical') from exc
+                
+                df = df.rename(columns=dataframe_key.get_key(city))
+                df.dropna(inplace=True)
+                df.reset_index(inplace=True, drop=True)
+                
+                stat_loc = pd.read_csv(
+                    f'./data/{city}/legacy_station_locations.csv')
+                stat_ids = pd.read_csv(
+                    f'./data/{city}/legacy_new_station_id_mapping.csv')
+                
+                long_dict = dict(zip(stat_loc['legacy_id']+156, stat_loc['longitude']))
+                lat_dict = dict(zip(stat_loc['legacy_id']+156, stat_loc['latitude']))
+                
+                id_dict = dict(zip(stat_ids['legacy_id']+156, stat_ids['new_id']))
+                
+                df['start_stat_lat'] = df['start_stat_id'].map(lat_dict)
+                df['start_stat_long'] = df['start_stat_id'].map(long_dict)
 
-            try:
-                df = pd.read_csv(f'./data/{city}/{year:d}{month:02d}-oslo.csv')
-            except FileNotFoundError as exc:
-                raise FileNotFoundError(
-                    'No trip data found. All relevant files can be found at https://oslobysykkel.no/en/open-data/historical') from exc
-
-            df = df.rename(columns=dataframe_key.get_key(city))
-            df.dropna(inplace=True)
-            df.reset_index(inplace=True, drop=True)
-            
-            # Merge stations with identical coordinates
-            merge_id_dict = {619: 618}
-            merge_name_dict = {f"Bak Niels Treschows hus {i}": "Bak Niels Treschows hus" for i in ['sør', 'nord']}
-            
-            df['start_stat_id'] = df['start_stat_id'].replace(merge_id_dict)
-            df['start_stat_name'] = df['start_stat_name'].replace(merge_name_dict)
-            
-            df['end_stat_id'] = df['end_stat_id'].replace(merge_id_dict)
-            df['end_stat_name'] = df['end_stat_name'].replace(merge_name_dict)
-            
-            # remove timezone information as data is erroneously tagged as UTC
-            # while actually being wall time.
-            df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_convert('Europe/Oslo')
-            df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_convert('Europe/Oslo')
-            df.drop(columns=['start_t', 'end_t'], inplace=True)
-            df = df[df['start_dt'].dt.month == month]
+                df['end_stat_lat'] = df['end_stat_id'].map(lat_dict)
+                df['end_stat_long'] = df['end_stat_id'].map(long_dict)
+                
+                df['start_stat_id'] = df['start_stat_id'].map(id_dict)
+                df['end_stat_id'] = df['end_stat_id'].map(id_dict)
+                
+                df['start_dt'] = pd.to_datetime(df['start_t'])
+                df['end_dt'] = pd.to_datetime(df['end_t'])
+                df.drop(columns=['start_t', 'end_t'], inplace=True)
+                
+            else:
+                try:
+                    df = pd.read_csv(f'./data/{city}/{year:d}{month:02d}-oslo.csv')
+                except FileNotFoundError as exc:
+                    raise FileNotFoundError(
+                        'No trip data found. All relevant files can be found at https://oslobysykkel.no/en/open-data/historical') from exc
+    
+                df = df.rename(columns=dataframe_key.get_key(city))
+                df.dropna(inplace=True)
+                df.reset_index(inplace=True, drop=True)
+                
+                # Merge stations with identical coordinates
+                merge_id_dict = {619: 618}
+                merge_name_dict = {f"Bak Niels Treschows hus {i}": "Bak Niels Treschows hus" for i in ['sør', 'nord']}
+                
+                df['start_stat_id'] = df['start_stat_id'].replace(merge_id_dict)
+                df['start_stat_name'] = df['start_stat_name'].replace(merge_name_dict)
+                
+                df['end_stat_id'] = df['end_stat_id'].replace(merge_id_dict)
+                df['end_stat_name'] = df['end_stat_name'].replace(merge_name_dict)
+                
+                # remove timezone information as data is erroneously tagged as UTC
+                # while actually being wall time.
+                df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_convert('Europe/Oslo')
+                df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_convert('Europe/Oslo')
+                df.drop(columns=['start_t', 'end_t'], inplace=True)
+                df = df[df['start_dt'].dt.month == month]
 
         elif city == "edinburgh":
 
@@ -2791,6 +2840,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('nyc', 2019, overwrite=False, user_type='all')
+    data = Data('oslo', 2018, 5, overwrite=False, user_type='all')
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()
