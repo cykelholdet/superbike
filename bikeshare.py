@@ -11,14 +11,15 @@ import warnings
 import datetime
 import zipfile
 import io
+from requests import get
 
 import pandas as pd
 import numpy as np
 import networkx as nx
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import rarfile
 from pyproj import Transformer
-from requests import get
 
 import dataframe_key
 
@@ -30,12 +31,14 @@ from workalendar.asia import Taiwan
 from workalendar.america import Mexico, Argentina, Quebec
 
 
-def download_data(city, year):
+def download_data(city, year, verbose=True):
     if not os.path.exists(f'data/{city}'):
         os.makedirs(f'data/{city}')
     with open(f'bikeshare_data_sources/{city}/{year}.txt', 'r') as file:
         filenames = file.read().splitlines()
     for url in filenames:
+        if verbose:
+            print(url)
         r = get(url, stream=True)
         if (city in ['bergen', 'oslo', 'trondheim',]) and year >= 2019:
             with open(f'data/{city}/{year}{r.url.rsplit("/", 1)[-1][:-4]}-{city}.csv', 'wb') as file:
@@ -54,8 +57,12 @@ def download_data(city, year):
                 z = zipfile.ZipFile(io.BytesIO(r.content))
                 z.extractall(f'data/{city}/')
             except zipfile.BadZipFile:
-                with open(f'data/{city}/{r.url.rsplit("/", 1)[-1]}', 'wb') as file:
-                    file.write(r.content)
+                try:
+                    z = rarfile.RarFile(io.BytesIO(r.content))
+                    z.extractall(f'data/{city}/')
+                except rarfile.BadRarFile:
+                    with open(f'data/{city}/{r.url.rsplit("/", 1)[-1]}', 'wb') as file:
+                        file.write(r.content)
     return filenames
 
 
@@ -714,7 +721,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
         elif city == "madrid":
             # Depending on the month, the data has different formats
-            if year == 2019 and month > 7:
+            if datetime.datetime(year, month, 1) > datetime.datetime(2019, 7, 1):
                 try:
                     df = pd.read_json(
                         f"./data/{city}/{year:d}{month:02d}_movements.json", lines=True)
@@ -754,7 +761,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
                 df = pd.concat((df_pre, df))
 
-            elif year == 2019 and month == 7:
+            elif datetime.datetime(year, month, 1) == datetime.datetime(2019, 7, 1):
                 try:
                     df = pd.read_json(
                         f"./data/{city}/{year:d}{month:02d}_movements.json", lines=True)
@@ -793,11 +800,23 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df['end_dt'] = df['start_dt'] + \
                 pd.to_timedelta(df['duration'], unit='s')
                 
-            if year == 2019 and month >= 7:
+            if datetime.datetime(year, month, 1) >= datetime.datetime(2019, 7, 1):
                 # In the last months of 2019 the station data is UTF-8
                 _, stations = pd.read_json(
                     f"./data/{city}/{year:d}{month:02d}_stations_madrid.json",
                     lines=True).iloc[-1]
+            elif (datetime.datetime(year, month, 1) <= datetime.datetime(2018, 10, 1)) and (datetime.datetime(year, month, 1) >= datetime.datetime(2018, 8, 1)):
+                _, stations2 = pd.read_json(
+                    f"./data/{city}/Bicimad_Estacions_{year:d}{month:02d}.json",
+                    lines=True, encoding = "ISO-8859-1").iloc[-1]
+            # There is no station information prior to July 2018, so the earliest
+            # station information is used. The data from July 2018 is in invalid json
+            # and contains the same locations as August, so August is used.
+            elif datetime.datetime(year, month, 1) < datetime.datetime(2018, 8, 1):
+                _, stations = pd.read_json(
+                    f"./data/{city}/Bicimad_Estacions_201808.json",
+                    lines=True, encoding = "ISO-8859-1").iloc[-1]
+            # Else condition is reached in 2019 Jan-Jun
             else:
                 _, stations = pd.read_json(
                     f"./data/{city}/Bicimad_Stations_{year:d}{month:02d}.json",
@@ -2843,6 +2862,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('oslo', 2018, 5, overwrite=False, user_type='all')
+    data = Data('madrid', 2018, 7, overwrite=False, user_type='all')
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()
