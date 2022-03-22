@@ -635,6 +635,8 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
                 df = pd.read_csv(f'./data/{city}/{year:d}-{month:02d}-helsinki.csv')
             except FileNotFoundError as exc:
                 if month not in range(4, 10+1):
+                    warnings.warn(
+                        'Data not available in winter.')
                     return pd.DataFrame(columns=[*dataframe_key.get_key(city).values(), 'start_stat_lat', 'start_stat_long', 'end_stat_lat', 'end_stat_long']), []
                 else:
                     raise FileNotFoundError(
@@ -772,8 +774,9 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
                 except FileNotFoundError as exc:
                     raise FileNotFoundError(
                         'No trip data found. All relevant files can be found at https://opendata.emtmadrid.es/Datos-estaticos/Datos-generales-(1)') from exc
-
-                df.drop(columns=['track'], inplace=True) # Remember that they exist in some data
+                
+                if 'track' in df.columns:
+                    df.drop(columns=['track'], inplace=True) # Remember that they exist in some data
                 df['unplug_hourTime'] = pd.json_normalize(
                     df['unplug_hourTime'])
                 df.rename(columns = dataframe_key.get_key(city), inplace=True)
