@@ -1,0 +1,12 @@
+https://divvy-tripdata.s3.amazonaws.com/202101-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202102-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202103-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202104-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202105-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202106-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202107-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202108-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202109-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202110-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202111-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202112-divvy-tripdata.zip

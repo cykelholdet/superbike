@@ -1,0 +1,12 @@
+https://s3.amazonaws.com/hubway-data/201801-hubway-tripdata.zip
+https://s3.amazonaws.com/hubway-data/201802-hubway-tripdata.zip
+https://s3.amazonaws.com/hubway-data/201803-hubway-tripdata.zip
+https://s3.amazonaws.com/hubway-data/201804-hubway-tripdata.zip
+https://s3.amazonaws.com/hubway-data/201805-bluebikes-tripdata.zip
+https://s3.amazonaws.com/hubway-data/201806-bluebikes-tripdata.zip
+https://s3.amazonaws.com/hubway-data/201807-bluebikes-tripdata.zip
+https://s3.amazonaws.com/hubway-data/201808-bluebikes-tripdata.zip
+https://s3.amazonaws.com/hubway-data/201809-bluebikes-tripdata.zip
+https://s3.amazonaws.com/hubway-data/201810-bluebikes-tripdata.zip
+https://s3.amazonaws.com/hubway-data/201811-bluebikes-tripdata.zip
+https://s3.amazonaws.com/hubway-data/201812-bluebikes-tripdata.zip

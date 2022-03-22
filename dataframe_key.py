@@ -160,7 +160,8 @@ def get_key(city):
                'Bike Id': 'bike_id'}
 
     elif city in ['oslo', 'bergen', 'trondheim', 'edinburgh']:
-        key = {'duration': 'duration',
+        key = {# 2019 and later
+               'duration': 'duration',
                'started_at': 'start_t',
                'ended_at': 'end_t',
                'start_station_id': 'start_stat_id',
@@ -170,7 +171,13 @@ def get_key(city):
                'end_station_id': 'end_stat_id',
                'end_station_name': 'end_stat_name',
                'end_station_latitude': 'end_stat_lat',
-               'end_station_longitude': 'end_stat_long'}
+               'end_station_longitude': 'end_stat_long',
+               # before 2019
+               'Start station': 'start_stat_id',
+               'Start time': 'start_t',
+               'End station': 'end_stat_id',
+               'End time': 'end_t',
+               }
     
     elif city == 'helsinki':
         key = {'Duration (sec.)': 'duration',

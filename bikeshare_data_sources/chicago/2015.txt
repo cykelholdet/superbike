@@ -1,0 +1,2 @@
+https://divvy-tripdata.s3.amazonaws.com/Divvy_Trips_2015-Q1Q2.zip
+https://divvy-tripdata.s3.amazonaws.com/Divvy_Trips_2015_Q3Q4.zip

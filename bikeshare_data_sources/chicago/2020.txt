@@ -1,0 +1,10 @@
+https://divvy-tripdata.s3.amazonaws.com/Divvy_Trips_2020_Q1.zip
+https://divvy-tripdata.s3.amazonaws.com/202004-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202005-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202006-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202007-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202008-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202009-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202010-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202011-divvy-tripdata.zip
+https://divvy-tripdata.s3.amazonaws.com/202012-divvy-tripdata.zip
