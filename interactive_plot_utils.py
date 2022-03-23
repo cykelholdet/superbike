@@ -2162,7 +2162,7 @@ def create_all_pickles(city, year, holidays=False, overwrite=False):
                 with contextlib.suppress(FileNotFoundError):
                     os.remove(f"python_variables/neighborhoods_{cities_i}{year}.pickle")
                 create_all_pickles(cities_i, year, holidays=holidays, overwrite=overwrite)
-                print(f'{bs.name_dict[city]} took {time.time() - pre:.2f} seconds')
+                print(f'{bs.name_dict[cities_i]} took {time.time() - pre:.2f} seconds')
         except TypeError:
             print(city, "is not iterable, no pickle was made")
 
