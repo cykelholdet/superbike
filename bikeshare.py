@@ -15,11 +15,8 @@ from requests import get
 
 import pandas as pd
 import numpy as np
-import networkx as nx
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 import rarfile
-from pyproj import Transformer
 
 import dataframe_key
 
@@ -778,8 +775,10 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
                 df['start_dt'] = df['start_dt'].dt.tz_convert(tz='Europe/Madrid')
             else:
                 try:
-                    df = pd.read_json(
-                        f"./data/{city}/{year:d}{month:02d}_Usage_Bicimad.json", lines=True, encoding = "ISO-8859-1")
+                    df = pd.DataFrame()
+                    chunks = pd.read_json('data/madrid/201812_Usage_Bicimad.json', lines=True, chunksize=10000, encoding = "ISO-8859-1")
+                    for chunk in chunks:
+                        df = df.append(chunk.drop(columns=['track'], errors='ignore'))
                 except FileNotFoundError as exc:
                     raise FileNotFoundError(
                         'No trip data found. All relevant files can be found at https://opendata.emtmadrid.es/Datos-estaticos/Datos-generales-(1)') from exc
@@ -1718,9 +1717,9 @@ def station_names(df, id_index):
     return names
 
 
-def get_elevation(lat, long, dataset="mapzen"):
+def get_elevation(lat, long, dataset="aster30m"):
     """
-    Finds the elevation for a specific coordinate.
+    Finds the elevation for a specific coordinate or list of coordinates.
 
     Elevation data is taken from https://www.opentopodata.org/
 
@@ -1731,7 +1730,7 @@ def get_elevation(lat, long, dataset="mapzen"):
     long : float or iterable
         Longitude or iterable containing longitudes.
     dataset : str, optional
-        Dataset used for elevation data. The default is "mapzen".
+        Dataset used for elevation data. The default is "aster30m".
 
     Returns
     -------
@@ -1777,7 +1776,17 @@ def get_elevation(lat, long, dataset="mapzen"):
                 elevation = np.append(
                     elevation, np.array(pd.json_normalize(
                         r.json(), 'results')['elevation']))
-
+            else:
+                warnings.warn(f"No json response. Query = {loc_string}\nStatus code = {r.status_code}")
+            
+            if n == 0:
+                print('Waiting for elevation API', end='')
+                time.sleep(1)
+            elif n < len(long)-i:
+                print('.', end='')
+                time.sleep(1)
+            else:
+                print(' Done')
     return elevation
 
 
@@ -2599,11 +2608,11 @@ class Data:
                 return matrix_b, matrix_w
             except FileNotFoundError:
                 print("Daily traffic pickle not found")
-        print('Pickling average daily traffic for all stations... \nSit back and relax, this might take a while...')
+        print('Pickling average daily traffic for all stations...')
         pre = time.time()
         departures_b, arrivals_b = self.daily_traffic_average_all(
             'b', normalise=normalise, plot=plot, holidays=holidays, user_type=user_type)
-        print("Hang in there, we're halfway...")
+        # print("Hang in there, we're halfway...")
         departures_w, arrivals_w = self.daily_traffic_average_all(
             'w', normalise=normalise, plot=plot, holidays=holidays, user_type=user_type)
 
@@ -2641,7 +2650,7 @@ class Data:
         with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}.pickle', 'wb') as file:
             pickle.dump((matrix_b, matrix_w), file)
 
-        print(f'Pickling done. Time taken: {(time.time()-pre):.1f} s')
+        print(f'Pickling daily traffic done. Time taken: {(time.time()-pre):.1f} s')
 
         return matrix_b, matrix_w
 
@@ -2864,6 +2873,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('madrid', 2018, 8, overwrite=False, user_type='all')
+    data = Data('madrid', 2018, 12, overwrite=False, user_type='all')
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()

@@ -9,18 +9,9 @@ Created on Thu Sep 30 11:36:11 2021
 # TODO: Remove panel buttons which do nothing
 #       Change pop_density to a log scale when plotting census tracts
 #       Change defaults in LR
-
-import pickle
-import time
-
 import numpy as np
 import pandas as pd
-import geopandas as gpd
-import matplotlib.pyplot as plt
-import matplotlib.colors as mpl_colors
 from matplotlib import cm
-import shapely.ops
-from shapely.geometry import Point, LineString
 
 import holoviews as hv
 import hvplot.pandas
@@ -29,9 +20,6 @@ import panel as pn
 import param
 import geoviews as gv
 from bokeh.models import HoverTool
-
-import statsmodels.api as sm
-from statsmodels.discrete.discrete_model import MNLogit
 
 import bikeshare as bs
 import interactive_plot_utils as ipu
