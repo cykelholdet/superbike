@@ -28,21 +28,20 @@ conda activate bike_env
 
 Then install the remaining packages
 ```
-pip install scikit-learn-extra scikit-image statsmodels workalendar geopy openpyxl smopy
+pip install scikit-learn-extra scikit-image statsmodels workalendar geopy openpyxl smopy rarfile
 pip install --upgrade shapely
 ```
 
 #### Conda-forge
-Alternatively, if you want to get more recent versions of packages, including Python 3.10, you can get packages from conda-forge. As of March 2022, cartopy and scikit-learn-extra are not available from PyPI as wheels for Python 3.10, but we can get them from conda-forge.
+Alternatively, if you want to get more recent versions of packages, including Python 3.10, you can get packages from conda-forge. As of March 2022, cartopy and scikit-learn-extra are not available from PyPI as wheels or from the regular conda repository for Python 3.10, but we can get them from conda-forge.
 
 ```
 conda create -n bike_env
 conda activate bike_env
 
-conda install -c conda-forge cartopy
-conda install -c conda-forge scikit-learn-extra
+conda install -c conda-forge cartopy scikit-learn-extra numba llvmlite numpy matplotlib pandas scipy holoviews hvplot geoviews geopandas scikit-image statsmodels workalendar geopy openpyxl
 
-pip install numpy matplotlib pandas scipy holoviews hvplot geoviews geopandas scikit-image statsmodels workalendar geopy openpyxl smopy
+pip install smopy rarfile
 ```
 
 ## Directory structure
@@ -52,37 +51,35 @@ The data should be organised as follows. Please create directories `data`, `pyth
 ```
 ./data
 ├── (Put data .csv/.json files here)
-├── Divvy_Trips_2019_Q3.csv
-│
-├── 177JourneyDataExtract28Aug2019-03Sep2019.csv
-├── 178JourneyDataExtract04Sep2019-10Sep2019.csv
-├── 179JourneyDataExtract11Sep2019-17Sep2019.csv
-├── 180JourneyDataExtract18Sep2019-24Sep2019.csv
-├── 181JourneyDataExtract25Sep2019-01Oct2019.csv
-├── london_stations.csv
-│
-├── 201908_movements.json
-├── 201909_movements.json
-├── 201909_stations_madrid.json
-│
-├── 2019-09-mexico.csv
-├── stations_mexico.json
-│
-├── 201909-citibike-tripdata.csv
-│
-├── 201909-baywheels-tripdata.csv
-│
-├── 201909-taipei.csv
-├── stations_taipei.csv
-│
-├── 201909-capitalbikeshare-tripdata.csv
-└── Capital_Bike_Share_Locations.csv
+|
+├── boston
+│   └── 201909-bluebikes-tripdata.csv
+|
+├── chicago
+│   └── Divvy_Trips_2019_Q3.csv
+|
+├── london
+|   ├── 177JourneyDataExtract28Aug2019-03Sep2019.csv
+|   ├── 178JourneyDataExtract04Sep2019-10Sep2019.csv
+|   ├── 179JourneyDataExtract11Sep2019-17Sep2019.csv
+|   ├── 180JourneyDataExtract18Sep2019-24Sep2019.csv
+|   ├── 181JourneyDataExtract25Sep2019-01Oct2019.csv
+|   └── london_stations.csv
+|
+├── madrid
+|   ├── 201908_movements.json
+|   ├── 201909_movements.json
+|   └──  201909_stations_madrid.json
+|
+├── nyc
+│   └── 201909-citibike-tripdata.csv
+|
+└── washdc
+    ├── 201909-capitalbikeshare-tripdata.csv
+    └── Capital_Bike_Share_Locations.csv
 
 
 ./python_variables
-├── big_data
-│   └── (Dataframe pickles will be here)
-│
 └── (Pickle files will be here)
 
 
