@@ -501,7 +501,7 @@ from statsmodels.api import OLS, GLS, WLS
 from statsmodels.tools import add_constant
 import statsmodels.formula.api as smf
 
-CITY = 'nyc'
+CITY = 'oslo'
 YEAR = 2019
 MONTH = 9
 
@@ -652,11 +652,11 @@ neighborhoods = ipu.point_neighborhoods(location['coords'], land_use)
 
 location = location.join(neighborhoods)
 
-service_area = ipu.get_service_area('nyc', location, land_use)
+service_area = ipu.get_service_area(CITY, location, land_use)
 
-percentages = ipu.neighborhood_percentages('nyc', location, land_use)
+percentages = ipu.neighborhood_percentages(CITY, location, land_use)
 pop_density = ipu.pop_density_in_service_area(location, census_df)
-nearest_subway = ipu.nearest_transit('nyc', location)
+nearest_subway = ipu.nearest_transit(CITY, location)
 
 point_info = pd.DataFrame(index=percentages.index)
 point_info['const'] = 1.0
