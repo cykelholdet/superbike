@@ -1204,6 +1204,19 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         labels = None
         station_df['label'] = np.nan
         station_df['color'] = None
+    
+    dist_to_center = np.full(traffic_matrices[0].shape[0], np.nan)
+    
+    if day_type == 'business_days':
+        traf_mat = traffic_matrices[0][:,:24] - traffic_matrices[0][:,24:]
+    elif day_type == 'weekend':
+        traf_mat = traffic_matrices[1][:,:24] - traffic_matrices[1][:,24:]
+    
+    for i in range(k):
+        dist_to_center[np.where(labels == i)] = np.linalg.norm(
+            traf_mat[np.where(labels==i)] - clusters.cluster_centers_[i], axis=1)
+        
+    station_df['dist_to_center'] = dist_to_center
 
     return station_df, clusters, labels
 
@@ -1614,8 +1627,18 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
         
         else:
             print('"station location" or "station land use"')
-        
-        X = X[nop_columns]
+        try: 
+            X = X[nop_columns]
+        except KeyError:
+            X_temp = pd.DataFrame()
+            
+            for col in nop_columns:
+                try:
+                    X_temp[col] = X[col]
+                except KeyError:
+                    print(f'Warning: {col} is not in X.')
+            
+            X = X_temp
     
     elif use_points_or_percents == 'percents':
         X = df[p_columns]
@@ -2127,6 +2150,7 @@ def get_silhouette_index(data_mat, centers, labels, verbose=False):
     return S_index
 
 def create_all_pickles(city, year, holidays=False, overwrite=False):
+    
     if isinstance(city, str): # If city is a str (therefore not a list)
         data = bs.Data(city, year, overwrite=overwrite)
         land_use = make_station_df(data, return_land_use=True, holidays=holidays, overwrite=overwrite)[1]

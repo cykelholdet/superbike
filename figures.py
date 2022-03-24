@@ -940,93 +940,128 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
         
         return clusters_dict
         
-def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10):
+def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10, 
+                 cluster_seed=42, plot_figures=False, overwrite=False):
     
-    if cities is None:
-        cities = ['nyc', 'chicago', 'washdc', 'boston', 
-                  'london', 'helsinki', 'oslo', 'madrid']
-    
-    k_list = [i for i in range(k_min, k_max+1)]
-    
-    multiindex = pd.MultiIndex.from_product((cities, ['DB', 'D', 'S', 'SS']))  
-    
-    res_table = pd.DataFrame(index=k_list, columns=multiindex)
-    
-    for city in cities:
+    if not overwrite:
+        try:
+            with open('./python_variables/k_table.pickle', 'rb') as file:
+                res_table = pickle.load(file)
         
-        with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
-            asdf = pickle.load(file)
+        except FileNotFoundError:
+            res_table = k_test_table(cities=cities, year=year, month=month, 
+                                     k_min=k_min, k_max=k_max, 
+                                     cluster_seed=cluster_seed, plot_figures=plot_figures, 
+                                     overwrite=True)
         
-        data = bs.Data(city, year, month)
+    else:
         
-        traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
-                                             user_type='Subscriber')
+        if cities is None:
+            cities = ['nyc', 'chicago', 'washdc', 'boston', 
+                      'london', 'helsinki', 'oslo', 'madrid']
         
-        traf_mat_b = np.concatenate((traf_df_b[0].to_numpy(), 
-                                     traf_df_b[1].to_numpy()),
-                                    axis=1)
+        metrics = ['DB', 'D', 'S', 'SS']
         
-        traf_df_w = data.daily_traffic_average_all(period='w', holidays=False, 
-                                             user_type='Subscriber')
+        k_list = [i for i in range(k_min, k_max+1)]
         
-        traf_mat_w = np.concatenate((traf_df_w[0].to_numpy(), 
-                                     traf_df_w[1].to_numpy()),
-                                    axis=1)
+        multiindex = pd.MultiIndex.from_product((cities, metrics))  
         
+        res_table = pd.DataFrame(index=k_list, columns=multiindex)
         
-        traf_mats = (traf_mat_b, traf_mat_w)
-        
-        casual_stations = set(list(asdf.stat_id.unique())) - (set(list(traf_df_b[0].index)) | set(list(traf_df_b[1].index)))
-        
-        for station in list(casual_stations):
-            asdf = asdf[asdf['stat_id'] != station]
-        
-        asdf = asdf.reset_index()
-        
-        DB_list = []
-        D_list = []
-        S_list = []
-        SS_list = []
-        
-        for k in k_list:
+        for city in cities:
             
-            print(f'\nCalculating for k={k}...\n')
+            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+                asdf = pickle.load(file)
             
-            asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
+            data = bs.Data(city, year, month)
             
-            mask = ~labels.isna()
+            traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
+                                                 user_type='Subscriber')
             
-            labels = labels.to_numpy()[mask]
+            traf_mat_b = np.concatenate((traf_df_b[0].to_numpy(), 
+                                         traf_df_b[1].to_numpy()),
+                                        axis=1)
             
-            data_mat = (traf_mat_b[:,:24] - traf_mat_b[:,24:])[mask]
+            traf_df_w = data.daily_traffic_average_all(period='w', holidays=False, 
+                                                 user_type='Subscriber')
             
-            DB_list.append(ipu.get_Davies_Bouldin_index(data_mat, 
-                                                        clusters.cluster_centers_,
-                                                        labels,
-                                                        verbose=True))
+            traf_mat_w = np.concatenate((traf_df_w[0].to_numpy(), 
+                                         traf_df_w[1].to_numpy()),
+                                        axis=1)
             
-            D_list.append(ipu.get_Dunn_index(data_mat, 
-                                             clusters.cluster_centers_,
-                                             labels,
-                                             verbose=True))
             
-            S_list.append(ipu.get_silhouette_index(data_mat, 
-                                                   clusters.cluster_centers_,
-                                                   labels,
-                                                   verbose=True))
+            traf_mats = (traf_mat_b, traf_mat_w)
             
-            SS_list.append(clusters.inertia_)
+            casual_stations = set(list(asdf.stat_id.unique())) - (set(list(traf_df_b[0].index)) | set(list(traf_df_b[1].index)))
             
-        res_table[(city, 'DB')] = DB_list
-        res_table[(city, 'D')] = D_list
-        res_table[(city, 'S')] = S_list
-        res_table[(city, 'SS')] = SS_list
-    
-    res_table = res_table.rename(columns=bs.name_dict)
-    
+            for station in list(casual_stations):
+                asdf = asdf[asdf['stat_id'] != station]
+            
+            asdf = asdf.reset_index()
+            
+            DB_list = []
+            D_list = []
+            S_list = []
+            SS_list = []
+            
+            for k in k_list:
+                
+                print(f'\nCalculating for k={k}...\n')
+                
+                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, cluster_seed)
+                
+                mask = ~labels.isna()
+                
+                labels = labels.to_numpy()[mask]
+                
+                data_mat = (traf_mat_b[:,:24] - traf_mat_b[:,24:])[mask]
+                
+                DB_list.append(ipu.get_Davies_Bouldin_index(data_mat, 
+                                                            clusters.cluster_centers_,
+                                                            labels,
+                                                            verbose=True))
+                
+                D_list.append(ipu.get_Dunn_index(data_mat, 
+                                                 clusters.cluster_centers_,
+                                                 labels,
+                                                 verbose=True))
+                
+                S_list.append(ipu.get_silhouette_index(data_mat, 
+                                                       clusters.cluster_centers_,
+                                                       labels,
+                                                       verbose=True))
+                
+                SS_list.append(clusters.inertia_)
+                
+            res_table[(city, 'DB')] = DB_list
+            res_table[(city, 'D')] = D_list
+            res_table[(city, 'S')] = S_list
+            res_table[(city, 'SS')] = SS_list
+        
+        res_table = res_table.rename(columns=bs.name_dict)
+        
+        with open('./python_variables/k_table.pickle', 'wb') as file:
+            pickle.dump(res_table, file)
+        
     print(res_table.to_latex(column_format='@{}l'+('r'*len(res_table.columns)) + '@{}',
                              index=True, na_rep = '--', float_format='%.3f',
                              multirow=True, multicolumn=True, multicolumn_format='c'))
+    
+    if plot_figures:
+        plt.style.use('seaborn-darkgrid')
+        
+        metrics_dict = {'DB' : 'Davies-Bouldin index (lower is better)',
+                        'D' : 'Dunn Index (higher is better)',
+                        'S' : 'Silhouette Index (higher is better)',
+                        'SS' : 'Sum of Squares (lower is better)'}
+        
+        fig, ax = plt.subplots(ncols=1, nrows=4)
+        
+        for row, metric in enumerate(metrics_dict.keys()):
+            
+            for city in cities:
+                ax[row,0].plot(res_table[(bs.name_dict[city], metric)], label=bs.name_dict[city])
+            ax[row,0].set_ylabel(metrics_dict[metric])
     
     return res_table
     
@@ -1041,14 +1076,13 @@ if __name__ == "__main__":
     
     # sum_stat_table=make_summary_statistics_table(print_only=True)
     # LR_table=make_LR_table(2019)
-    # k_table = k_test_table()
+    k_table = k_test_table(plot_figures=True)
     # sr = city_tests()
     
-    clusters_list = []
-    
-    for k in [5,6,7,8,9,10]:
-        clusters_list.append(plot_cluster_centers('all', k=k))
-        plt.close()
+    # clusters_list = []
+    # for k in [2,3,4,5,6,7,8,9,10]:
+    #     clusters_list.append(plot_cluster_centers('all', k=k))
+    #     plt.close()
     
    
     
