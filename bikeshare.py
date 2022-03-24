@@ -57,7 +57,7 @@ def download_data(city, year, verbose=True):
                 try:
                     z = rarfile.RarFile(io.BytesIO(r.content))
                     z.extractall(f'data/{city}/')
-                except rarfile.BadRarFile:
+                except rarfile.NotRarFile:
                     with open(f'data/{city}/{r.url.rsplit("/", 1)[-1]}', 'wb') as file:
                         file.write(r.content)
                 except rarfile.RarCannotExec:

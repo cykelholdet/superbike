@@ -972,7 +972,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
         land_use.set_crs(epsg=4326, inplace=True)
         land_use['zone_type'] = 'UNKNOWN'
     
-    print(".")
+    print(".", end="")
     
     if data.city in ['boston', 'chicago', 'la', 'minneapolis', 'nyc', 'sf', 'washdc']:
         elevation_dataset = 'ned10m'
@@ -999,7 +999,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
     df['service_area'], df['service_area_size'] = get_service_area(data.city, df, land_use, service_radius=500)
     if len(census_df) > 0:
         df['pop_density'] = pop_density_in_service_area(df, census_df)
-    print(".")
+    print(".", end="")
     
     df.rename(mapper=census_key(data.city), axis=1, inplace=True)  
     df['zone_type'] = df['zone_type'].apply(lambda x: x if pd.notnull(x) else 'UNKNOWN')
@@ -1009,7 +1009,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
     if data.day is None:
         with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'wb') as file:
             pickle.dump([df, land_use, census_df], file)
-    print(".")
+    print(".", end="")
     neighborhoods = make_neighborhoods(data.city, data.year, land_use)
     
     df = df.merge(neighborhoods, on='stat_id')
