@@ -43,15 +43,15 @@ cmap = cm.get_cmap('Blues')
 # Load bikeshare data
 
 YEAR = 2019
-MONTH = 9
-CITY = 'nyc'
+MONTH = None
+CITY = 'london'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
 #station_df.dropna(inplace=True)
     
 
-def plot_center(labels, cluster_j, c_center, title_pre="Mean"):
+def plot_center(traffic_matrix, labels, cluster_j, c_center, title_pre="Mean", plot_std=True):
     """
     Plot a 48-dimensional cluster center vector as two lines in a hvplot entity
 
@@ -73,10 +73,41 @@ def plot_center(labels, cluster_j, c_center, title_pre="Mean"):
         a plot.
 
     """
+    
+    traffic_difference = traffic_matrix[:,:24]-traffic_matrix[:,24:]
+    labels = labels[~labels.isna()].to_numpy()
     cc_df = pd.DataFrame([c_center[:24], c_center[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
-    cc_plot = cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
     n = np.sum(labels == cluster_j)
+    
+    if plot_std:    
+        if cc_df.arrivals.isna().all():
+            
+            stds = np.std(traffic_difference[np.where(labels==cluster_j)], axis=0)
+            varea = pd.DataFrame()
+            varea['std_low'] = cc_df['departures'] - stds
+            varea['std_high'] = cc_df['departures'] + stds
+            varea['hour'] = np.arange(0,24)
+            
+            cc_plot = varea.hvplot.area(x='hour', y='std_low', y2='std_high', alpha=0.5, line_width=0) * cc_df['departures'].hvplot()
+            
+        else:
+            dep_stds = np.std(traffic_matrix[:,:24][np.where(labels==cluster_j)], axis=0)
+            arr_stds = np.std(traffic_matrix[:,24:][np.where(labels==cluster_j)], axis=0)
+            varea = pd.DataFrame()
+            varea['dep_low'] = cc_df['departures'] - dep_stds
+            varea['dep_high'] = cc_df['departures'] + dep_stds
+            varea['arr_low'] = cc_df['arrivals'] - arr_stds
+            varea['arr_high'] = cc_df['arrivals'] + arr_stds
+            varea['hour'] = np.arange(0,24)
+            
+            cc_plot = varea.hvplot.area(x='hour', y='dep_low', y2='dep_high', alpha=0.5, line_width=0) * varea.hvplot.area(x='hour', y='arr_low', y2='arr_high', alpha=0.5, line_width=0) * cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
+    
+    else:
+        cc_plot = cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
+    
     cc_plot.opts(title=f"{title_pre} of cluster {cluster_j} ({ipu.cluster_color_dict[cluster_j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage')
+    
+    
     return cc_plot
 
 
@@ -129,7 +160,9 @@ class BikeDash(param.Parameterized):
     cnorm = param.Selector(objects=['linear', 'log'])
     day = param.Integer(default=1, bounds=(1, 31))
     dist_func = param.Selector(objects=['norm'])
-    plot_all_clusters = param.Selector(objects=['False', 'True'])
+    plot_all_clusters = param.Selector(objects=['True', 'False']) # TODO: change this back
+    keep_furthest_or_closest = param.Selector(objects=['Furthest', 'Closest'])
+    dist_to_center = param.Integer(default=100, bounds=(0,100))
     show_land_use = param.Selector(objects=['False', 'True'])
     show_census = param.Selector(objects=['False', 'True'])
     show_service_area = param.Selector(objects=['False', 'True'])
@@ -194,7 +227,9 @@ class BikeDash(param.Parameterized):
         # self.boolean_ = not self.boolean_
     
     
-    @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 'city', 'month', 'user_type', watch=False)
+    @param.depends('day_type', 'min_trips', 'clustering', 'k', 'random_state', 
+                   'city', 'month', 'user_type', 'dist_to_center', 
+                   'keep_furthest_or_closest', watch=False)
     def plot_clusters_full(self):
         print("Plotting Clusters")
         self.station_df, self.clusters, self.labels = ipu.get_clusters(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, self.clustering, self.k, self.random_state)
@@ -210,12 +245,38 @@ class BikeDash(param.Parameterized):
             title = f'Number of trips per station in {month_dict[self.month]} {YEAR} in {bs.name_dict[self.city]}'
         else:
             title = f"{self.clustering} clustering in {month_dict[self.month]} {YEAR} in {bs.name_dict[self.city]}"
-
-        plot = gv.Points(self.station_df, 
+        
+        stat_df = self.station_df.copy()
+        
+        # Rank the stations based on distance to its cluster center
+        dist_to_center_argsort = np.argsort(stat_df['dist_to_center'].to_numpy())
+        placement_dict = dict(zip(dist_to_center_argsort, range(len(stat_df))))
+        stat_df['placement'] = stat_df.index.to_numpy()
+        stat_df['placement'] = stat_df['placement'].replace(placement_dict)
+        
+        # Make stations invisible based on their ranking
+        if self.keep_furthest_or_closest == 'Furthest':
+            cut_off_placement = int(len(stat_df)-np.round(len(stat_df)*self.dist_to_center/100))
+            point_sizes = np.zeros(len(stat_df))
+            point_sizes[stat_df['placement']>=cut_off_placement] = 10
+            stat_df['point_size'] = point_sizes
+            
+            # stat_df = stat_df[stat_df['placement'] >= cut_off_placement]
+        else:    
+            cut_off_placement = int(np.round(len(stat_df)*self.dist_to_center/100))
+            point_sizes = np.zeros(len(stat_df))
+            point_sizes[stat_df['placement']<=cut_off_placement] = 10
+            stat_df['point_size'] = point_sizes
+            
+            # stat_df = stat_df[stat_df['placement'] <= cut_off_placement]
+        
+        # Plot remaining stations
+        plot = gv.Points(stat_df, 
                          kdims=['long', 'lat'], 
                          vdims=['stat_id', 'color', 'n_trips', 'b_trips', 
-                                'w_trips', 'zone_type', 'name', ])
-        plot.opts(gv.opts.Points(fill_color='color', size=10, line_color='black'))
+                                'w_trips', 'zone_type', 'name', 'point_size', 
+                                'dist_to_center'])
+        plot.opts(gv.opts.Points(fill_color='color', size='point_size', line_color='black'))
         
         # self.LR_indicator = not self.LR_indicator
         
@@ -271,6 +332,7 @@ class BikeDash(param.Parameterized):
                     return f"Station index {i} does not belong to a cluster duto to min_trips"
 
         else: # k-means or k-medoids
+            traffic_matrix = ipu.mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
             if self.plot_all_clusters == 'True':
                 if self.clusters == None:
                     return "Please select Clustering"
@@ -281,7 +343,7 @@ class BikeDash(param.Parameterized):
                     # print(self.labels[0])
                     
                     ccs = self.clusters.cluster_centers_[j]
-                    cc_plot = plot_center(self.labels, j, ccs, title_pre="Centroid")
+                    cc_plot = plot_center(traffic_matrix, self.labels, j, ccs, title_pre="Centroid")
                     cc_plot_list.append(cc_plot)
                 return pn.Column(*cc_plot_list)
             if not index:
@@ -291,7 +353,7 @@ class BikeDash(param.Parameterized):
                 if ~np.isnan(self.station_df['label'][i]):
                     j = int(self.station_df['label'][i])
                     ccs = self.clusters.cluster_centers_[j]
-                    cc_plot = plot_center(self.station_df['label'], j, ccs, title_pre="Centroid")
+                    cc_plot = plot_center(traffic_matrix, self.station_df['label'], j, ccs, title_pre="Centroid")
                     return pn.Column(cc_plot, f"Station index {i} is in cluster {j}")
                 else:
                     return f"Station index {i} is not in a cluster due to min_trips."
@@ -389,7 +451,8 @@ tooltips = [
     ('n_trips', '@n_trips total'),
     ('b_trips', '@b_trips total'),
     ('w_trips', '@w_trips total'),
-    ('land use', '@zone_type')
+    ('Land use', '@zone_type'),
+    ('Dist to center', '@dist_to_center')
 ]
 hover = HoverTool(tooltips=tooltips)
 
@@ -604,7 +667,7 @@ city_dict = dict(zip([bs.name_dict[city] for city in city_list], city_list))
 # Parameters
 # =============================================================================
 
-param_split = 19 # add to this number if additional parameters are added in the first column
+param_split = 21 # add to this number if additional parameters are added in the first column
 
 params = pn.Param(bike_params.param, widgets={
     'city': {'widget_type': pn.widgets.Select, 'options': city_dict},
@@ -613,6 +676,8 @@ params = pn.Param(bike_params.param, widgets={
     'trip_type': {'widget_type': pn.widgets.RadioButtonGroup, 'button_type': 'success'},
     'day_type': pn.widgets.RadioButtonGroup,
     'plot_all_clusters': {'widget_type': pn.widgets.RadioButtonGroup, 'title': 'Hello'},
+    'keep_furthest_or_closest' : pn.widgets.RadioButtonGroup,
+    'dist_to_center': {'widget_type' : pn.widgets.IntSlider, 'name' : '% of stations closest/furthest to cluster center'},
     'day': pn.widgets.IntSlider,
     'random_state': pn.widgets.IntInput,
     'min_trips': pn.widgets.IntInput,
@@ -681,6 +746,7 @@ parameter_strings = [
     ['Show census:', 'Show census_title'],
     ['Show service area:', 'Show service_title'],
     ['Use road:', 'Use road_title'],
+    ['Keep stations furthest or closest to cluster center:', 'Keep_fur_or_clo_title']
     ]
 
 for parstr in parameter_strings:
@@ -691,9 +757,9 @@ for parstr in parameter_strings:
 
 parameter_names = [
     'City', 'Month_title', 'Month', 'Day type', 'Clustering_title', 
-    'Clustering', 'K', 'Plot all_title', 'Plot all clusters', 'Show land_title',
-    'Show land use', 'Show census_title', 'Show census', 'Show service_title',
-    'Show service area', 'Service radius', 'Service area color',
+    'Clustering', 'K', 'Plot all_title', 'Plot all clusters', 'Keep_fur_or_clo_title', 
+    'Keep furthest or closest', '% of stations closest/furthest to cluster center', 'Show land_title', 'Show land use', 
+    'Show census_title', 'Show census', 'Show service_title', 'Show service area', 'Service radius', 'Service area color',
     'Use road_title', 'Use road', 'Random state', 'Min trips', 'User type']
 
 parameter_column = []
