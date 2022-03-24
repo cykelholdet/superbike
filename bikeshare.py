@@ -11,14 +11,12 @@ import warnings
 import datetime
 import zipfile
 import io
+from requests import get
 
 import pandas as pd
 import numpy as np
-import networkx as nx
-import matplotlib as mpl
 import matplotlib.pyplot as plt
-from pyproj import Transformer
-from requests import get
+import rarfile
 
 import dataframe_key
 
@@ -30,12 +28,14 @@ from workalendar.asia import Taiwan
 from workalendar.america import Mexico, Argentina, Quebec
 
 
-def download_data(city, year):
+def download_data(city, year, verbose=True):
     if not os.path.exists(f'data/{city}'):
         os.makedirs(f'data/{city}')
     with open(f'bikeshare_data_sources/{city}/{year}.txt', 'r') as file:
         filenames = file.read().splitlines()
     for url in filenames:
+        if verbose:
+            print(url)
         r = get(url, stream=True)
         if (city in ['bergen', 'oslo', 'trondheim',]) and year >= 2019:
             with open(f'data/{city}/{year}{r.url.rsplit("/", 1)[-1][:-4]}-{city}.csv', 'wb') as file:
@@ -54,8 +54,14 @@ def download_data(city, year):
                 z = zipfile.ZipFile(io.BytesIO(r.content))
                 z.extractall(f'data/{city}/')
             except zipfile.BadZipFile:
-                with open(f'data/{city}/{r.url.rsplit("/", 1)[-1]}', 'wb') as file:
-                    file.write(r.content)
+                try:
+                    z = rarfile.RarFile(io.BytesIO(r.content))
+                    z.extractall(f'data/{city}/')
+                except rarfile.BadRarFile:
+                    with open(f'data/{city}/{r.url.rsplit("/", 1)[-1]}', 'wb') as file:
+                        file.write(r.content)
+                except rarfile.RarCannotExec:
+                    raise rarfile.RarCannotExec("Please install unrar from your distribution's package manager or install unrar.dll")
     return filenames
 
 
@@ -714,7 +720,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
         elif city == "madrid":
             # Depending on the month, the data has different formats
-            if year == 2019 and month > 7:
+            if datetime.datetime(year, month, 1) > datetime.datetime(2019, 7, 1):
                 try:
                     df = pd.read_json(
                         f"./data/{city}/{year:d}{month:02d}_movements.json", lines=True)
@@ -754,7 +760,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
                 df = pd.concat((df_pre, df))
 
-            elif year == 2019 and month == 7:
+            elif datetime.datetime(year, month, 1) == datetime.datetime(2019, 7, 1):
                 try:
                     df = pd.read_json(
                         f"./data/{city}/{year:d}{month:02d}_movements.json", lines=True)
@@ -769,12 +775,17 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
                 df['start_dt'] = df['start_dt'].dt.tz_convert(tz='Europe/Madrid')
             else:
                 try:
-                    df = pd.read_json(
-                        f"./data/{city}/{year:d}{month:02d}_Usage_Bicimad.json", lines=True, encoding = "ISO-8859-1")
+                    df = pd.DataFrame()
+                    with pd.read_json(f'data/madrid/{year:d}{month:02d}_Usage_Bicimad.json', lines=True, chunksize=10000, encoding = "ISO-8859-1") as chunks:
+                        for chunk in chunks:
+                            df = pd.concat((df, chunk.drop(columns=['track'], errors='ignore')))
                 except FileNotFoundError as exc:
                     raise FileNotFoundError(
                         'No trip data found. All relevant files can be found at https://opendata.emtmadrid.es/Datos-estaticos/Datos-generales-(1)') from exc
-                
+                except ValueError as exc:
+                    raise FileNotFoundError(
+                        'No trip data found. All relevant files can be found at https://opendata.emtmadrid.es/Datos-estaticos/Datos-generales-(1)') from exc
+                    
                 if 'track' in df.columns:
                     df.drop(columns=['track'], inplace=True) # Remember that they exist in some data
                 df['unplug_hourTime'] = pd.json_normalize(
@@ -793,11 +804,23 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df['end_dt'] = df['start_dt'] + \
                 pd.to_timedelta(df['duration'], unit='s')
                 
-            if year == 2019 and month >= 7:
+            if datetime.datetime(year, month, 1) >= datetime.datetime(2019, 7, 1):
                 # In the last months of 2019 the station data is UTF-8
                 _, stations = pd.read_json(
                     f"./data/{city}/{year:d}{month:02d}_stations_madrid.json",
                     lines=True).iloc[-1]
+            elif (datetime.datetime(year, month, 1) <= datetime.datetime(2018, 10, 1)) and (datetime.datetime(year, month, 1) >= datetime.datetime(2018, 8, 1)):
+                _, stations = pd.read_json(
+                    f"./data/{city}/Bicimad_Estacions_{year:d}{month:02d}.json",
+                    lines=True, encoding = "ISO-8859-1").iloc[-1]
+            # There is no station information prior to July 2018, so the earliest
+            # station information is used. The data from July 2018 is in invalid json
+            # and contains the same locations as August, so August is used.
+            elif datetime.datetime(year, month, 1) < datetime.datetime(2018, 8, 1):
+                _, stations = pd.read_json(
+                    f"./data/{city}/Bicimad_Estacions_201808.json",
+                    lines=True, encoding = "ISO-8859-1").iloc[-1]
+            # Else condition is reached in 2019 Jan-Jun
             else:
                 _, stations = pd.read_json(
                     f"./data/{city}/Bicimad_Stations_{year:d}{month:02d}.json",
@@ -1697,9 +1720,9 @@ def station_names(df, id_index):
     return names
 
 
-def get_elevation(lat, long, dataset="mapzen"):
+def get_elevation(lat, long, dataset="aster30m"):
     """
-    Finds the elevation for a specific coordinate.
+    Finds the elevation for a specific coordinate or list of coordinates.
 
     Elevation data is taken from https://www.opentopodata.org/
 
@@ -1710,7 +1733,7 @@ def get_elevation(lat, long, dataset="mapzen"):
     long : float or iterable
         Longitude or iterable containing longitudes.
     dataset : str, optional
-        Dataset used for elevation data. The default is "mapzen".
+        Dataset used for elevation data. The default is "aster30m".
 
     Returns
     -------
@@ -1756,7 +1779,17 @@ def get_elevation(lat, long, dataset="mapzen"):
                 elevation = np.append(
                     elevation, np.array(pd.json_normalize(
                         r.json(), 'results')['elevation']))
-
+            else:
+                warnings.warn(f"No json response. Query = {loc_string}\nStatus code = {r.status_code}")
+            
+            if n == 0:
+                print('Waiting for elevation API', end='')
+                time.sleep(1)
+            elif n < len(long)-i:
+                print('.', end='')
+                time.sleep(1)
+            else:
+                print(' Done')
     return elevation
 
 
@@ -2578,11 +2611,11 @@ class Data:
                 return matrix_b, matrix_w
             except FileNotFoundError:
                 print("Daily traffic pickle not found")
-        print('Pickling average daily traffic for all stations... \nSit back and relax, this might take a while...')
+        print('Pickling average daily traffic for all stations...')
         pre = time.time()
         departures_b, arrivals_b = self.daily_traffic_average_all(
             'b', normalise=normalise, plot=plot, holidays=holidays, user_type=user_type)
-        print("Hang in there, we're halfway...")
+        # print("Hang in there, we're halfway...")
         departures_w, arrivals_w = self.daily_traffic_average_all(
             'w', normalise=normalise, plot=plot, holidays=holidays, user_type=user_type)
 
@@ -2620,7 +2653,7 @@ class Data:
         with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}.pickle', 'wb') as file:
             pickle.dump((matrix_b, matrix_w), file)
 
-        print(f'Pickling done. Time taken: {(time.time()-pre):.1f} s')
+        print(f'Pickling daily traffic done. Time taken: {(time.time()-pre):.1f} s')
 
         return matrix_b, matrix_w
 
@@ -2843,6 +2876,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('oslo', 2018, 5, overwrite=False, user_type='all')
+    data = Data('madrid', 2019, 1, overwrite=True, user_type='all')
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()

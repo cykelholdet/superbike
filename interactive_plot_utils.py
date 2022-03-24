@@ -22,7 +22,6 @@ import statsmodels.api as sm
 
 from holoviews.util.transform import lon_lat_to_easting_northing
 from shapely.geometry import Point, Polygon, LineString
-from geopy.distance import great_circle
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.mixture import GaussianMixture
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
@@ -965,7 +964,6 @@ def make_station_df(data, holidays=True, return_land_use=False,
         df['population'] = 0
         df['pop_density'] = 0
         df['zone_type'] = 'UNKNOWN'
-        subways_df = gpd.GeoDataFrame([])
         census_df = gpd.GeoDataFrame([])
         census_df.set_geometry([], inplace=True)
         census_df.set_crs(epsg=4326, inplace=True)
@@ -975,6 +973,16 @@ def make_station_df(data, holidays=True, return_land_use=False,
         land_use['zone_type'] = 'UNKNOWN'
     
     print(".")
+    
+    if data.city in ['boston', 'chicago', 'la', 'minneapolis', 'nyc', 'sf', 'washdc']:
+        elevation_dataset = 'ned10m'
+    elif data.city in ['bergen', 'edinburgh', 'helsinki', 'london', 'madrid',
+                       'oslo', 'trondheim']:
+        elevation_dataset = 'eudem25m'
+    else:
+        elevation_dataset = 'aster30m'
+    
+    df['elevation'] = bs.get_elevation(df['lat'], df['long'], elevation_dataset)
     
     station_df = nearest_transit(data.city, df)
     
@@ -991,7 +999,8 @@ def make_station_df(data, holidays=True, return_land_use=False,
     df['service_area'], df['service_area_size'] = get_service_area(data.city, df, land_use, service_radius=500)
     if len(census_df) > 0:
         df['pop_density'] = pop_density_in_service_area(df, census_df)
-
+    print(".")
+    
     df.rename(mapper=census_key(data.city), axis=1, inplace=True)  
     df['zone_type'] = df['zone_type'].apply(lambda x: x if pd.notnull(x) else 'UNKNOWN')
     
@@ -1000,7 +1009,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
     if data.day is None:
         with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'wb') as file:
             pickle.dump([df, land_use, census_df], file)
-    
+    print(".")
     neighborhoods = make_neighborhoods(data.city, data.year, land_use)
     
     df = df.merge(neighborhoods, on='stat_id')
@@ -1217,11 +1226,11 @@ def sort_clusters(station_df, cluster_means, labels, traffic_matrices, day_type,
     if day_type == 'business_days':
         
         traffic_matrices = traffic_matrices[0][station_df.index][:,:24] - traffic_matrices[0][station_df.index][:,24:]
-        mean = np.mean(traffic_matrices)
+        # mean = np.mean(traffic_matrices)
         
         # mean = np.mean(traffic_matrices[0][station_df.index], axis=0)
-    elif day_type == 'weekend':
-        mean = np.mean(traffic_matrices[1][station_df.index], axis=0)
+    # elif day_type == 'weekend':
+        # mean = np.mean(traffic_matrices[1][station_df.index], axis=0)
     
     morning_hours = np.array([6,7,8,9,10])
     afternoon_hours = np.array([15,16,17,18,19])
@@ -1515,8 +1524,12 @@ def get_service_area(city, station_df, land_use, service_radius=500):
     
     service_areas[mask].apply(shapely.ops.unary_union)
     
+    mask = service_areas.area == 0
     
-    service_areas[service_areas.area == 0] = coords[service_areas.area == 0].buffer(0.0001)
+    if mask.sum() > 0:
+        print('Empty service_areas exist. Buffering.')
+    
+    service_areas[mask] = coords[mask].buffer(0.0001)
     
     # service_areas = service_areas.apply(
     #     lambda poly: Point(0,0).buffer(0.0001) if poly.area==0 else poly)
@@ -2173,7 +2186,7 @@ def create_all_pickles(city, year, holidays=False, overwrite=False):
                 with contextlib.suppress(FileNotFoundError):
                     os.remove(f"python_variables/neighborhoods_{cities_i}{year}.pickle")
                 create_all_pickles(cities_i, year, holidays=holidays, overwrite=overwrite)
-                print(f'{bs.name_dict[city]} took {time.time() - pre:.2f} seconds')
+                print(f'{bs.name_dict[cities_i]} took {time.time() - pre:.2f} seconds')
         except TypeError:
             print(city, "is not iterable, no pickle was made")
 
@@ -2224,7 +2237,7 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('oslo', 2019, 9, overwrite=True)
+    data = bs.Data('madrid', 2019, 9, overwrite=True)
 
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=False)
