@@ -1041,7 +1041,7 @@ def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10,
         res_table = res_table.rename(columns=bs.name_dict)
         
         with open('./python_variables/k_table.pickle', 'wb') as file:
-            pickle.dump(res_table)
+            pickle.dump(res_table, file)
         
     print(res_table.to_latex(column_format='@{}l'+('r'*len(res_table.columns)) + '@{}',
                              index=True, na_rep = '--', float_format='%.3f',
