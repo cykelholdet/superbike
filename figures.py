@@ -943,26 +943,27 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
 def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10, 
                  cluster_seed=42, plot_figures=False, overwrite=False):
     
+    if cities is None:
+            cities = ['nyc', 'chicago', 'washdc', 'boston', 
+                      'london', 'helsinki', 'oslo', 'madrid'] 
+    
+    metrics = ['DB', 'D', 'S', 'SS']
+        
+    k_list = [i for i in range(k_min, k_max+1)]
+    
     if not overwrite:
         try:
             with open('./python_variables/k_table.pickle', 'rb') as file:
                 res_table = pickle.load(file)
         
         except FileNotFoundError:
+            print('No pickle found. Making pickle...')
             res_table = k_test_table(cities=cities, year=year, month=month, 
                                      k_min=k_min, k_max=k_max, 
                                      cluster_seed=cluster_seed, plot_figures=plot_figures, 
                                      overwrite=True)
         
     else:
-        
-        if cities is None:
-            cities = ['nyc', 'chicago', 'washdc', 'boston', 
-                      'london', 'helsinki', 'oslo', 'madrid']
-        
-        metrics = ['DB', 'D', 'S', 'SS']
-        
-        k_list = [i for i in range(k_min, k_max+1)]
         
         multiindex = pd.MultiIndex.from_product((cities, metrics))  
         
@@ -1050,29 +1051,42 @@ def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10,
     if plot_figures:
         plt.style.use('seaborn-darkgrid')
         
-        metrics_dict = {'DB' : 'Davies-Bouldin index (lower is better)',
+        metrics_dict = {
                         'D' : 'Dunn Index (higher is better)',
                         'S' : 'Silhouette Index (higher is better)',
+                        'DB' : 'Davies-Bouldin index (lower is better)',
                         'SS' : 'Sum of Squares (lower is better)'}
         
-        fig, ax = plt.subplots(ncols=1, nrows=4)
+        fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10,8))
         
-        for row, metric in enumerate(metrics_dict.keys()):
-            
-            for city in cities:
-                ax[row,0].plot(res_table[(bs.name_dict[city], metric)], label=bs.name_dict[city])
-            ax[row,0].set_ylabel(metrics_dict[metric])
-    
+        count=0
+        for row in range(2):
+            for col in range(2):
+                for city in cities:
+                    ax[row, col].plot(res_table[(bs.name_dict[city], 
+                                                 list(metrics_dict.keys())[count])],
+                                      label=bs.name_dict[city])
+                    ax[row,col].set_title(metrics_dict[
+                        list(metrics_dict.keys())[count]])
+                    
+                    # if row == 0:
+                    #     ax[row,col].xaxis.set_ticklabels([])
+                    
+                    # else:
+                    ax[row,col].set_xlabel('k')
+                count+=1
+                
+        plt.tight_layout(pad=2)
+        ax[1,0].legend(loc='upper center', bbox_to_anchor=(1.05,-0.1), ncol=len(ax[0,0].get_lines()))
+        
+        plt.savefig('figures/paper_figures/k_test_figures.pdf')
+        
     return res_table
-    
-    
-        
-        
         
 if __name__ == "__main__":
     
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
-                  'london', 'helsinki', 'oslo', 'madrid']
+              'london', 'helsinki', 'oslo', 'madrid']
     
     # sum_stat_table=make_summary_statistics_table(print_only=True)
     # LR_table=make_LR_table(2019)
