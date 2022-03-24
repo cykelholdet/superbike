@@ -776,13 +776,16 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             else:
                 try:
                     df = pd.DataFrame()
-                    chunks = pd.read_json('data/madrid/201812_Usage_Bicimad.json', lines=True, chunksize=10000, encoding = "ISO-8859-1")
-                    for chunk in chunks:
-                        df = df.append(chunk.drop(columns=['track'], errors='ignore'))
+                    with pd.read_json(f'data/madrid/{year:d}{month:02d}_Usage_Bicimad.json', lines=True, chunksize=10000, encoding = "ISO-8859-1") as chunks:
+                        for chunk in chunks:
+                            df = pd.concat((df, chunk.drop(columns=['track'], errors='ignore')))
                 except FileNotFoundError as exc:
                     raise FileNotFoundError(
                         'No trip data found. All relevant files can be found at https://opendata.emtmadrid.es/Datos-estaticos/Datos-generales-(1)') from exc
-                
+                except ValueError as exc:
+                    raise FileNotFoundError(
+                        'No trip data found. All relevant files can be found at https://opendata.emtmadrid.es/Datos-estaticos/Datos-generales-(1)') from exc
+                    
                 if 'track' in df.columns:
                     df.drop(columns=['track'], inplace=True) # Remember that they exist in some data
                 df['unplug_hourTime'] = pd.json_normalize(
@@ -2873,6 +2876,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 if __name__ == "__main__":
     pre = time.time()
-    data = Data('madrid', 2018, 12, overwrite=False, user_type='all')
+    data = Data('madrid', 2019, 1, overwrite=True, user_type='all')
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()
