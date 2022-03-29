@@ -252,11 +252,12 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
                 (df['end_stat_long'] < max_long) &
                 (df['end_stat_long'] > min_long))]
 
-            df.reset_index(inplace=True, drop=True)
-
             df['start_dt'] = pd.to_datetime(df['start_t'])
             df['end_dt'] = pd.to_datetime(df['end_t'])
             df.drop(columns=['start_t', 'end_t'], inplace=True)
+            
+            df = df[df['start_dt'].dt.month == month]
+            df.reset_index(inplace=True, drop=True)
 
             df['user_type'] = df['user_type'].map(
                 {'Member': 'Subscriber',
@@ -2471,6 +2472,7 @@ class Data:
             day_hour_count = pd.concat({'date': subset.dt.date, 'hour': subset.dt.hour}, axis=1).value_counts().unstack(fill_value=0)
 
             shap = day_hour_count.shape
+            # If shap[0] > n_days, there are too many days in the data.
             start_mean.append(day_hour_count.sum(axis=0).rename(station) / n_days)
             start_std.append(
                 pd.concat(
