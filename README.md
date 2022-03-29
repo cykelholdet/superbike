@@ -44,6 +44,18 @@ conda install -c conda-forge cartopy scikit-learn-extra numba llvmlite numpy mat
 pip install smopy rarfile
 ```
 
+There are some issues with the IPython debugger and with Spyder in 3.10. If you wish to use Python 3.9 instead, you can instead do.
+
+```
+conda create -n bike_env
+conda activate bike_env
+
+conda install -c conda-forge python=3.9 cartopy scikit-learn-extra numba llvmlite numpy matplotlib pandas scipy holoviews hvplot geoviews geopandas scikit-image statsmodels workalendar geopy openpyxl
+
+pip install smopy rarfile
+```
+
+
 ## Directory structure
 
 The data should be organised as follows. Please create directories `data`, `python_variables`, `python_variables/big_data`, and `figures` as necessary.
