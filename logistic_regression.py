@@ -4,6 +4,7 @@ Created on Tue Jan 18 09:30:43 2022
 
 @author: Nicolai
 """
+from functools import partial
 
 import numpy as np
 import pandas as pd
@@ -502,7 +503,7 @@ from statsmodels.tools import add_constant
 import statsmodels.formula.api as smf
 import smopy
 
-CITY = 'oslo'
+CITY = 'nyc'
 YEAR = 2019
 MONTH = 9
 
@@ -564,57 +565,57 @@ OLS_results = OLS_model.fit(maxiter=10000)
 print(OLS_results.summary())
 
 
-OLS_pred = OLS_results.get_prediction()
+# OLS_pred = OLS_results.get_prediction()
 
-iv_l = OLS_pred.summary_frame()["obs_ci_lower"]
-iv_u = OLS_pred.summary_frame()["obs_ci_upper"]
-
-
-variable = 'nearest_subway_dist'
+# iv_l = OLS_pred.summary_frame()["obs_ci_lower"]
+# iv_u = OLS_pred.summary_frame()["obs_ci_upper"]
 
 
-x = X_scaled[variable]
-
-a = pd.concat([x, y], axis=1).sort_values(variable)
-
-x = a[a.columns[0]]
-y = a[a.columns[1]]
+# variable = 'nearest_subway_dist'
 
 
-fig, ax = plt.subplots(figsize=(8, 6))
+# x = X_scaled[variable]
 
-ax.plot(x, y, "o", label="Data")
-ax.plot(x, OLS_results.fittedvalues, "r--.", label="Predicted")
-# ax.plot(x, iv_u, "r--")
-# ax.plot(x, iv_l, "r--")
-ax.set_xlabel(variable)
-ax.set_ylabel('n_trips')
-legend = ax.legend(loc="best")
+# a = pd.concat([x, y], axis=1).sort_values(variable)
 
-cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
-        'pop_density', 'nearest_subway_dist', triptype]
+# x = a[a.columns[0]]
+# y = a[a.columns[1]]
 
-df = station_df[cols]
+
+# fig, ax = plt.subplots(figsize=(8, 6))
+
+# ax.plot(x, y, "o", label="Data")
+# ax.plot(x, OLS_results.fittedvalues, "r--.", label="Predicted")
+# # ax.plot(x, iv_u, "r--")
+# # ax.plot(x, iv_l, "r--")
+# ax.set_xlabel(variable)
+# ax.set_ylabel('n_trips')
+# legend = ax.legend(loc="best")
+
+# cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
+#         'pop_density', 'nearest_subway_dist', triptype]
+
+# df = station_df[cols]
     
-df['nearest_subway_dist'] = df['nearest_subway_dist']/1000
-df['pop_density'] = df['pop_density']/10000
-df[triptype] = np.sqrt(df[triptype])
+# df['nearest_subway_dist'] = df['nearest_subway_dist']/1000
+# df['pop_density'] = df['pop_density']/10000
+# df[triptype] = np.sqrt(df[triptype])
 
-model = smf.ols(formula=f"""{triptype} ~ 
-                percent_residential + percent_commercial + percent_industrial + percent_recreational + pop_density + nearest_subway_dist
-                + percent_residential:percent_commercial + percent_residential:percent_industrial + percent_residential:percent_recreational
-                + percent_commercial:percent_industrial + percent_commercial:percent_recreational
-                + percent_industrial:percent_recreational
-                """, data=df)
+# model = smf.ols(formula=f"""{triptype} ~ 
+#                 percent_residential + percent_commercial + percent_industrial + percent_recreational + pop_density + nearest_subway_dist
+#                 + percent_residential:percent_commercial + percent_residential:percent_industrial + percent_residential:percent_recreational
+#                 + percent_commercial:percent_industrial + percent_commercial:percent_recreational
+#                 + percent_industrial:percent_recreational
+#                 """, data=df)
 
-model = smf.ols(formula=f"""{triptype} ~ 
-                percent_residential + percent_commercial + percent_industrial + percent_recreational + pop_density + nearest_subway_dist
-                + percent_commercial:percent_industrial
-                """, data=df)
+# model = smf.ols(formula=f"""{triptype} ~ 
+#                 percent_residential + percent_commercial + percent_industrial + percent_recreational + pop_density + nearest_subway_dist
+#                 + percent_commercial:percent_industrial
+#                 """, data=df)
 
-result = model.fit()
+# result = model.fit()
 
-print(result.summary())
+# print(result.summary())
 
 # For point, get percentages and pop density and nearest subway dist
 
@@ -646,22 +647,46 @@ def heatmap_grid(city, land_use, census_df, bounds, resolution):
 
     point_info = pd.DataFrame(index=percentages.index)
     point_info['const'] = 1.0
-    point_info[['percent_residential', 'percent_commercial', 'percent_industrial']] = percentages[['percent_residential', 'percent_commercial', 'percent_industrial']]
+    point_info[['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational']] = percentages[['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational']]
     point_info['pop_density'] = np.array(pop_density)/10000
     point_info['nearest_subway_dist'] = nearest_subway['nearest_subway_dist']/1000
+    point_info['nearest_railway_dist'] = nearest_subway['nearest_railway_dist']/1000
     
     return grid_points, point_info
 
 
-
-def plot_heatmap(function, grid_points, point_info, zlabel="Demand (Average daily business day departures)"):
-    color = function(point_info)
+def plot_heatmap(function, grid_points, point_info, zlabel="Demand (Average daily business day departures)", cmap='magma', ax=None):
+    if isinstance(function, str):
+        color = point_info[function]
+    else:
+        color = function(point_info)
     grid_points['color'] = color
 
     sas = grid_points.set_geometry('service_area')
-    sas.plot('color', legend=True, legend_kwds={'label': zlabel})
+    sas.plot('color', legend=True, legend_kwds={'label': zlabel}, cmap=plt.get_cmap(cmap), ax=ax)
     
     return grid_points, point_info
+
+
+def plot_multi_heatmaps(grid_points, point_info, savefig=True):
+    plt.style.use('seaborn-darkgrid')
+    fig, ax = plt.subplots(nrows=4, ncols=2, figsize=(10, 13))
+    plt.setp(ax, xticks=[], yticks=[])
+    plot_heatmap(OLS_predict_partial, grid_points, point_info, ax=ax[0,0])
+    plot_heatmap('pop_density', grid_points, point_info, zlabel='Population Density (pop/10000m²)', ax=ax[0,1])
+    
+    plot_heatmap('percent_residential', grid_points, point_info, zlabel='Percentage of residential usage', ax=ax[1,0])
+    plot_heatmap('percent_commercial', grid_points, point_info, zlabel='Percentage of commercial usage', ax=ax[1,1])
+    plot_heatmap('percent_recreational', grid_points, point_info, zlabel='Percentage of recreational usage', ax=ax[2,0])
+    plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Percentage of industrial usage', ax=ax[2,1])
+    plot_heatmap('nearest_subway_dist', grid_points, point_info, zlabel='Nearest subway distance (km)', cmap='magma_r', ax=ax[3,0])
+    plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway distance (km)', cmap='magma_r', ax=ax[3,1])
+    plt.tight_layout()
+    if savefig:
+        plt.savefig(f'figures/heatmaps_{CITY}{YEAR}{MONTH}.pdf')
+
+def OLS_predict(dataframe, OLS_results, cols):
+    return OLS_results.predict(dataframe[[*cols, 'const']])
 
 polygon = Polygon(
     [(station_df['easting'].min()-1000, station_df['northing'].min()-1000),
@@ -675,9 +700,9 @@ resolution = 250
 
 grid_points, point_info = heatmap_grid(CITY, land_use, census_df, polygon.bounds, resolution)
 
-plot_heatmap(OLS_results.predict, grid_points, point_info)
+OLS_predict_partial = partial(OLS_predict, OLS_results=OLS_results, cols=cols)
 
-plot_heatmap(lambda df: getattr(df, 'nearest_subway_dist'), grid_points, point_info, polygon.bounds, 250, zlabel='Nearest subway distance')
+plot_multi_heatmaps(grid_points, point_info)
 
 extent = (station_df['lat'].min(), station_df['long'].min(), 
       station_df['lat'].max(), station_df['long'].max())
