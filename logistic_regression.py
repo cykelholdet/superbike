@@ -500,6 +500,7 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 from statsmodels.api import OLS, GLS, WLS
 from statsmodels.tools import add_constant
 import statsmodels.formula.api as smf
+import smopy
 
 CITY = 'oslo'
 YEAR = 2019
@@ -617,11 +618,50 @@ print(result.summary())
 
 # For point, get percentages and pop density and nearest subway dist
 
-location = station_df.loc[[0]].reset_index()
+def heatmap_grid(city, land_use, census_df, bounds, resolution):
+    latmin, lonmin, latmax, lonmax = bounds
+    grid_points = []
+    for lat in np.arange(latmin, latmax, resolution):
+        for lon in np.arange(lonmin, lonmax, resolution):
+            grid_points.append(Point((round(lat,4), round(lon,4))))
+    
+    
+    grid_points = gpd.GeoDataFrame(geometry=grid_points, crs='epsg:3857')
+    
+    grid_points['coords'] = grid_points['geometry'].to_crs(epsg=4326)
+            
+    grid_points = grid_points.set_geometry('coords')
+    
+    neighborhoods = ipu.point_neighborhoods(grid_points['coords'], land_use)
 
-location = station_df.loc[[0]][['coords']]
+    grid_points = grid_points.join(neighborhoods)
 
-locations = station_df[['coords']]
+    service_area = ipu.get_service_area(city, grid_points, land_use)
+    
+    grid_points['service_area'] = service_area[0]
+    
+    percentages = ipu.neighborhood_percentages(city, grid_points, land_use)
+    pop_density = ipu.pop_density_in_service_area(grid_points, census_df)
+    nearest_subway = ipu.nearest_transit(city, grid_points)
+
+    point_info = pd.DataFrame(index=percentages.index)
+    point_info['const'] = 1.0
+    point_info[['percent_residential', 'percent_commercial', 'percent_industrial']] = percentages[['percent_residential', 'percent_commercial', 'percent_industrial']]
+    point_info['pop_density'] = np.array(pop_density)/10000
+    point_info['nearest_subway_dist'] = nearest_subway['nearest_subway_dist']/1000
+    
+    return grid_points, point_info
+
+
+
+def plot_heatmap(function, grid_points, point_info, zlabel="Demand (Average daily business day departures)"):
+    color = function(point_info)
+    grid_points['color'] = color
+
+    sas = grid_points.set_geometry('service_area')
+    sas.plot('color', legend=True, legend_kwds={'label': zlabel})
+    
+    return grid_points, point_info
 
 polygon = Polygon(
     [(station_df['easting'].min()-1000, station_df['northing'].min()-1000),
@@ -633,51 +673,22 @@ latmin, lonmin, latmax, lonmax = polygon.bounds
 
 resolution = 250
 
-# construct a rectangular mesh
-points = []
-for lat in np.arange(latmin, latmax, resolution):
-    for lon in np.arange(lonmin, lonmax, resolution):
-        points.append(Point((round(lat,4), round(lon,4))))
+grid_points, point_info = heatmap_grid(CITY, land_use, census_df, polygon.bounds, resolution)
 
-points = gpd.GeoDataFrame(geometry=points, crs='epsg:3857')
+plot_heatmap(OLS_results.predict, grid_points, point_info)
 
-points['coords'] = points['geometry'].to_crs(epsg=4326)
-        
-locations = points.set_geometry('coords')
+plot_heatmap(lambda df: getattr(df, 'nearest_subway_dist'), grid_points, point_info, polygon.bounds, 250, zlabel='Nearest subway distance')
 
+extent = (station_df['lat'].min(), station_df['long'].min(), 
+      station_df['lat'].max(), station_df['long'].max())
 
-location = locations
+tileserver = 'https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg' # Stamen Terrain
+# tileserver = 'http://a.tile.stamen.com/toner/{z}/{x}/{y}.png' # Stamen Toner
+# tileserver = 'http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.png' # Stamen Watercolor
+# tileserver = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' # OSM Default
 
-neighborhoods = ipu.point_neighborhoods(location['coords'], land_use)
+m = smopy.Map(extent, tileserver=tileserver)
 
-location = location.join(neighborhoods)
+fig, ax = plt.subplots(figsize=(7,10))
 
-service_area = ipu.get_service_area(CITY, location, land_use)
-
-percentages = ipu.neighborhood_percentages(CITY, location, land_use)
-pop_density = ipu.pop_density_in_service_area(location, census_df)
-nearest_subway = ipu.nearest_transit(CITY, location)
-
-point_info = pd.DataFrame(index=percentages.index)
-point_info['const'] = 1.0
-point_info[['percent_residential', 'percent_commercial', 'percent_industrial']] = percentages[['percent_residential', 'percent_commercial', 'percent_industrial']]
-point_info['pop_density'] = np.array(pop_density)/10000
-point_info['nearest_subway_dist'] = nearest_subway['nearest_subway_dist']/1000
-
-
-point_info.loc[0]
-# X_scaled.loc[0]
-
-OLS_results.predict(point_info)
-# OLS_results.predict(X_scaled.loc[[0]])
-
-locations['demand'] = OLS_results.predict(point_info)
-
-locations.plot(column='demand')
-
-locations['service_area'] = service_area[0]
-
-sas = locations.set_geometry('service_area')
-sas.plot('demand', legend=True, legend_kwds={'label': "Demand (Average daily business day departures)"})
-# plt.pcolormesh(locations['coords'].x, locations['coords'].y, OLS_results.predict(point_info))
-
+m.show_mpl(ax=ax)

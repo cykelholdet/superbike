@@ -7,6 +7,7 @@ import os
 import time
 import pickle
 import calendar
+import logging
 import warnings
 import datetime
 import zipfile
@@ -300,8 +301,21 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
             df = df.rename(columns=dataframe_key.get_key(city))
 
-            df = df[~df['start_stat_id'].isin([382, 383, 223, 230])] # Filter out virtual stations
-            df = df[~df['end_stat_id'].isin([382, 383, 223, 230])]
+            df = df[~df['start_stat_id'].isin([382, 383, 223, 230, 164, 158])] # Filter out virtual stations
+            df = df[~df['end_stat_id'].isin([382, 383, 223, 230,  164, 158])]
+            
+            # Merge stations which have the same coordinates and harmonise names.
+            merge_id_dict = {241: 336, 242: 337, 254: 348, 256: 349, 263: 353}    
+            merge_name_dict = {
+                'Talbot Ave At Blue Hill Ave (former)': 'Talbot Ave At Blue Hill Ave',
+                'Washington St at Talbot Ave (former)': 'Washington St at Talbot Ave',
+                'Mattapan Library (former)': 'Mattapan Library'}
+            
+            df['start_stat_id'] = df['start_stat_id'].replace(merge_id_dict)
+            df['end_stat_id'] = df['end_stat_id'].replace(merge_id_dict)
+
+            df['start_stat_name'] = df['start_stat_name'].replace(merge_name_dict)
+            df['end_stat_name'] = df['end_stat_name'].replace(merge_name_dict)
             
             df.dropna(inplace=True)
             df.reset_index(inplace=True, drop=True)
@@ -803,7 +817,9 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             
             df['end_dt'] = df['start_dt'] + \
                 pd.to_timedelta(df['duration'], unit='s')
-                
+            
+            logging.debug('Getting madrid stations')
+            
             if datetime.datetime(year, month, 1) >= datetime.datetime(2019, 7, 1):
                 # In the last months of 2019 the station data is UTF-8
                 _, stations = pd.read_json(
@@ -1676,11 +1692,19 @@ def station_locations(df, id_index):
         axis=0, ignore_index=True)
     locs.drop_duplicates(inplace=True)
     
-    if sum(locs['stat_id'].duplicated()) > 0:
-        print(f'There are {sum(locs["stat_id"].duplicated())} duplicates in station coordinates.'
-              ' Keeping first instance of each.')
+    duplicates = locs['stat_id'].duplicated()
+    if sum(duplicates) > 0:
+        print(f'There are {sum(duplicates)} stations which have moved.'
+              ' Keeping first instance of the coordinates.')
     
-        locs = locs[~locs['stat_id'].duplicated()]
+        locs = locs[~duplicates]
+    
+    duplicates = locs[['lat', 'long']].duplicated()
+    if sum(duplicates) > 0:
+        print(f'There are {sum(duplicates)} stations'
+              ' which have the same coordinates as other stations. This may lead to errors.')
+        
+        locs = locs[~duplicates]
 
     locs['stat_id'] = locs['stat_id'].map(id_index).drop_duplicates()
     locations = locs.set_index('stat_id').sort_index()[['long', 'lat']]
@@ -2875,7 +2899,8 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     pre = time.time()
-    data = Data('madrid', 2019, 1, overwrite=True, user_type='all')
+    data = Data('nyc', 2019, 1, overwrite=True, user_type='all')
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()
