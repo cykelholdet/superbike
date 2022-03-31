@@ -18,7 +18,7 @@ import bikeshare as bs
 import interactive_plot_utils as ipu
 from logistic_table import lr_coefficients
 
-CITY = 'nyc'
+CITY = 'chicago'
 YEAR = 2019
 MONTH = 1
 
@@ -503,7 +503,7 @@ from statsmodels.tools import add_constant
 import statsmodels.formula.api as smf
 import smopy
 
-CITY = 'nyc'
+CITY = 'chicago'
 YEAR = 2019
 MONTH = 9
 
@@ -683,7 +683,7 @@ def plot_multi_heatmaps(grid_points, point_info, savefig=True):
     plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway distance (km)', cmap='magma_r', ax=ax[3,1])
     plt.tight_layout()
     if savefig:
-        plt.savefig(f'figures/heatmaps_{CITY}{YEAR}{MONTH}.pdf')
+        plt.savefig(f'figures/heatmaps_{CITY}{YEAR}{MONTH:02d}.pdf')
 
 def OLS_predict(dataframe, OLS_results, cols):
     return OLS_results.predict(dataframe[[*cols, 'const']])

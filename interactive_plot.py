@@ -31,7 +31,7 @@ cmap = cm.get_cmap('Blues')
 # Load bikeshare data
 
 YEAR = 2019
-MONTH = None
+MONTH = 9
 CITY = 'london'
 
 #station_df = ipu.make_station_df(data, holidays=False)
@@ -196,7 +196,7 @@ class BikeDash(param.Parameterized):
         
         self.service_area_modified = False
         
-        self.plot_clusters_full()
+        # self.plot_clusters_full()
         self.make_service_areas()
         print("Make logi")
         self.make_logistic_regression()
