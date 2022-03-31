@@ -35,6 +35,7 @@ YEAR = 2019
 MONTH = None
 CITY = 'boston'
 
+
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
 #station_df.dropna(inplace=True)
@@ -218,7 +219,7 @@ class BikeDash(param.Parameterized):
         
         self.service_area_modified = False
         
-        self.plot_clusters_full()
+        # self.plot_clusters_full()
         self.make_service_areas()
         print("Make logi")
         self.make_logistic_regression()

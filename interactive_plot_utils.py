@@ -8,6 +8,7 @@ import pickle
 import time
 import os
 import contextlib
+import logging
 import warnings
 from functools import partial
 
@@ -494,7 +495,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
                 df, land_use, census_df = pickle.load(file)
             
 
-            neighborhoods = make_neighborhoods(data.city, data.year, land_use)
+            neighborhoods = make_neighborhoods(data.city, data.year, land_use, overwrite=overwrite)
             
             # Neighborhoods are pickled per year, while station_df is pickled
             # per month. Here they are merged.
@@ -1013,8 +1014,9 @@ def make_station_df(data, holidays=True, return_land_use=False,
         with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'wb') as file:
             pickle.dump([df, land_use, census_df], file)
     print(".", end="")
-    neighborhoods = make_neighborhoods(data.city, data.year, land_use)
-    
+    neighborhoods = make_neighborhoods(data.city, data.year, land_use, overwrite=overwrite)
+    logging.debug(land_use['zone_type'].value_counts())
+    logging.debug(neighborhoods.columns)
     df = df.merge(neighborhoods, on='stat_id')
 
     df = df.join(
@@ -1353,7 +1355,7 @@ def sort_clusters2(station_df, cluster_means, labels, cluster_type=None, mask=No
     order[1:] = np.argsort(dist_to_sink)[:k-1]
     
     labels_dict = dict(zip(order, range(len(order))))
-    # print(labels_dict) # Comment in for debug
+    logging.debug(labels_dict)
     
     if cluster_type == 'gaussian_mixture':
         values = np.zeros_like(labels)
@@ -1408,7 +1410,7 @@ def neighborhood_percentages(city, station_df, land_use, service_radius=500, use
             
             sdf_zone = station_df[f'neighborhood_{zone_type}'].to_crs(epsg=3857)[mask]
             
-            print(zone_type)
+            logging.debug(zone_type)
             zone_percents[mask] = sa_no_road[mask].intersection(sdf_zone).area/sa_no_road[mask].area
             
             percentages[f'percent_{zone_type}'] = zone_percents
@@ -1526,7 +1528,7 @@ def get_service_area(city, station_df, land_use, service_radius=500):
     mask = service_areas.area == 0
     
     if mask.sum() > 0:
-        print('Empty service_areas exist. Buffering.')
+        logging.debug('Empty service_areas exist. Buffering.')
     
     service_areas[mask] = coords[mask].buffer(0.0001)
     
@@ -2232,14 +2234,14 @@ color_num_dict = {
     
 if __name__ == "__main__":
 
-    
+    logging.basicConfig(level=logging.DEBUG)
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('madrid', 2019)
+    data = bs.Data('washdc', 2018, 11, overwrite=True)
 
     pre = time.time()
-    traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=False)
+    traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=True)
     station_df, land_use, census_df = make_station_df(data, return_land_use=True, return_census=True, overwrite=True)
     #station_df['service_area'], station_df['service_area_size'] = get_service_area(data.city, station_df, land_use, service_radius=500)
     
