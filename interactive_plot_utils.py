@@ -8,6 +8,7 @@ import pickle
 import time
 import os
 import contextlib
+import warnings
 from functools import partial
 
 import numpy as np
@@ -32,6 +33,8 @@ from scipy.spatial import Voronoi
 
 import bikeshare as bs
 import dataframe_key
+
+warnings.filterwarnings("ignore", category=shapely.errors.ShapelyDeprecationWarning) 
 
 def census_key(city):
     """
@@ -1143,12 +1146,10 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         labels = clusters.predict(traffic_matrix)
         station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
-        means = clusters.cluster_centers_
         # station_df, means, labels = sort_clusters(station_df, means, labels, traffic_matrices, day_type, k)
-        
-        station_df, means, labels = sort_clusters2(station_df, means, labels)
-        
-        clusters.cluster_centers_ = means
+        station_df, clusters, labels = sort_clusters2(station_df, 
+                                                      clusters.cluster_centers_, 
+                                                      labels)
         station_df['color'] = station_df['label'].map(cluster_color_dict)
 
     elif clustering == 'k_medoids':
@@ -1156,9 +1157,8 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         labels = clusters.predict(traffic_matrix)
         station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
-        means = clusters.cluster_centers_
-        station_df, means, labels = sort_clusters(station_df, means, labels, traffic_matrices, day_type, k)
-        clusters.cluster_centers_ = means
+        station_df, clusters, labels = sort_clusters2(station_df, clusters.cluster_centers_, 
+                                                      labels)
         station_df['color'] = station_df['label'].map(cluster_color_dict)
         
     elif clustering == 'h_clustering':
@@ -1166,20 +1166,20 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         labels = AgglomerativeClustering(k).fit_predict(traffic_matrix)
         station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
-        means = cluster_mean(traffic_matrix, station_df, labels, k)
-        station_df, means, labels = sort_clusters(station_df, means, labels, traffic_matrices, day_type, k)
-        clusters = means
+        clusters = cluster_mean(traffic_matrix, station_df, labels, k)
+        station_df, clusters, labels = sort_clusters2(station_df, clusters, labels)
         station_df['color'] = station_df['label'].map(cluster_color_dict)
     
     elif clustering == 'gaussian_mixture':
-        clusters = GaussianMixture(k, n_init=10, random_state=random_state).fit(traffic_matrix)
+        clusters = GaussianMixture(k, n_init=10, 
+                                   random_state=random_state).fit(traffic_matrix)
         labels = clusters.predict_proba(traffic_matrix)
-
-        station_df.loc[mask, 'label'] = pd.Series(list(labels), index=mask[mask].index)
+        station_df.loc[mask, 'label'] = pd.Series(list(labels), 
+                                                  index=mask[mask].index)
         station_df.loc[~mask, 'label'] = np.nan
-        means = clusters.means_
-        station_df, means, labels = sort_clusters(station_df, means, labels, traffic_matrices, day_type, k, cluster_type='gaussian_mixture', mask=mask)
-        clusters.means_ = means
+        station_df, clusters, labels = sort_clusters2(station_df, clusters.means_, 
+                                                     labels, 
+                                                     cluster_type='gaussian_mixture')
         lab_mat = np.array(lab_color_list[:k]).T
         lab_cols = [np.sum(labels[i] * lab_mat, axis=1) for i in range(len(traffic_matrix))]
         labels_rgb = skcolor.lab2rgb(lab_cols)
@@ -1206,7 +1206,6 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         station_df['color'] = None
     
     dist_to_center = np.full(traffic_matrices[0].shape[0], np.nan)
-    
     if day_type == 'business_days':
         traf_mat = traffic_matrices[0][:,:24] - traffic_matrices[0][:,24:]
     elif day_type == 'weekend':
@@ -1214,7 +1213,7 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
     
     for i in range(k):
         dist_to_center[np.where(labels == i)] = np.linalg.norm(
-            traf_mat[np.where(labels==i)] - clusters.cluster_centers_[i], axis=1)
+            traf_mat[np.where(labels==i)] - clusters[i], axis=1)
         
     station_df['dist_to_center'] = dist_to_center
 
@@ -1354,7 +1353,7 @@ def sort_clusters2(station_df, cluster_means, labels, cluster_type=None, mask=No
     order[1:] = np.argsort(dist_to_sink)[:k-1]
     
     labels_dict = dict(zip(order, range(len(order))))
-    print(labels_dict)
+    # print(labels_dict) # Comment in for debug
     
     if cluster_type == 'gaussian_mixture':
         values = np.zeros_like(labels)
@@ -2237,7 +2236,7 @@ if __name__ == "__main__":
 
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('madrid', 2019, 9, overwrite=True)
+    data = bs.Data('madrid', 2019)
 
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=False)

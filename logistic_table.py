@@ -175,7 +175,7 @@ if __name__ == '__main__':
     month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
           7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
 
-    CITY = 'chicago'
+    CITY = 'nyc'
     YEAR = 2019
     MONTH = None
     
@@ -190,7 +190,7 @@ if __name__ == '__main__':
     use_road = False
     add_const = True
     
-    table_type = 'us_eu'
+    table_type = 'points_percentage'
 # =============================================================================
 #   Table types
 # =============================================================================
