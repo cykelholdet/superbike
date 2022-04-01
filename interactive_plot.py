@@ -31,8 +31,8 @@ cmap = cm.get_cmap('Blues')
 # Load bikeshare data
 
 YEAR = 2019
-MONTH = None
-CITY = 'london'
+MONTH = 9
+CITY = 'helsinki'
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)

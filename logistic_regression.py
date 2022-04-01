@@ -503,16 +503,10 @@ from statsmodels.tools import add_constant
 import statsmodels.formula.api as smf
 import smopy
 
-CITY = 'nyc'
+CITY = 'london'
 YEAR = 2019
 MONTH = 9
 
-data = bs.Data(CITY, YEAR, MONTH)
-
-station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
-traffic_matrices = data.pickle_daily_traffic(holidays=False)
-station_df, clusters, labels = ipu.get_clusters(
-    traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
 # station_df = station_df.merge(
 #     ipu.neighborhood_percentages(
 #         data.city, station_df, land_use, 
@@ -520,49 +514,50 @@ station_df, clusters, labels = ipu.get_clusters(
 #         ),
 #     how='outer', left_index=True, right_index=True)
 
-df = station_df
 
-cols = ['percent_residential', 'percent_commercial', 'percent_industrial',
-        'pop_density', 'nearest_subway_dist']
 
-triptype = 'b_departures'
-
-#cols = ['percent_residential']
-X = df[cols]
-
-y = df[triptype][~X.isna().any(axis=1)]
-
-y = np.sqrt(y)
-
-X = X[~X.isna().any(axis=1)]
-
-X_scaled = X.copy()
-if triptype in X_scaled.columns:
-    X_scaled[triptype] = X_scaled[triptype]/X_scaled[triptype].sum()
-if 'nearest_subway_dist' in X_scaled.columns:
-    X_scaled['nearest_subway_dist'] = X_scaled['nearest_subway_dist']/1000
-if 'pop_density' in X_scaled.columns:
-    X_scaled['pop_density'] = X_scaled['pop_density']/10000
-
+def linear_regression(df, cols, triptype):
+        
+    #cols = ['percent_residential']
+    X = df[cols]
     
+    y = df[triptype][~X.isna().any(axis=1)]
+    
+    y = np.sqrt(y)
+    
+    X = X[~X.isna().any(axis=1)]
+    
+    X_scaled = X.copy()
+    if triptype in X_scaled.columns:
+        X_scaled[triptype] = X_scaled[triptype]/X_scaled[triptype].sum()
+    if 'nearest_subway_dist' in X_scaled.columns:
+        X_scaled['nearest_subway_dist'] = X_scaled['nearest_subway_dist']/1000
+    if 'pop_density' in X_scaled.columns:
+        X_scaled['pop_density'] = X_scaled['pop_density']/10000
+    
+        
+    
+    param_names = {'percent_industrial' : '% industrial',
+                   'percent_commercial' : '% commercial',
+                   'percent_residential' : '% residential',
+                   'percent_recreational' : '% recreational',
+                   'percent_mixed' : '% mixed',
+                   'pop_density' : 'pop density',
+                   'nearest_subway_dist' : 'nearest subway dist'}
+    
+    X_scaled = X_scaled.rename(param_names)
+    
+    X_scaled = add_constant(X_scaled)
+    
+    OLS_model = OLS(y, X_scaled)
+    
+    OLS_results = OLS_model.fit(maxiter=10000)
+    
+    print(OLS_results.summary())
+    
+    return OLS_results
 
-param_names = {'percent_industrial' : '% industrial',
-               'percent_commercial' : '% commercial',
-               'percent_residential' : '% residential',
-               'percent_recreational' : '% recreational',
-               'percent_mixed' : '% mixed',
-               'pop_density' : 'pop density',
-               'nearest_subway_dist' : 'nearest subway dist'}
 
-X_scaled = X_scaled.rename(param_names)
-
-X_scaled = add_constant(X_scaled)
-
-OLS_model = OLS(y, X_scaled)
-
-OLS_results = OLS_model.fit(maxiter=10000)
-
-print(OLS_results.summary())
 
 
 # OLS_pred = OLS_results.get_prediction()
@@ -655,11 +650,13 @@ def heatmap_grid(city, land_use, census_df, bounds, resolution):
     return grid_points, point_info
 
 
-def plot_heatmap(function, grid_points, point_info, zlabel="Demand (Average daily business day departures)", cmap='magma', ax=None):
-    if isinstance(function, str):
-        color = point_info[function]
+def plot_heatmap(z, grid_points, point_info, zlabel="Demand (Average daily business day departures)", cmap='magma', ax=None):
+    if isinstance(z, str):
+        color = point_info[z]
+    elif isinstance(z, (list, pd.Series, np.ndarray)):
+        color = z
     else:
-        color = function(point_info)
+        color = z(point_info)
     grid_points['color'] = color
 
     sas = grid_points.set_geometry('service_area')
@@ -668,52 +665,141 @@ def plot_heatmap(function, grid_points, point_info, zlabel="Demand (Average dail
     return grid_points, point_info
 
 
-def plot_multi_heatmaps(grid_points, point_info, savefig=True):
-    plt.style.use('seaborn-darkgrid')
-    fig, ax = plt.subplots(nrows=4, ncols=2, figsize=(10, 13))
-    plt.setp(ax, xticks=[], yticks=[])
-    plot_heatmap(OLS_predict_partial, grid_points, point_info, ax=ax[0,0])
-    plot_heatmap('pop_density', grid_points, point_info, zlabel='Population Density (pop/10000m²)', ax=ax[0,1])
+def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title='heatmaps'):
+    nrows = pred.shape[1] // 2
     
-    plot_heatmap('percent_residential', grid_points, point_info, zlabel='Percentage of residential usage', ax=ax[1,0])
-    plot_heatmap('percent_commercial', grid_points, point_info, zlabel='Percentage of commercial usage', ax=ax[1,1])
-    plot_heatmap('percent_recreational', grid_points, point_info, zlabel='Percentage of recreational usage', ax=ax[2,0])
-    plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Percentage of industrial usage', ax=ax[2,1])
-    plot_heatmap('nearest_subway_dist', grid_points, point_info, zlabel='Nearest subway distance (km)', cmap='magma_r', ax=ax[3,0])
-    plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway distance (km)', cmap='magma_r', ax=ax[3,1])
+    plt.style.use('seaborn-darkgrid')
+    fig, ax = plt.subplots(nrows=4+nrows, ncols=2, figsize=(10, 13))
+    plt.setp(ax, xticks=[], yticks=[])
+    if nrows > 0:
+        for pred_col in range(pred.shape[1]):
+            plot_heatmap(pred[pred_col], grid_points, point_info,
+                         ax=ax[pred_col // 2, pred_col%2], zlabel=f'P(Cluster {pred_col})')
+    
+    else:
+        plot_heatmap(pred, grid_points, point_info, ax=ax[0,0])
+    plot_heatmap('pop_density', grid_points, point_info, zlabel='Population Density (pop/100m²)', ax=ax[nrows+0,1])
+    
+    plot_heatmap('percent_residential', grid_points, point_info, zlabel='Percentage of residential usage', ax=ax[nrows+1,0])
+    plot_heatmap('percent_commercial', grid_points, point_info, zlabel='Percentage of commercial usage', ax=ax[nrows+1,1])
+    plot_heatmap('percent_recreational', grid_points, point_info, zlabel='Percentage of recreational usage', ax=ax[nrows+2,0])
+    plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Percentage of industrial usage', ax=ax[nrows+2,1])
+    plot_heatmap('nearest_subway_dist', grid_points, point_info, zlabel='Nearest subway distance (km)', cmap='magma_r', ax=ax[nrows+3,0])
+    plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway distance (km)', cmap='magma_r', ax=ax[nrows+3,1])
     plt.tight_layout()
     if savefig:
-        plt.savefig(f'figures/heatmaps_{CITY}{YEAR}{MONTH}.pdf')
+        monstr = f'{data.month:02d}' if data.month is not None else ''
+        plt.savefig(f'figures/{title}_{data.city}{data.year}{monstr}.pdf')
 
-def OLS_predict(dataframe, OLS_results, cols):
-    return OLS_results.predict(dataframe[[*cols, 'const']])
 
-polygon = Polygon(
-    [(station_df['easting'].min()-1000, station_df['northing'].min()-1000),
-     (station_df['easting'].min()-1000, station_df['northing'].max()+1000),
-     (station_df['easting'].max()+1000, station_df['northing'].max()+1000),
-     (station_df['easting'].max()+1000, station_df['northing'].min()-1000)])
+def make_model_and_plot_heatmaps(
+        city, year, month, cols, modeltype='OLS', triptype='b_departures',
+        resolution=250, day_type='business_days', min_trips=100,
+        clustering='k_means', k=3, seed=42):
+    
+    data = bs.Data(city, year, month)
 
-latmin, lonmin, latmax, lonmax = polygon.bounds
+    station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
+    traffic_matrices = data.pickle_daily_traffic(holidays=False)
+    station_df, clusters, labels = ipu.get_clusters(
+        traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
+    
+    if modeltype == 'OLS':
+        model_results = linear_regression(station_df, cols, triptype)
+    elif modeltype == 'LR':
+        model_results, _, _ = ipu.stations_logistic_regression(
+            station_df, cols, cols, 
+            use_points_or_percents='percents', make_points_by='station location', 
+            const=True, test_model=False, test_ratio=0.2, test_seed=None,
+            plot_cm=False, normalise_cm=None, return_scaled=False)
+    
+    monstr = f'{month:02d}' if month is not None else ''
+    with open(f'figures/{modeltype}_model_{city}{year}{monstr}.txt', 'w', encoding='utf-8') as file:
+        file.write(str(model_results.summary()))
+    
+    
+# def OLS_predict(dataframe, OLS_results, cols):
+#     return OLS_results.predict(dataframe[['const', *cols]])
 
-resolution = 250
+    polygon = Polygon(
+        [(station_df['easting'].min()-1000, station_df['northing'].min()-1000),
+         (station_df['easting'].min()-1000, station_df['northing'].max()+1000),
+         (station_df['easting'].max()+1000, station_df['northing'].max()+1000),
+         (station_df['easting'].max()+1000, station_df['northing'].min()-1000)])
+    
+    latmin, lonmin, latmax, lonmax = polygon.bounds
+    
+    grid_points, point_info = heatmap_grid(CITY, land_use, census_df, polygon.bounds, resolution)
+    
+    # OLS_predict_partial = partial(OLS_predict, OLS_results=OLS_results, cols=cols)
+    
+    pred = model_results.predict(point_info[['const', *cols]])
+    
+    plot_multi_heatmaps(data, grid_points, point_info, pred, title=modeltype)
 
-grid_points, point_info = heatmap_grid(CITY, land_use, census_df, polygon.bounds, resolution)
 
-OLS_predict_partial = partial(OLS_predict, OLS_results=OLS_results, cols=cols)
+# def make_cluster_and_plot_heatmaps(city, year, month, cols, resolution=250):
+#     data = bs.Data(city, year, month)
 
-plot_multi_heatmaps(grid_points, point_info)
+#     station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
+#     traffic_matrices = data.pickle_daily_traffic(holidays=False)
+#     station_df, clusters, labels = ipu.get_clusters(
+#         traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
 
-extent = (station_df['lat'].min(), station_df['long'].min(), 
-      station_df['lat'].max(), station_df['long'].max())
+#     LR_results, X, y = ipu.stations_logistic_regression(
+#         station_df, cols, cols, 
+#         use_points_or_percents='percents', make_points_by='station location', 
+#         const=True, test_model=False, test_ratio=0.2, test_seed=None,
+#         plot_cm=False, normalise_cm=None, return_scaled=False)
+    
+    
+#     monstr = f'{month:02d}' if month is not None else ''
+#     with open(f'figures/logistic_model_{city}{year}{monstr}.txt', 'w', encoding='utf-8') as file:
+#         file.write(str(LR_results.summary()))
+    
+    
+# # def OLS_predict(dataframe, OLS_results, cols):
+# #     return OLS_results.predict(dataframe[['const', *cols]])
 
-tileserver = 'https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg' # Stamen Terrain
-# tileserver = 'http://a.tile.stamen.com/toner/{z}/{x}/{y}.png' # Stamen Toner
-# tileserver = 'http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.png' # Stamen Watercolor
-# tileserver = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' # OSM Default
+#     polygon = Polygon(
+#         [(station_df['easting'].min()-1000, station_df['northing'].min()-1000),
+#          (station_df['easting'].min()-1000, station_df['northing'].max()+1000),
+#          (station_df['easting'].max()+1000, station_df['northing'].max()+1000),
+#          (station_df['easting'].max()+1000, station_df['northing'].min()-1000)])
+    
+#     latmin, lonmin, latmax, lonmax = polygon.bounds
+    
+#     grid_points, point_info = heatmap_grid(CITY, land_use, census_df, polygon.bounds, resolution)
+    
+#     # OLS_predict_partial = partial(OLS_predict, OLS_results=OLS_results, cols=cols)
+    
+#     pred = LR_results.predict(point_info[['const', *cols]])
+    
+#     plot_multi_heatmaps(data, grid_points, point_info, pred, title='cluster_heatmaps')
 
-m = smopy.Map(extent, tileserver=tileserver)
+# extent = (station_df['lat'].min(), station_df['long'].min(), 
+#       station_df['lat'].max(), station_df['long'].max())
 
-fig, ax = plt.subplots(figsize=(7,10))
+# tileserver = 'https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg' # Stamen Terrain
+# # tileserver = 'http://a.tile.stamen.com/toner/{z}/{x}/{y}.png' # Stamen Toner
+# # tileserver = 'http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.png' # Stamen Watercolor
+# # tileserver = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' # OSM Default
 
-m.show_mpl(ax=ax)
+# m = smopy.Map(extent, tileserver=tileserver)
+
+# fig, ax = plt.subplots(figsize=(7,10))
+
+# m.show_mpl(ax=ax)
+
+if __name__ == "__main__":
+    CITY = 'boston'
+    YEAR = 2019
+    MONTH = 9
+    
+    cols = ['percent_residential', 'percent_commercial', 'percent_industrial',
+            'pop_density', 'nearest_subway_dist']
+    triptype = 'b_departures'
+    resolution = 250  # Grid size in m
+    
+    make_model_and_plot_heatmaps(CITY, YEAR, MONTH, cols, modeltype='LR', triptype='b_departures', resolution=250, k=5)
+
