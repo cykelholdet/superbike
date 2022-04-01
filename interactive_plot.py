@@ -219,7 +219,7 @@ class BikeDash(param.Parameterized):
         
         self.service_area_modified = False
         
-        # self.plot_clusters_full()
+        self.plot_clusters_full()
         self.make_service_areas()
         print("Make logi")
         self.make_logistic_regression()

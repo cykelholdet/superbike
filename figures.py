@@ -256,90 +256,18 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
         DataFrame conaining the summary statistics table.
 
     """
-    if cities is None:
-        cities = ['nyc', 'chicago', 'washdc', 'boston', 
-                  'london', 'helsinki', 'oslo', 'madrid']
-        
-    # variables = ['Share of residential use', 'Share of commercial use',
-    #              'Share of recreational use', 'Share of industrial use', 
-    #              'Share of transportational use', 'Share of mixed use',
-    #              'Population density', 'Distance to nearest subway/railway', 
-    #              'Number of  trips']
-    
-    if variables is None:
-        variables = ['percent_residential', 'percent_commercial',
-                     'percent_recreational', 'percent_industrial',
-                     'percent_mixed', 'percent_transportation', 
-                     'percent_educational', 'percent_road', 'percent_UNKNOWN',
-                     'pop_density', 'nearest_subway_dist', 'nearest_railway_dist',
-                     'nearest_transit_dist', 'n_trips', 'b_trips', 'w_trips']
-
-    if not print_only:
-        
-        for city in cities:
-            data_city = bs.Data(city, year)
-            
-            stat_ids = list(data_city.stat.id_index.keys())
-            
-            var_dfs = dict()
-            
-            for var in variables:
-                var_df = pd.DataFrame()
-                var_df['stat_id'] = stat_ids
-                
-                var_dfs[var] = var_df
-            
-            stat_dfs = dict()
-            
-            # for month in bs.get_valid_months(city, year):
-            #     for day in range(1, calendar.monthrange(year, month)[1]+1):
-            #         data_day = bs.Data(city, year, month, day, day_type='business_days', user_type='Subscriber')
-            #         if len(data_day.df) > 0: # Avoid the issue of days with no traffic. E.g. Oslo 2019-04-01
-            #             stat_df = ipu.make_station_df(data_day, holidays=False, overwrite=True)
-                        
-                        # for var in variables:
-                        #     if var in stat_df.columns:
-                        #         var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
-                        #         var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
-            
-            with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version            
-                for month in bs.get_valid_months(city, year):
-                    stat_df_day_part = partial(stat_df_day, city=city, year=year, month=month, columns=variables + ['stat_id'])
-                    days = range(1, calendar.monthrange(year, month)[1]+1)
-                    stat_dfs[month] = pool.map(stat_df_day_part, days)
-            
-            print(stat_dfs)
-            
-            for month in bs.get_valid_months(city, year):
-                for day in range(1, calendar.monthrange(year, month)[1]+1):
-                    stat_df = stat_dfs[month][day-1]
-                    for var in variables:
-                        if var in stat_df.columns:
-                            var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
-                            var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
-            
-            avg_stat_df = pd.DataFrame()
-            avg_stat_df['stat_id'] = stat_ids
-            for var in variables:
-                if len(var_dfs[var].columns) > 1:
-                    avg_stat_df[var] = var_dfs[var][var_dfs[var].columns[1:]].mean(axis=1)
-            
-            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
-                pickle.dump(avg_stat_df, file)
-        
     
     multiindex = pd.MultiIndex.from_product((cities, 
                                              ['Mean', 'Std. Dev.', 'Min.', 'Max.']))   
     
     tab_df = pd.DataFrame(index=variables, columns = multiindex)
     
-    
-    
     for city_index, city in enumerate(cities):
-        
-        with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
-                avg_stat_df = pickle.load(file)
-        
+        try:
+            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+                asdf = pickle.load(file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')
         
         avg_stat_df['pop_density'] = avg_stat_df['pop_density']/10000 # convert to population per 100 m^2
         avg_stat_df['nearest_subway_dist']  = avg_stat_df['nearest_subway_dist']/1000 # convert to km
@@ -454,9 +382,12 @@ def make_LR_table(year=2019, k=3):
     
     for city in cities:
         # print(city)
-        with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
-            asdf = pickle.load(file)
-        
+        try:
+            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+                asdf = pickle.load(file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
+    
         data = bs.Data(city, year)
         
         # traf_mats = data.pickle_daily_traffic(holidays=False, 
@@ -648,9 +579,12 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42,
     # Split data into training and test data
     
     for city in cities:
-            
-        with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+        try:
+            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
                 asdf = pickle.load(file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
+    
             
         data = bs.Data(city, year)
         
@@ -807,8 +741,12 @@ def n_table_formatter(x):
 
 def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=False):
     if city != 'all':
-        with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
-            asdf = pickle.load(file)
+        try:
+            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+                asdf = pickle.load(file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
+    
         
         data = bs.Data(city, year, month, day)
     
@@ -890,9 +828,12 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=Fal
         
                 city = cities[row,col]
                 
-                with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
-                    asdf = pickle.load(file)
-                
+                try:
+                    with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+                        asdf = pickle.load(file)
+                except FileNotFoundError:
+                    raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
+
                 data = bs.Data(city, year, month, day)
             
                 traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
@@ -1020,8 +961,12 @@ def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10,
         
         for city in cities:
             
-            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
-                asdf = pickle.load(file)
+            try:
+                with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+                    asdf = pickle.load(file)
+            except FileNotFoundError:
+                raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
+    
             
             data = bs.Data(city, year, month)
             
