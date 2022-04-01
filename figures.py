@@ -389,7 +389,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
     return tab_df
 
 
-def make_LR_table(year, k=3):
+def make_LR_table(year=2019, k=3):
     """
     Makes a table containing the coefficients of the Logistics Regression 
     model for all cities.
@@ -793,7 +793,19 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42,
     
     return sr_mat
 
-def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
+def n_table_formatter(x):
+    
+    if isinstance(x, tuple):
+        n, p = x
+        return f"\\multirow{{2}}{{*}}{{\\shortstack{{${n}$\\\$({p}\%)$}}}}"
+    
+    elif isinstance(x, str):
+        return f"\\multirow{{2}}{{*}}{{{x}}}"
+    
+    else:
+        return ""
+
+def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=False):
     if city != 'all':
         with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
             asdf = pickle.load(file)
@@ -831,7 +843,8 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
         fig, ax = plt.subplots()
         
         for i in range(k):
-            ax.plot(clusters.cluster_centers_[i], label=f'Cluster {i}')
+            n = (labels==i).sum()
+            ax.plot(clusters.cluster_centers_[i], label=f'Cluster {i} (n={n})')
         ax.set_xticks(range(24))
         ax.set_xlabel('Hour')
         ax.set_xlim(0,23)
@@ -852,10 +865,25 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
                            ['london', 'helsinki'], 
                            ['oslo', 'madrid']])
         
+        cluster_name_dict = {0 : 'Cluster 0', 
+                             1 : 'Cluster 1', 
+                             2 : 'Cluster 2',
+                             3 : 'Cluster 3',
+                             4 : 'Cluster 4',
+                             5 : 'Cluster 5',
+                             6 : 'Cluster 6',
+                             7 : 'Cluster 7',
+                             8 : 'Cluster 8',
+                             9 : 'Cluster 9',
+                             10 : 'Cluster 10',}
+       
         fig, ax = plt.subplots(nrows=4, ncols=2, figsize=(10,10))
         plt.style.use('seaborn-darkgrid')
         
         clusters_dict = dict()
+        
+        multiindex = pd.MultiIndex.from_product((list(cities.flatten()), ['n', 'p']), names=['city', 'number']) 
+        n_df = pd.DataFrame(index=multiindex, columns=['city'] +list(range(k)))
         
         for row in range(4):
             for col in range(2):
@@ -895,28 +923,21 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
                 
                 clusters_dict[city] = clusters
                 
-                cluster_name_dict = {0 : 'Cluster 0', 
-                                     1 : 'Cluster 1', 
-                                     2 : 'Cluster 2',
-                                     3 : 'Cluster 3',
-                                     4 : 'Cluster 4',
-                                     5 : 'Cluster 5',
-                                     6 : 'Cluster 6',
-                                     7 : 'Cluster 7',
-                                     8 : 'Cluster 8',
-                                     9 : 'Cluster 9',
-                                     10 : 'Cluster 10',}
+                # Make figure
                 
                 for i in range(k):
-                    ax[row,col].plot(clusters.cluster_centers_[i], label=cluster_name_dict[i])
+                    ax[row,col].plot(clusters[i], label=cluster_name_dict[i])
                 
                 ax[row,col].set_xticks(range(24))
                 ax[row,col].set_xlim(0,23)
                 ax[row,col].set_ylim(-0.15,0.15)
                 
-                if row != 3:
-                    ax[row,col].xaxis.set_ticklabels([])
-                else:
+                # if row != 3:
+                #     ax[row,col].xaxis.set_ticklabels([])
+                # else:
+                #     ax[row,col].set_xlabel('Hour')
+                
+                if row == 3:
                     ax[row,col].set_xlabel('Hour')
                 
                 if col == 1:
@@ -925,21 +946,49 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None):
                     ax[row,col].set_ylabel('Relative difference')
                 
                 ax[row,col].set_title(bs.name_dict[city])
+                
+                # Update n_df
+                
+                n_total = (~labels.isna()).sum()
+                n_df.loc[(city, 'n'), 'city'] = bs.name_dict[city]
+                n_df.loc[(city, 'p'), 'city'] = ''
+                for i in range(k):
+                    n = (labels==i).sum()
+                    n_df.loc[(city, 'n'), i] = (n, np.round(n/n_total*100, 1))
+                    n_df.loc[(city, 'p'), i] = ''
+                    
+                
+                    
+        # Print figure        
+                
         plt.tight_layout(pad=2)
         ax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.2), ncol=len(ax[3,0].get_lines()))
-        
         
         try:
             plt.savefig(f'./figures/paper_figures/clusters_all_cities_k={k}.pdf')
         except PermissionError:
             print('Permission Denied. Continuing...')
-            
         
+        # plt.style.use('default')
         
-        plt.style.use('default')
+        if n_table:
+    
+            # Print n_df
+            # n_df = n_df.assign(help='').set_index('help',append=True)
+            # n_df = n_df.droplevel(level=1)
+            latex_table = n_df.to_latex(column_format='@{}l'+('r'*(len(n_df.columns)-1)) + '@{}', 
+                                           index=False, 
+                                           formatters = [n_table_formatter]*len(n_df.columns), 
+                                           escape=False)
         
-        return clusters_dict
+            print(latex_table)
         
+            return clusters_dict, n_df
+        
+        else:
+            return clusters_dict
+
+
 def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10, 
                  cluster_seed=42, plot_figures=False, overwrite=False):
     
@@ -1090,12 +1139,14 @@ if __name__ == "__main__":
     
     # sum_stat_table=make_summary_statistics_table(print_only=True)
     # LR_table=make_LR_table(2019)
-    k_table = k_test_table(plot_figures=True)
-    # sr = city_tests()
+    # k_table = k_test_table(plot_figures=True)
+    # sr = city_tests(k=5)
+    
+    clusters, n_table = plot_cluster_centers('all',k=3, n_table=True)
     
     # clusters_list = []
     # for k in [2,3,4,5,6,7,8,9,10]:
-    #     clusters_list.append(plot_cluster_centers('all', k=k))
+        # clusters_list.append(plot_cluster_centers('all', k=k))
     #     plt.close()
     
    

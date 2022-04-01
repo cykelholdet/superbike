@@ -20,6 +20,7 @@ import panel as pn
 import param
 import geoviews as gv
 from bokeh.models import HoverTool
+from bokeh.themes.theme import Theme
 
 import bikeshare as bs
 import interactive_plot_utils as ipu
@@ -31,15 +32,17 @@ cmap = cm.get_cmap('Blues')
 # Load bikeshare data
 
 YEAR = 2019
-MONTH = 9
-CITY = 'helsinki'
+MONTH = None
+CITY = 'boston'
+
 
 #station_df = ipu.make_station_df(data, holidays=False)
 #station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
 #station_df.dropna(inplace=True)
     
 
-def plot_center(traffic_matrix, labels, cluster_j, c_center, title_pre="Mean", plot_std=True):
+def plot_center(traffic_matrix, labels, cluster_j, c_center, plot_traf_or_diff,
+                title_pre="Mean", plot_std=True):
     """
     Plot a 48-dimensional cluster center vector as two lines in a hvplot entity
 
@@ -62,44 +65,50 @@ def plot_center(traffic_matrix, labels, cluster_j, c_center, title_pre="Mean", p
 
     """
     
-    traffic_difference = traffic_matrix[:,:24]-traffic_matrix[:,24:]
     labels = labels[~labels.isna()].to_numpy()
-    cc_df = pd.DataFrame([c_center[:24], c_center[24:]]).T.rename(columns={0:'departures', 1:'arrivals'})
     n = np.sum(labels == cluster_j)
     
-    if plot_std:    
-        if cc_df.arrivals.isna().all():
-            
-            stds = np.std(traffic_difference[np.where(labels==cluster_j)], axis=0)
-            varea = pd.DataFrame()
-            varea['std_low'] = cc_df['departures'] - stds
-            varea['std_high'] = cc_df['departures'] + stds
-            varea['hour'] = np.arange(0,24)
-            
-            cc_plot = varea.hvplot.area(x='hour', y='std_low', y2='std_high', alpha=0.5, line_width=0) * cc_df['departures'].hvplot()
-            
-        else:
-            dep_stds = np.std(traffic_matrix[:,:24][np.where(labels==cluster_j)], axis=0)
-            arr_stds = np.std(traffic_matrix[:,24:][np.where(labels==cluster_j)], axis=0)
-            varea = pd.DataFrame()
-            varea['dep_low'] = cc_df['departures'] - dep_stds
-            varea['dep_high'] = cc_df['departures'] + dep_stds
-            varea['arr_low'] = cc_df['arrivals'] - arr_stds
-            varea['arr_high'] = cc_df['arrivals'] + arr_stds
-            varea['hour'] = np.arange(0,24)
-            
-            cc_plot = varea.hvplot.area(x='hour', y='dep_low', y2='dep_high', alpha=0.5, line_width=0) * varea.hvplot.area(x='hour', y='arr_low', y2='arr_high', alpha=0.5, line_width=0) * cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
+    if plot_traf_or_diff == 'Traffic':
+        
+        c_center = np.mean(traffic_matrix[np.where(labels==cluster_j)], axis=0)
+        
+        dep_mean, arr_mean = c_center[:24], c_center[24:]
+        
+        dep_stds = np.std(traffic_matrix[:,:24][np.where(labels==cluster_j)], axis=0)
+        arr_stds = np.std(traffic_matrix[:,24:][np.where(labels==cluster_j)], axis=0)
+        
+        cc_df = pd.DataFrame([dep_mean, arr_mean]).T.rename(
+            columns={0:'departures', 1:'arrivals'})
+        
+        varea = pd.DataFrame()
+        varea['dep_low'] = cc_df['departures'] - dep_stds
+        varea['dep_high'] = cc_df['departures'] + dep_stds
+        varea['arr_low'] = cc_df['arrivals'] - arr_stds
+        varea['arr_high'] = cc_df['arrivals'] + arr_stds
+        varea['hour'] = np.arange(0,24)
+        
+        cc_plot = varea.hvplot.area(x='hour', y='dep_low', y2='dep_high', alpha=0.5, line_width=0) * varea.hvplot.area(x='hour', y='arr_low', y2='arr_high', alpha=0.5, line_width=0) * cc_df['departures'].hvplot(xticks=list(zip(range(24),range(24)))) * cc_df['arrivals'].hvplot(xticks=list(zip(range(24),range(24))))
+        cc_plot.opts(title=f"{title_pre} of cluster {cluster_j} ({ipu.cluster_color_dict[cluster_j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage of all traffic')
     
     else:
-        cc_plot = cc_df['departures'].hvplot() * cc_df['arrivals'].hvplot()
-    
-    cc_plot.opts(title=f"{title_pre} of cluster {cluster_j} ({ipu.cluster_color_dict[cluster_j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage')
-    
+        
+        traffic_difference = traffic_matrix[:,:24]-traffic_matrix[:,24:]
+        
+        cc_df = pd.Series(c_center, name='Relative difference')
+        
+        stds = np.std(traffic_difference[np.where(labels==cluster_j)], axis=0)
+        varea = pd.DataFrame()
+        varea['std_low'] = cc_df - stds
+        varea['std_high'] = cc_df + stds
+        varea['hour'] = np.arange(0,24)
+        
+        cc_plot = varea.hvplot.area(x='hour', y='std_low', y2='std_high', alpha=0.5, line_width=0) * cc_df.hvplot(legend=False, xticks=list(zip(range(24),range(24))))
+        cc_plot.opts(title=f"{title_pre} of cluster {cluster_j} ({ipu.cluster_color_dict[cluster_j]}) (n={n})", xlabel='hour', ylabel='relative difference')
     
     return cc_plot
 
 
-def plot_dta_with_std(data, index, day_type, user_type='all'):
+def plot_dta_with_std(data, index, day_type, plot_traf_or_diff, user_type='all'):
     """
     Plot daily traffic average of station including standard deviation bounds.
 
@@ -116,18 +125,31 @@ def plot_dta_with_std(data, index, day_type, user_type='all'):
         a plot.
 
     """
-    print(f"{index=}")
-    a = data.daily_traffic_average(index, period=day_type_dict[day_type], return_std=True, user_type=user_type)
-    means = pd.DataFrame(a[:2]).T.rename(columns={0:'departures', 1:'arrivals'})
-    stds = pd.DataFrame(a[2:]).T.rename(columns={0:'departures', 1:'arrivals'})
-    varea = pd.DataFrame()
-    varea['dep_low'] = means['departures'] - stds['departures']
-    varea['dep_high'] = means['departures'] + stds['departures']
-    varea['arr_low'] = means['arrivals'] - stds['arrivals']
-    varea['arr_high'] = means['arrivals'] + stds['arrivals']
-    varea['hour'] = np.arange(0,24)
-    return varea.hvplot.area(x='hour', y='dep_low', y2='dep_high', alpha=0.5, line_width=0) * varea.hvplot.area(x='hour', y='arr_low', y2='arr_high', alpha=0.5, line_width=0) * means['departures'].hvplot() * means['arrivals'].hvplot()
+    
+    if plot_traf_or_diff == 'Traffic':
+        
+        print(f"{index=}. Plotting traffic...", end='')
+        a = data.daily_traffic_average(index, period=day_type_dict[day_type], 
+                                       return_std=True, user_type=user_type)
+        means = pd.DataFrame(a[:2]).T.rename(columns={0:'departures', 1:'arrivals'})
+        stds = pd.DataFrame(a[2:]).T.rename(columns={0:'departures', 1:'arrivals'})
+        varea = pd.DataFrame()
+        varea['dep_low'] = means['departures'] - stds['departures']
+        varea['dep_high'] = means['departures'] + stds['departures']
+        varea['arr_low'] = means['arrivals'] - stds['arrivals']
+        varea['arr_high'] = means['arrivals'] + stds['arrivals']
+        varea['hour'] = np.arange(0,24)
+        print('Done')
+        return varea.hvplot.area(x='hour', y='dep_low', y2='dep_high', alpha=0.5, line_width=0) * varea.hvplot.area(x='hour', y='arr_low', y2='arr_high', alpha=0.5, line_width=0) * means['departures'].hvplot() * means['arrivals'].hvplot(xticks=list(zip(range(24),range(24))))
 
+    else:    
+        print(f"{index=}. Plotting difference...", end='')
+        a = data.daily_traffic_average(index, period=day_type_dict[day_type], 
+                                       return_std=False, user_type=user_type)
+        diff = pd.Series(a[0] - a[1], name='Relative difference')
+        print('Done')
+        return diff.hvplot(xticks=list(zip(range(24),range(24))))
+        
 
 class BikeDash(param.Parameterized):
     """
@@ -148,7 +170,8 @@ class BikeDash(param.Parameterized):
     cnorm = param.Selector(objects=['linear', 'log'])
     day = param.Integer(default=1, bounds=(1, 31))
     dist_func = param.Selector(objects=['norm'])
-    plot_all_clusters = param.Selector(objects=['True', 'False']) # TODO: change this back
+    plot_traf_or_diff = param.Selector(objects=['Traffic', 'Difference'])
+    plot_all_clusters = param.Selector(objects=['False', 'True'])
     keep_furthest_or_closest = param.Selector(objects=['Furthest', 'Closest'])
     dist_to_center = param.Integer(default=100, bounds=(0,100))
     show_land_use = param.Selector(objects=['False', 'True'])
@@ -196,7 +219,7 @@ class BikeDash(param.Parameterized):
         
         self.service_area_modified = False
         
-        self.plot_clusters_full()
+        # self.plot_clusters_full()
         self.make_service_areas()
         print("Make logi")
         self.make_logistic_regression()
@@ -244,18 +267,25 @@ class BikeDash(param.Parameterized):
         
         # Make stations invisible based on their ranking
         if self.keep_furthest_or_closest == 'Furthest':
+            if self.dist_to_center != 100:
+                print(f'Plotting the {self.dist_to_center}% farthest stations...', end='')
             cut_off_placement = int(len(stat_df)-np.round(len(stat_df)*self.dist_to_center/100))
             point_sizes = np.zeros(len(stat_df))
             point_sizes[stat_df['placement']>=cut_off_placement] = 10
             stat_df['point_size'] = point_sizes
+            if self.dist_to_center != 100:
+                print('Done')
             
             # stat_df = stat_df[stat_df['placement'] >= cut_off_placement]
-        else:    
+        else:
+            if self.dist_to_center != 100:
+                print(f'Plotting the {self.dist_to_center}% closest stations...', end='')
             cut_off_placement = int(np.round(len(stat_df)*self.dist_to_center/100))
             point_sizes = np.zeros(len(stat_df))
             point_sizes[stat_df['placement']<=cut_off_placement] = 10
             stat_df['point_size'] = point_sizes
-            
+            if self.dist_to_center != 100:
+                print('Done')
             # stat_df = stat_df[stat_df['placement'] <= cut_off_placement]
         
         # Plot remaining stations
@@ -271,7 +301,8 @@ class BikeDash(param.Parameterized):
         return plot
 
 
-    @param.depends('day_type', 'clustering', 'k', 'plot_all_clusters', 'min_trips', watch=False)
+    @param.depends('day_type', 'clustering', 'k', 'plot_traf_or_diff',
+                   'plot_all_clusters', 'min_trips', watch=False)
     def plot_centroid(self, index):
         if self.clustering == 'none':
             return "No clustering"
@@ -282,7 +313,8 @@ class BikeDash(param.Parameterized):
                 for j in range(self.k):
                     #mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
                     mean_vector = self.clusters[j]
-                    cc_plot = plot_center(self.labels, j, mean_vector)
+                    cc_plot = plot_center(traffic_matrix, self.labels, j, 
+                                          mean_vector, self.plot_traf_or_diff)
                     cc_plot_list.append(cc_plot)
                 return pn.Column(*cc_plot_list)
             if not index:
@@ -293,7 +325,8 @@ class BikeDash(param.Parameterized):
                 if ~np.isnan(self.station_df['label'][i]):
                     j = int(self.station_df['label'][i])
                     mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
-                    cc_plot = plot_center(self.labels, j, mean_vector)
+                    cc_plot = plot_center(traffic_matrix, self.labels, j, 
+                                          mean_vector, self.plot_traf_or_diff)
                     return pn.Column(cc_plot, f"Station index {i} is in cluster {j}")
                 else:
                     return f"Station index {i} is not in a cluster due to min_trips."
@@ -302,8 +335,9 @@ class BikeDash(param.Parameterized):
             if self.plot_all_clusters == 'True':
                 cc_plot_list = list()
                 for j in range(self.k):
-                    ccs = self.clusters.means_[j]
-                    cc_plot = plot_center(self.labels, j, ccs)
+                    ccs = self.clusters[j]
+                    cc_plot = plot_center(traffic_matrix, self.labels, j, ccs, 
+                                          self.plot_traf_or_diff)
                     cc_plot_list.append(cc_plot)
                 return pn.Column(*cc_plot_list)
             if not index:
@@ -313,8 +347,9 @@ class BikeDash(param.Parameterized):
                 if ~np.isnan(self.station_df['label'][i]):
                     j = self.station_df['label'][i].argmax()
                     textlist = [f"{j}: {self.labels[i][j]:.2f}\n\n" for j in range(self.k)]
-                    ccs = self.clusters.means_[j]
-                    cc_plot = plot_center(self.labels, j, ccs)
+                    ccs = self.clusters[j]
+                    cc_plot = plot_center(traffic_matrix, self.labels, j, ccs,
+                                          self.plot_traf_or_diff)
                     return pn.Column(cc_plot, f"Station index {i} belongs to cluster \n\n {''.join(textlist)}")
                 else:
                     return f"Station index {i} does not belong to a cluster duto to min_trips"
@@ -322,16 +357,18 @@ class BikeDash(param.Parameterized):
         else: # k-means or k-medoids
             traffic_matrix = ipu.mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
             if self.plot_all_clusters == 'True':
-                if self.clusters == None:
-                    return "Please select Clustering"
+                # if self.clusters == None:
+                #     return "Please select Clustering"
                     
                 cc_plot_list = list()
                 for j in range(self.k):
                     
                     # print(self.labels[0])
                     
-                    ccs = self.clusters.cluster_centers_[j]
-                    cc_plot = plot_center(traffic_matrix, self.labels, j, ccs, title_pre="Centroid")
+                    ccs = self.clusters[j]
+                    cc_plot = plot_center(traffic_matrix, self.labels, j, ccs,
+                                          self.plot_traf_or_diff,
+                                          title_pre="Centroid")
                     cc_plot_list.append(cc_plot)
                 return pn.Column(*cc_plot_list)
             if not index:
@@ -340,8 +377,10 @@ class BikeDash(param.Parameterized):
                 i = index[0]
                 if ~np.isnan(self.station_df['label'][i]):
                     j = int(self.station_df['label'][i])
-                    ccs = self.clusters.cluster_centers_[j]
-                    cc_plot = plot_center(traffic_matrix, self.station_df['label'], j, ccs, title_pre="Centroid")
+                    ccs = self.clusters[j]
+                    cc_plot = plot_center(traffic_matrix, self.station_df['label'], 
+                                          j, ccs, self.plot_traf_or_diff,
+                                          title_pre="Centroid")
                     return pn.Column(cc_plot, f"Station index {i} is in cluster {j}")
                 else:
                     return f"Station index {i} is not in a cluster due to min_trips."
@@ -455,13 +494,16 @@ selection_stream = hv.streams.Selection1D(source=pointview)
             day_type=bike_params.param.day_type,
             city=bike_params.param.city,
             month=bike_params.param.month,
-            user_type=bike_params.param.user_type)
-def plot_daily_traffic(index, day_type, city, month, user_type): 
+            user_type=bike_params.param.user_type,
+            plot_traf_or_diff=bike_params.param.plot_traf_or_diff)
+def plot_daily_traffic(index, day_type, city, month, user_type, plot_traf_or_diff): 
     if not index:
         return "Select a station to see station traffic"
     else:
         i = index[0]
-    plot = plot_dta_with_std(bike_params.data, i, day_type, user_type)
+    
+    plot = plot_dta_with_std(bike_params.data, i, day_type, 
+                             plot_traf_or_diff, user_type)
     
     if user_type == 'all':
         tripstring = ''
@@ -469,18 +511,30 @@ def plot_daily_traffic(index, day_type, city, month, user_type):
         tripstring = 'sub_'
     elif user_type == 'Customer':
         tripstring = 'cus_'
-
-    if day_type == 'business_days':
-        b_trips = bike_params.station_df[f'{tripstring}b_departures'].iloc[i] + bike_params.station_df[f'{tripstring}b_arrivals'].iloc[i]
-        plot.opts(title=f'Average hourly traffic for {bike_params.data.stat.names[i]} (b_trips={b_trips:n})', ylabel='percentage')
-    elif day_type == 'weekend':
-        w_trips = bike_params.station_df[f'{tripstring}w_departures'].iloc[i] + bike_params.station_df[f'{tripstring}w_arrivals'].iloc[i]
-        plot.opts(title=f'Average hourly traffic for {bike_params.data.stat.names[i]} (w_trips={w_trips:n})', ylabel='percentage')
+    
+    if plot_traf_or_diff == 'Traffic':
+        
+        if day_type == 'business_days':
+            b_trips = bike_params.station_df[f'{tripstring}b_departures'].iloc[i] + bike_params.station_df[f'{tripstring}b_arrivals'].iloc[i]
+            plot.opts(title=f'Average hourly traffic for {bike_params.data.stat.names[i]} (b_trips={b_trips:n})', ylabel='percentage of all traffic')
+        elif day_type == 'weekend':
+            w_trips = bike_params.station_df[f'{tripstring}w_departures'].iloc[i] + bike_params.station_df[f'{tripstring}w_arrivals'].iloc[i]
+            plot.opts(title=f'Average hourly traffic for {bike_params.data.stat.names[i]} (w_trips={w_trips:n})', ylabel='percentage of all traffic')
+    
+    else:
+        if day_type == 'business_days':
+            b_trips = bike_params.station_df[f'{tripstring}b_departures'].iloc[i] + bike_params.station_df[f'{tripstring}b_arrivals'].iloc[i]
+            plot.opts(title=f'Average relative difference for {bike_params.data.stat.names[i]} (b_trips={b_trips:n})', ylabel='relative difference')
+        elif day_type == 'weekend':
+            w_trips = bike_params.station_df[f'{tripstring}w_departures'].iloc[i] + bike_params.station_df[f'{tripstring}w_arrivals'].iloc[i]
+            plot.opts(title=f'Average relative difference for {bike_params.data.stat.names[i]} (w_trips={w_trips:n})', ylabel='relative difference')
+    
     
     return plot
 
 
 @pn.depends(index=selection_stream.param.index,
+            plot_traf_or_diff=bike_params.param.plot_traf_or_diff,
             plot_all_clusters=bike_params.param.plot_all_clusters,
             clustering=bike_params.param.clustering,
             k=bike_params.param.k,
@@ -489,8 +543,9 @@ def plot_daily_traffic(index, day_type, city, month, user_type):
             city=bike_params.param.city,
             month=bike_params.param.month,
             user_type=bike_params.param.user_type)
-def plot_centroid_callback(index, plot_all_clusters, clustering, k, min_trips,
-                           day_type, city, month, user_type): 
+def plot_centroid_callback(index, plot_traf_or_diff, plot_all_clusters, 
+                           clustering, k, min_trips, day_type, city, month, 
+                           user_type): 
     return bike_params.plot_centroid(index)
     
 
@@ -655,7 +710,7 @@ city_dict = dict(zip([bs.name_dict[city] for city in city_list], city_list))
 # Parameters
 # =============================================================================
 
-param_split = 21 # add to this number if additional parameters are added in the first column
+param_split = 22 # add to this number if additional parameters/titles are added in the first column
 
 params = pn.Param(bike_params.param, widgets={
     'city': {'widget_type': pn.widgets.Select, 'options': city_dict},
@@ -663,9 +718,10 @@ params = pn.Param(bike_params.param, widgets={
     'month': {'widget_type': pn.widgets.RadioButtonGroup, 'button_type': 'success', 'css_classes': ['month-button']},
     'trip_type': {'widget_type': pn.widgets.RadioButtonGroup, 'button_type': 'success'},
     'day_type': pn.widgets.RadioButtonGroup,
+    'plot_traf_or_diff': pn.widgets.RadioButtonGroup,
     'plot_all_clusters': {'widget_type': pn.widgets.RadioButtonGroup, 'title': 'Hello'},
     'keep_furthest_or_closest' : pn.widgets.RadioButtonGroup,
-    'dist_to_center': {'widget_type' : pn.widgets.IntSlider, 'name' : '% of stations closest/furthest to cluster center'},
+    'dist_to_center': {'widget_type' : pn.widgets.IntSlider, 'name' : '% of stations furthest/closest to cluster center'},
     'day': pn.widgets.IntSlider,
     'random_state': pn.widgets.IntInput,
     'min_trips': pn.widgets.IntInput,
@@ -690,6 +746,12 @@ css = '''
     padding-left: 5px;
 }
 ''' # Reduce padding
+
+
+# .bk-root {
+#     background-color: #2f2f2f;
+#     border-color: #2f2f2f;
+#     }
 
 pn.extension(raw_css=[css])
 
@@ -729,8 +791,9 @@ params.layout[2].options['Year'] = None
 parameter_strings = [
     ['Month:', 'Month_title'],
     ['Clustering method:', 'Clustering_title'],
-    ['Plot all clusters:', 'Plot all_title'],
-    ['Show land use:', 'Show land_title'],
+    ['Plot traffic or relative difference (clustering is still based on relative difference):', 'traf_or_diff_title'],
+    ['Plot all cluster centers:', 'Plot all_title'],
+    ['Show land use (can be slow):', 'Show land_title'],
     ['Show census:', 'Show census_title'],
     ['Show service area:', 'Show service_title'],
     ['Use road:', 'Use road_title'],
@@ -745,8 +808,8 @@ for parstr in parameter_strings:
 
 parameter_names = [
     'City', 'Month_title', 'Month', 'Day type', 'Clustering_title', 
-    'Clustering', 'K', 'Plot all_title', 'Plot all clusters', 'Keep_fur_or_clo_title', 
-    'Keep furthest or closest', '% of stations closest/furthest to cluster center', 'Show land_title', 'Show land use', 
+    'Clustering', 'K', 'traf_or_diff_title','Plot traf or diff','Plot all_title', 'Plot all clusters', 'Keep_fur_or_clo_title', 
+    'Keep furthest or closest','% of stations furthest/closest to cluster center', 'Show land_title', 'Show land use', 
     'Show census_title', 'Show census', 'Show service_title', 'Show service area', 'Service radius', 'Service area color',
     'Use road_title', 'Use road', 'Random state', 'Min trips', 'User type']
 
@@ -773,12 +836,60 @@ LR_params.layout.insert(1, 'Use station points or percents:')
 LR_params.layout[1].css_classes=['missing_labels'] 
 LR_params.layout[1].margin = (5,5,-12,5)
 
+# =============================================================================
+# Themes
+# =============================================================================
+
+theme = Theme(
+    json={
+    'attrs': {'Axis': {'major_tick_in': 0,
+   'major_tick_out': 3,
+   'major_tick_line_alpha': 0.25,
+   'major_tick_line_color': '#5B5B5B',
+   'minor_tick_line_alpha': 0.25,
+   'minor_tick_line_color': '#5B5B5B',
+   'axis_line_alpha': 1,
+   'axis_line_color': '#5B5B5B',
+   'major_label_text_color': '#5B5B5B',
+   'major_label_text_font': 'Calibri Light',
+   'major_label_text_font_size': '0.95em',
+   'major_label_text_font_style': 'bold',
+   'axis_label_standoff': 10,
+   'axis_label_text_color': '#5B5B5B',
+   'axis_label_text_font': 'Calibri Light',
+   'axis_label_text_font_size': '1.15em',
+   'axis_label_text_font_style': 'bold'},
+  'Grid': {'grid_line_dash': [6, 4],
+           'grid_line_alpha': 1},
+  'Legend': {'spacing': 8,
+   'glyph_width': 15,
+   'label_standoff': 8,
+   'label_text_color': '#5B5B5B',
+   'label_text_font': 'Calibri Light',
+   'label_text_font_size': '0.95em',
+   'label_text_font_style': 'bold',
+   'border_line_alpha': 0,
+   'background_fill_alpha': 0.25},
+  'ColorBar': {'title_text_color': '#5B5B5B',
+   'title_text_font': 'Calibri Light',
+   'title_text_font_size': '1.15em',
+   'title_text_font_style': 'bold',
+   'major_label_text_color': '#5B5B5B',
+   'major_label_text_font': 'Calibri Light',
+   'major_label_text_font_size': '0.95em',
+   'major_label_text_font_style': 'bold',
+   'major_tick_line_alpha': 0,
+   'bar_line_alpha': 0},
+  'Title': {'text_color': '#5B5B5B',
+   'text_font': 'Calibri Light',
+   'text_font_size': '1.25em',
+   'text_font_style': 'bold'}}})
+
+# hv.renderer('bokeh').theme = 'dark_minimal'
 
 # =============================================================================
 # Views
 # =============================================================================
-
-
 
 zoneview = hv.DynamicMap(land_use_plot)
 zoneview.opts(alpha=0.5, apply_ranges=False)
@@ -848,6 +959,10 @@ panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 """
 bokeh_server = panel_column.show(port=12345)
 """
+
+# plot_daily_traffic(5, bike_params.param.day_type, bike_params.param.city, 
+#                    bike_params.param.month, bike_params.param.user_type,
+#                    bike_params.param.plot_traf_or_diff)
 
 # bike_params.make_service_areas()
 

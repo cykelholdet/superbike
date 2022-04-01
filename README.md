@@ -54,6 +54,10 @@ conda install -c conda-forge python=3.9 cartopy scikit-learn-extra numba llvmlit
 
 pip install smopy rarfile
 ```
+If you have `panel=0.12.6`, you may need to downgrade `jinja2` if you wish to use the interactive plot features.
+```
+conda install -c conda-forge jinja2=3.0
+```
 
 
 ## Directory structure
