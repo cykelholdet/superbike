@@ -10,6 +10,7 @@ import os
 import contextlib
 import logging
 import warnings
+import calendar
 from functools import partial
 
 import numpy as np
@@ -21,6 +22,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 import skimage.color as skcolor
 import statsmodels.api as sm
+import multiprocessing as mp
 
 from holoviews.util.transform import lon_lat_to_easting_northing
 from shapely.geometry import Point, Polygon, LineString
@@ -1036,6 +1038,14 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     else:
         return df
+
+def stat_df_day(day, city, year, month, columns):
+    data_day = bs.Data(city, year, month, day, day_type='business_days', user_type='Subscriber')
+    if len(data_day.df) > 0: # Avoid the issue of days with no traffic. E.g. Oslo 2019-04-01
+        stat_df = make_station_df(data_day, holidays=False, overwrite=True)
+    else:
+        stat_df = pd.DataFrame(columns=columns)
+    return stat_df[stat_df.columns & columns]
 
 def pickle_asdf(cities=None, variables=None, year=2019):
     if cities is None:

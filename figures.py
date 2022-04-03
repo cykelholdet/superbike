@@ -218,15 +218,6 @@ def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='
     
     if return_fig:
         return fig, ax
-
-
-def stat_df_day(day, city, year, month, columns):
-    data_day = bs.Data(city, year, month, day, day_type='business_days', user_type='Subscriber')
-    if len(data_day.df) > 0: # Avoid the issue of days with no traffic. E.g. Oslo 2019-04-01
-        stat_df = ipu.make_station_df(data_day, holidays=False, overwrite=True)
-    else:
-        stat_df = pd.DataFrame(columns=columns)
-    return stat_df[stat_df.columns & columns]
         
 
 def make_summary_statistics_table(cities=None, variables=None, year=2019, print_only=False):
@@ -269,9 +260,9 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
         except FileNotFoundError:
             raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')
         
-        avg_stat_df['pop_density'] = avg_stat_df['pop_density']/10000 # convert to population per 100 m^2
-        avg_stat_df['nearest_subway_dist']  = avg_stat_df['nearest_subway_dist']/1000 # convert to km
-        avg_stat_df['nearest_railway_dist']  = avg_stat_df['nearest_railway_dist']/1000 # convert to km
+        asdf['pop_density'] =  asdf['pop_density']/10000 # convert to population per 100 m^2
+        asdf['nearest_subway_dist']  =  asdf['nearest_subway_dist']/1000 # convert to km
+        asdf['nearest_railway_dist']  =  asdf['nearest_railway_dist']/1000 # convert to km
         # avg_stat_df['n_trips'] = avg_stat_df['n_trips']/avg_stat_df['n_trips'].sum() # convert to percentage
         # avg_stat_df['b_trips'] = avg_stat_df['b_trips']/avg_stat_df['b_trips'].sum() # convert to percentage
         # avg_stat_df['w_trips'] = avg_stat_df['w_trips']/avg_stat_df['w_trips'].sum() # convert to percentage
@@ -282,10 +273,10 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
         #                        index=variables)
         # city_df['City'] = bs.name_dict[city]
         # city_df['Variable'] = variables
-        tab_df[(city, 'Mean')] = avg_stat_df.mean()
-        tab_df[(city, 'Std. Dev.')] = avg_stat_df.std()
-        tab_df[(city, 'Min.')] = avg_stat_df.min()
-        tab_df[(city, 'Max.')] = avg_stat_df.max()
+        tab_df[(city, 'Mean')] =  asdf.mean()
+        tab_df[(city, 'Std. Dev.')] =  asdf.std()
+        tab_df[(city, 'Min.')] =  asdf.min()
+        tab_df[(city, 'Max.')] =  asdf.max()
         
         # tab_df = pd.concat([tab_df, city_df])
     
