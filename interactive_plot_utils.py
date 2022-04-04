@@ -1052,6 +1052,9 @@ def pickle_asdf(cities=None, variables=None, year=2019):
         cities = ['nyc', 'chicago', 'washdc', 'boston', 
                   'london', 'helsinki', 'oslo', 'madrid']
     
+    if isinstance(cities, str):
+        cities = [cities]
+    
     if variables is None:
         variables = ['percent_residential', 'percent_commercial',
                      'percent_recreational', 'percent_industrial',
@@ -2301,7 +2304,7 @@ color_num_dict = {
 if __name__ == "__main__":
 
     logging.basicConfig(level=logging.DEBUG)
-
+    
     # create_all_pickles('boston', 2019, overwrite=True)
 
     data = bs.Data('washdc', 2018, 11, overwrite=True)
