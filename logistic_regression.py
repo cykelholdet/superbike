@@ -650,7 +650,7 @@ def heatmap_grid(city, land_use, census_df, bounds, resolution):
     return grid_points, point_info
 
 
-def plot_heatmap(z, grid_points, point_info, zlabel="Demand (Average daily business day departures)", cmap='magma', ax=None):
+def plot_heatmap(z, grid_points, point_info, zlabel="Demand (Average daily business day departures)", cmap='magma', ax=None, vdims=(None,None)):
     if isinstance(z, str):
         color = point_info[z]
     elif isinstance(z, (list, pd.Series, np.ndarray)):
@@ -660,7 +660,7 @@ def plot_heatmap(z, grid_points, point_info, zlabel="Demand (Average daily busin
     grid_points['color'] = color
 
     sas = grid_points.set_geometry('service_area')
-    sas.plot('color', legend=True, legend_kwds={'label': zlabel}, cmap=plt.get_cmap(cmap), ax=ax)
+    sas.plot('color', legend=True, legend_kwds={'label': zlabel}, cmap=plt.get_cmap(cmap), ax=ax, vmin=vdims[0], vmax=vdims[1])
     
     return grid_points, point_info
 
@@ -674,26 +674,22 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
     if nrows > 0:
         for pred_col in range(pred.shape[1]):
             plot_heatmap(pred[pred_col], grid_points, point_info,
-                         ax=ax[pred_col // 2, pred_col%2], zlabel=f'P(Cluster {pred_col})')
+                         ax=ax[pred_col // 2, pred_col%2], zlabel=f'P(Cluster {pred_col})', vdims=(0,1))
     
     else:
         plot_heatmap(pred, grid_points, point_info, ax=ax[0,0])
     plot_heatmap('pop_density', grid_points, point_info, zlabel='Population Density (pop/100m²)', ax=ax[nrows+0,1])
     
-    plot_heatmap('percent_residential', grid_points, point_info, zlabel='Percentage of residential usage', ax=ax[nrows+1,0])
-    plot_heatmap('percent_commercial', grid_points, point_info, zlabel='Percentage of commercial usage', ax=ax[nrows+1,1])
-    plot_heatmap('percent_recreational', grid_points, point_info, zlabel='Percentage of recreational usage', ax=ax[nrows+2,0])
-    plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Percentage of industrial usage', ax=ax[nrows+2,1])
+    plot_heatmap('percent_residential', grid_points, point_info, zlabel='Percentage of residential usage', ax=ax[nrows+1,0], vdims=(0,1))
+    plot_heatmap('percent_commercial', grid_points, point_info, zlabel='Percentage of commercial usage', ax=ax[nrows+1,1], vdims=(0,1))
+    plot_heatmap('percent_recreational', grid_points, point_info, zlabel='Percentage of recreational usage', ax=ax[nrows+2,0], vdims=(0,1))
+    plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Percentage of industrial usage', ax=ax[nrows+2,1], vdims=(0,1))
     plot_heatmap('nearest_subway_dist', grid_points, point_info, zlabel='Nearest subway distance (km)', cmap='magma_r', ax=ax[nrows+3,0])
     plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway distance (km)', cmap='magma_r', ax=ax[nrows+3,1])
     plt.tight_layout()
     if savefig:
-<<<<<<< HEAD
         monstr = f'{data.month:02d}' if data.month is not None else ''
         plt.savefig(f'figures/{title}_{data.city}{data.year}{monstr}.pdf')
-=======
-        plt.savefig(f'figures/heatmaps_{CITY}{YEAR}{MONTH:02d}.pdf')
->>>>>>> d79d1bbbc85104a3508af662cf64293125789c77
 
 
 def make_model_and_plot_heatmaps(
@@ -739,7 +735,7 @@ def make_model_and_plot_heatmaps(
     
     pred = model_results.predict(point_info[['const', *cols]])
     
-    plot_multi_heatmaps(data, grid_points, point_info, pred, title=modeltype)
+    plot_multi_heatmaps(data, grid_points, point_info, pred, title=f"{modeltype}_{resolution}m_heatmap")
 
 
 # def make_cluster_and_plot_heatmaps(city, year, month, cols, resolution=250):
@@ -796,14 +792,14 @@ def make_model_and_plot_heatmaps(
 # m.show_mpl(ax=ax)
 
 if __name__ == "__main__":
-    CITY = 'boston'
+    CITY = 'nyc'
     YEAR = 2019
-    MONTH = 9
+    MONTH = None
     
-    cols = ['percent_residential', 'percent_commercial', 'percent_industrial',
+    cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
             'pop_density', 'nearest_subway_dist']
     triptype = 'b_departures'
-    resolution = 250  # Grid size in m
+    resolution = 175  # Grid size in m
     
-    make_model_and_plot_heatmaps(CITY, YEAR, MONTH, cols, modeltype='LR', triptype='b_departures', resolution=250, k=5)
+    make_model_and_plot_heatmaps(CITY, YEAR, MONTH, cols, modeltype='LR', triptype='b_departures', resolution=resolution, k=5)
 
