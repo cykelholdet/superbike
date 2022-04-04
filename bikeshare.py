@@ -1800,17 +1800,25 @@ def get_elevation(lat, long, dataset="aster30m"):
             loc_string = loc_string[:-1]
 
             query = (loc_string)
-
-            r = get(query, timeout=60)
-
-            # Only get the json response in case of 200 or 201
-            if r.status_code == 200 or r.status_code == 201:
-                elevation = np.append(
-                    elevation, np.array(pd.json_normalize(
-                        r.json(), 'results')['elevation']))
-            else:
-                warnings.warn(f"No json response. Query = {loc_string}\nStatus code = {r.status_code}")
-
+            
+            response = False
+            
+            while response == False:
+                
+                r = get(query, timeout=60)
+                
+                # Only get the json response in case of 200 or 201
+                if r.status_code == 200 or r.status_code == 201:
+                    elevation = np.append(
+                        elevation, np.array(pd.json_normalize(
+                            r.json(), 'results')['elevation']))
+                    response = True
+                else:
+                    sleeptime = np.random.randint(1, 6)
+                    warnings.warn(f"No json response. Query = {loc_string}\nStatus code = {r.status_code}, waiting {sleeptime}s")
+                    time.sleep(sleeptime)
+            
+            
             if n == 0:
                 print('Waiting for elevation API', end='')
                 time.sleep(1)
