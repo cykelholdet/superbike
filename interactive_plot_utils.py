@@ -10,6 +10,7 @@ import os
 import contextlib
 import logging
 import warnings
+import calendar
 from functools import partial
 
 import numpy as np
@@ -21,6 +22,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 import skimage.color as skcolor
 import statsmodels.api as sm
+import multiprocessing as mp
 
 from holoviews.util.transform import lon_lat_to_easting_northing
 from shapely.geometry import Point, Polygon, LineString
@@ -1037,6 +1039,70 @@ def make_station_df(data, holidays=True, return_land_use=False,
     else:
         return df
 
+def stat_df_day(day, city, year, month, columns):
+    data_day = bs.Data(city, year, month, day, day_type='business_days', user_type='Subscriber')
+    if len(data_day.df) > 0: # Avoid the issue of days with no traffic. E.g. Oslo 2019-04-01
+        stat_df = make_station_df(data_day, holidays=False, overwrite=True)
+    else:
+        stat_df = pd.DataFrame(columns=columns)
+    return stat_df[stat_df.columns & columns]
+
+def pickle_asdf(cities=None, variables=None, year=2019):
+    if cities is None:
+        cities = ['nyc', 'chicago', 'washdc', 'boston', 
+                  'london', 'helsinki', 'oslo', 'madrid']
+    
+    if variables is None:
+        variables = ['percent_residential', 'percent_commercial',
+                     'percent_recreational', 'percent_industrial',
+                     'percent_mixed', 'percent_transportation', 
+                     'percent_educational', 'percent_road', 'percent_UNKNOWN',
+                     'pop_density', 'nearest_subway_dist', 'nearest_railway_dist',
+                     'nearest_transit_dist', 'n_trips', 'b_trips', 'w_trips']
+
+  
+    for city in cities:
+        
+        data_city = bs.Data(city, year)
+        
+        stat_ids = list(data_city.stat.id_index.keys())
+        
+        var_dfs = dict()
+        
+        for var in variables:
+            var_df = pd.DataFrame()
+            var_df['stat_id'] = stat_ids
+            
+            var_dfs[var] = var_df
+        
+        stat_dfs = dict()
+        
+        with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version            
+            for month in bs.get_valid_months(city, year):
+                stat_df_day_part = partial(stat_df_day, city=city, year=year, month=month, columns=variables + ['stat_id'])
+                days = range(1, calendar.monthrange(year, month)[1]+1)
+                stat_dfs[month] = pool.map(stat_df_day_part, days)
+        
+        print(stat_dfs)
+        
+        for month in bs.get_valid_months(city, year):
+            for day in range(1, calendar.monthrange(year, month)[1]+1):
+                stat_df = stat_dfs[month][day-1]
+                for var in variables:
+                    if var in stat_df.columns:
+                        var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
+                        var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
+        
+        avg_stat_df = pd.DataFrame()
+        avg_stat_df['stat_id'] = stat_ids
+        for var in variables:
+            if len(var_dfs[var].columns) > 1:
+                avg_stat_df[var] = var_dfs[var][var_dfs[var].columns[1:]].mean(axis=1)
+        
+
+        
+        with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
+            pickle.dump(avg_stat_df, file)
 
 def nearest_transit(city, station_df):
     try:
