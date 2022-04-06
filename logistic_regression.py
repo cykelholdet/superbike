@@ -5,6 +5,7 @@ Created on Tue Jan 18 09:30:43 2022
 @author: Nicolai
 """
 from functools import partial
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -18,25 +19,25 @@ import bikeshare as bs
 import interactive_plot_utils as ipu
 from logistic_table import lr_coefficients
 
-CITY = 'chicago'
-YEAR = 2019
-MONTH = 1
+# CITY = 'chicago'
+# YEAR = 2019
+# MONTH = 1
 
-day_type = 'business_days' # 'business_days' or 'weekend'
-min_trips = 100
-clustering = 'k_means'
-k = 3
-seed = 42
+# day_type = 'business_days' # 'business_days' or 'weekend'
+# min_trips = 100
+# clustering = 'k_means'
+# k = 3
+# seed = 42
 
-service_radius=500
-use_points_or_percents='percents'
-make_points_by='station_location'
-add_const=False
-use_road=False
-use_whole_year = False
+# service_radius=500
+# use_points_or_percents='percents'
+# make_points_by='station_location'
+# add_const=False
+# use_road=False
+# use_whole_year = False
 
-month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
-          7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+# month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
+#           7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
 
 # #%% Make station_df
 
@@ -503,9 +504,9 @@ from statsmodels.tools import add_constant
 import statsmodels.formula.api as smf
 import smopy
 
-CITY = 'chicago'
-YEAR = 2019
-MONTH = 9
+# CITY = 'chicago'
+# YEAR = 2019
+# MONTH = 9
 
 # station_df = station_df.merge(
 #     ipu.neighborhood_percentages(
@@ -660,7 +661,7 @@ def plot_heatmap(z, grid_points, point_info, zlabel="Demand (Average daily busin
     grid_points['color'] = color
 
     sas = grid_points.set_geometry('service_area')
-    sas.plot('color', legend=True, legend_kwds={'label': zlabel}, cmap=plt.get_cmap(cmap), ax=ax, vmin=vdims[0], vmax=vdims[1])
+    sas.plot('color', legend=True, legend_kwds={'label': zlabel}, cmap=plt.get_cmap(cmap), ax=ax, vmin=vdims[0], vmax=vdims[1],rasterized=True)
     
     return grid_points, point_info
 
@@ -680,46 +681,61 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
         plot_heatmap(pred, grid_points, point_info, ax=ax[0,0])
     plot_heatmap('pop_density', grid_points, point_info, zlabel='Population Density (pop/100m²)', ax=ax[nrows+0,1])
     
-    plot_heatmap('percent_residential', grid_points, point_info, zlabel='Percentage of residential usage', ax=ax[nrows+1,0], vdims=(0,1))
-    plot_heatmap('percent_commercial', grid_points, point_info, zlabel='Percentage of commercial usage', ax=ax[nrows+1,1], vdims=(0,1))
-    plot_heatmap('percent_recreational', grid_points, point_info, zlabel='Percentage of recreational usage', ax=ax[nrows+2,0], vdims=(0,1))
-    plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Percentage of industrial usage', ax=ax[nrows+2,1], vdims=(0,1))
+    plot_heatmap('percent_residential', grid_points, point_info, zlabel='Share of residential usage', ax=ax[nrows+1,0], vdims=(0,1))
+    plot_heatmap('percent_commercial', grid_points, point_info, zlabel='Share of commercial usage', ax=ax[nrows+1,1], vdims=(0,1))
+    plot_heatmap('percent_recreational', grid_points, point_info, zlabel='Share of recreational usage', ax=ax[nrows+2,0], vdims=(0,1))
+    plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Share of industrial usage', ax=ax[nrows+2,1], vdims=(0,1))
     plot_heatmap('nearest_subway_dist', grid_points, point_info, zlabel='Nearest subway distance (km)', cmap='magma_r', ax=ax[nrows+3,0])
     plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway distance (km)', cmap='magma_r', ax=ax[nrows+3,1])
+    plt.subplots_adjust(wspace=-0.7)
     plt.tight_layout()
     if savefig:
         monstr = f'{data.month:02d}' if data.month is not None else ''
-        plt.savefig(f'figures/{title}_{data.city}{data.year}{monstr}.pdf')
+        plt.savefig(f'figures/{title}_{data.city}{data.year}{monstr}.pdf', dpi=300)
 
 
 def make_model_and_plot_heatmaps(
         city, year, month, cols, modeltype='OLS', triptype='b_departures',
         resolution=250, day_type='business_days', min_trips=100,
-        clustering='k_means', k=3, seed=42):
+        clustering='k_means', k=3, seed=42, train_cities=None):
+    
+    if train_cities == None:
+        train_cities = [city]
+        
+    models = []
+    for tr_city in train_cities:
+        data = bs.Data(tr_city, year, month)
+    
+        station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
+        traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
+        station_df, clusters, labels = ipu.get_clusters(
+            traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
+        
+        # asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
+        
+        
+        if modeltype == 'OLS':
+            model_results = linear_regression(station_df, cols, triptype)
+        elif modeltype == 'LR':
+            model_results, _, _ = ipu.stations_logistic_regression(
+                station_df, cols, cols, 
+                use_points_or_percents='percents', make_points_by='station location', 
+                const=True, test_model=False, test_ratio=0.2, test_seed=None,
+                plot_cm=False, normalise_cm=None, return_scaled=False)
+        
+        monstr = f'{month:02d}' if month is not None else ''
+        with open(f'figures/{modeltype}_model_{data.city}{year}{monstr}.txt', 'w', encoding='utf-8') as file:
+            file.write(str(model_results.summary()))
+        
+        plt.plot(clusters.T)
+        plt.show()
+        
+        models.append(model_results)
     
     data = bs.Data(city, year, month)
 
     station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
-    traffic_matrices = data.pickle_daily_traffic(holidays=False)
-    station_df, clusters, labels = ipu.get_clusters(
-        traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
-    
-    if modeltype == 'OLS':
-        model_results = linear_regression(station_df, cols, triptype)
-    elif modeltype == 'LR':
-        model_results, _, _ = ipu.stations_logistic_regression(
-            station_df, cols, cols, 
-            use_points_or_percents='percents', make_points_by='station location', 
-            const=True, test_model=False, test_ratio=0.2, test_seed=None,
-            plot_cm=False, normalise_cm=None, return_scaled=False)
-    
-    monstr = f'{month:02d}' if month is not None else ''
-    with open(f'figures/{modeltype}_model_{city}{year}{monstr}.txt', 'w', encoding='utf-8') as file:
-        file.write(str(model_results.summary()))
-    
-    
-# def OLS_predict(dataframe, OLS_results, cols):
-#     return OLS_results.predict(dataframe[['const', *cols]])
+    modeltype = f"{modeltype}_test_{city}_"
 
     polygon = Polygon(
         [(station_df['easting'].min()-1000, station_df['northing'].min()-1000),
@@ -729,14 +745,16 @@ def make_model_and_plot_heatmaps(
     
     latmin, lonmin, latmax, lonmax = polygon.bounds
     
-    grid_points, point_info = heatmap_grid(CITY, land_use, census_df, polygon.bounds, resolution)
+    grid_points, point_info = heatmap_grid(city, land_use, census_df, polygon.bounds, resolution)
     
-    # OLS_predict_partial = partial(OLS_predict, OLS_results=OLS_results, cols=cols)
-    
-    pred = model_results.predict(point_info[['const', *cols]])
-    
-    plot_multi_heatmaps(data, grid_points, point_info, pred, title=f"{modeltype}_{resolution}m_heatmap")
-
+    for model_results, tr_city in zip(models, train_cities):
+        pred = model_results.predict(point_info[['const', *cols]])
+        
+        modeltype = f"{modeltype}_train_{tr_city}_"
+        
+        plot_multi_heatmaps(data, grid_points, point_info, pred, title=f"{modeltype}_{resolution}m_heatmap")
+        
+    return grid_points, point_info
 
 # def make_cluster_and_plot_heatmaps(city, year, month, cols, resolution=250):
 #     data = bs.Data(city, year, month)
@@ -792,14 +810,20 @@ def make_model_and_plot_heatmaps(
 # m.show_mpl(ax=ax)
 
 if __name__ == "__main__":
+    warnings.filterwarnings("ignore", category=FutureWarning)
+
     CITY = 'nyc'
     YEAR = 2019
     MONTH = None
     
     cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
-            'pop_density', 'nearest_subway_dist']
+            'pop_density', 'nearest_subway_dist', 'nearest_railway_dist']
     triptype = 'b_departures'
-    resolution = 175  # Grid size in m
+    resolution = 250  # Grid size in m
+    modeltype = 'LR'
+    k = 5
     
-    make_model_and_plot_heatmaps(CITY, YEAR, MONTH, cols, modeltype='LR', triptype='b_departures', resolution=resolution, k=5)
+    grid_points, point_info = make_model_and_plot_heatmaps(
+        CITY, YEAR, MONTH, cols, modeltype=modeltype, triptype=triptype,
+        resolution=resolution, k=k, train_cities=['washdc'])
 
