@@ -33,7 +33,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = None
-CITY = 'boston'
+CITY = 'chicago'
 
 
 #station_df = ipu.make_station_df(data, holidays=False)
