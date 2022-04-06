@@ -1052,6 +1052,9 @@ def pickle_asdf(cities=None, variables=None, year=2019):
         cities = ['nyc', 'chicago', 'washdc', 'boston', 
                   'london', 'helsinki', 'oslo', 'madrid']
     
+    if isinstance(cities, str):
+        cities = [cities]
+    
     if variables is None:
         variables = ['percent_residential', 'percent_commercial',
                      'percent_recreational', 'percent_industrial',
@@ -1379,17 +1382,15 @@ def sort_clusters2(station_df, cluster_means, labels, cluster_type=None, mask=No
     
     morning_source = np.zeros(24)
     morning_source[morning_hours] = max_peak
-    morning_source[afternoon_hours] = -max_peak
+    # morning_source[afternoon_hours] = -max_peak
     
     morning_sink = np.zeros(24)
     morning_sink[morning_hours] = -max_peak
-    morning_sink[afternoon_hours] = max_peak
+    # morning_sink[afternoon_hours] = max_peak
     
     order = np.zeros(k)
     
     sinks_and_sources = set() # set containing label of all centers except reference
-    
-    center = cluster_means.copy()
     
     count = 1
     while count < k:
@@ -1399,6 +1400,8 @@ def sort_clusters2(station_df, cluster_means, labels, cluster_type=None, mask=No
         
         for i, center in enumerate(cluster_means):
             if i not in sinks_and_sources: # Don't check previous winners
+                center_normed = center/np.max(np.abs(center))*max_peak
+                w = 1/np.linalg.norm(center, 1)
                 dist_to_morning_source[i] = np.linalg.norm(center-morning_source)
                 dist_to_morning_sink[i] = np.linalg.norm(center-morning_sink)
             
@@ -1409,6 +1412,9 @@ def sort_clusters2(station_df, cluster_means, labels, cluster_type=None, mask=No
             sinks_and_sources = sinks_and_sources | {np.argmin(dist_to_morning_sink)}
     
         count+=1
+    
+    morning_source[afternoon_hours] = -max_peak
+    morning_sink[afternoon_hours] = max_peak
     
     dist_to_sink = np.full(k, np.inf)
     for label, center in enumerate(cluster_means):
@@ -1649,7 +1655,7 @@ def pop_density_in_service_area(station_df, census_df):
     stat_sa = station_df['service_area'].to_crs(epsg=3857)
     cens_df = census_df.to_crs(epsg=3857)
     for station in stat_sa:
-        intersection = cens_df.intersection(station)
+        intersection = cens_df.intersection(station.buffer(0))
         mask = (intersection != Polygon())
         sec_masked = intersection.loc[mask]
         pop_ds.append((cens_df.loc[mask, 'pop_density'] * sec_masked.area).sum() / station.area)
@@ -2301,10 +2307,10 @@ color_num_dict = {
 if __name__ == "__main__":
 
     logging.basicConfig(level=logging.DEBUG)
-
+    
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('washdc', 2018, 11, overwrite=True)
+    data = bs.Data('chicago', 2019, overwrite=True)
 
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=True)

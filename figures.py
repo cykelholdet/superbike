@@ -15,6 +15,7 @@ import smopy as sm
 import matplotlib.pyplot as plt
 import shapely
 import calendar
+import time
 import pickle
 from sklearn.model_selection import train_test_split
 from holoviews import opts
@@ -381,35 +382,21 @@ def make_LR_table(year=2019, k=3):
     
         data = bs.Data(city, year)
         
-        # traf_mats = data.pickle_daily_traffic(holidays=False, 
-        #                                       user_type='Subscriber',
-        #                                       overwrite=True)
+        traf_mats = data.pickle_daily_traffic(holidays=False, 
+                                              # user_type='Subscriber',
+                                              overwrite=False)
+                
+        mask = ~asdf['n_trips'].isna()
         
-        traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
-                                             user_type='Subscriber')
+        asdf = asdf[mask]
+        asdf = asdf.reset_index(drop=True)
         
-        traf_mat_b = np.concatenate((traf_df_b[0].to_numpy(), 
-                                     traf_df_b[1].to_numpy()),
-                                    axis=1)
+        try:
+            traf_mats = (traf_mats[0][mask], traf_mats[1])
+        except IndexError:
+            pass
         
-        traf_df_w = data.daily_traffic_average_all(period='w', holidays=False, 
-                                             user_type='Subscriber')
-        
-        traf_mat_w = np.concatenate((traf_df_w[0].to_numpy(), 
-                                     traf_df_w[1].to_numpy()),
-                                    axis=1)
-        
-        
-        traf_mats = (traf_mat_b, traf_mat_w)
-        
-        casual_stations = set(list(asdf.stat_id.unique())) - (set(list(traf_df_b[0].index)) | set(list(traf_df_b[1].index)))
-        
-        for station in list(casual_stations):
-            asdf = asdf[asdf['stat_id'] != station]
-        
-        asdf = asdf.reset_index()
-        
-        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
+        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 42)
         
         zone_columns = ['percent_residential', 'percent_commercial',
                         'percent_recreational', 'percent_industrial']
@@ -428,7 +415,7 @@ def make_LR_table(year=2019, k=3):
         lr_results, X, y, _ = ipu.stations_logistic_regression(
             asdf, zone_columns, other_columns, 
             use_points_or_percents='percents', 
-            make_points_by='station land use', const=False,
+            make_points_by='station land use', const=True,
             test_model=True, test_ratio=0.2, test_seed=42,
             )
         
@@ -489,7 +476,6 @@ def make_LR_table(year=2019, k=3):
     
     latex_table = tuple_table.to_latex(column_format='@{}ll'+('r'*len(tuple_table.columns)) + '@{}', multirow=True, formatters = [tuple_formatter]*len(tuple_table.columns), escape=False)
     print(latex_table)
-    
         
     return tuple_table
 
@@ -579,35 +565,21 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42,
             
         data = bs.Data(city, year)
         
-        # traf_mats = data.pickle_daily_traffic(holidays=False, 
-        #                                       user_type='Subscriber',
-        #                                       overwrite=True)
+        traf_mats = data.pickle_daily_traffic(holidays=False, 
+                                              user_type='Subscriber',
+                                              overwrite=False)
+                
+        mask = ~asdf['n_trips'].isna()
         
-        traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
-                                             user_type='Subscriber')
+        asdf = asdf[mask]
+        asdf = asdf.reset_index(drop=True)
         
-        traf_mat_b = np.concatenate((traf_df_b[0].to_numpy(), 
-                                     traf_df_b[1].to_numpy()),
-                                    axis=1)
+        try:
+            traf_mats = (traf_mats[0][mask], traf_mats[1])
+        except IndexError:
+            pass
         
-        traf_df_w = data.daily_traffic_average_all(period='w', holidays=False, 
-                                             user_type='Subscriber')
-        
-        traf_mat_w = np.concatenate((traf_df_w[0].to_numpy(), 
-                                     traf_df_w[1].to_numpy()),
-                                    axis=1)
-        
-        
-        traf_mats = (traf_mat_b, traf_mat_w)
-        
-        casual_stations = set(list(asdf.stat_id.unique())) - (set(list(traf_df_b[0].index)) | set(list(traf_df_b[1].index)))
-        
-        for station in list(casual_stations):
-            asdf = asdf[asdf['stat_id'] != station]
-        
-        asdf = asdf.reset_index()
-        
-        asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)[0]
+        asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 42)[0]
         
         zone_columns = ['percent_residential', 'percent_commercial',
                         'percent_recreational', 'percent_industrial']
@@ -740,32 +712,23 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=Fal
     
         
         data = bs.Data(city, year, month, day)
-    
-        traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
-                                             user_type='Subscriber')
         
-        traf_mat_b = np.concatenate((traf_df_b[0].to_numpy(), 
-                                     traf_df_b[1].to_numpy()),
-                                    axis=1)
+        traf_mats = data.pickle_daily_traffic(holidays=False, 
+                                              user_type='Subscriber',
+                                              overwrite=False)
+                
+        mask = ~asdf['n_trips'].isna()
         
-        traf_df_w = data.daily_traffic_average_all(period='w', holidays=False, 
-                                             user_type='Subscriber')
+        asdf = asdf[mask]
+        asdf = asdf.reset_index(drop=True)
         
-        traf_mat_w = np.concatenate((traf_df_w[0].to_numpy(), 
-                                     traf_df_w[1].to_numpy()),
-                                    axis=1)
+        try:
+            traf_mats = (traf_mats[0][mask], traf_mats[1])
+        except IndexError:
+            pass
+                
         
-        
-        traf_mats = (traf_mat_b, traf_mat_w)
-        
-        casual_stations = set(list(asdf.stat_id.unique())) - (set(list(traf_df_b[0].index)) | set(list(traf_df_b[1].index)))
-        
-        for station in list(casual_stations):
-            asdf = asdf[asdf['stat_id'] != station]
-        
-        asdf = asdf.reset_index()
-        
-        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
+        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 42)
         
         plt.style.use('seaborn-darkgrid')
         
@@ -794,11 +757,11 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=Fal
                            ['london', 'helsinki'], 
                            ['oslo', 'madrid']])
         
-        cluster_name_dict = {0 : 'Cluster 0', 
-                             1 : 'Cluster 1', 
-                             2 : 'Cluster 2',
-                             3 : 'Cluster 3',
-                             4 : 'Cluster 4',
+        cluster_name_dict = {0 : 'Reference', 
+                             1 : 'High morning sink', 
+                             2 : 'Low morning sink',
+                             3 : 'Low morning source',
+                             4 : 'High morning source',
                              5 : 'Cluster 5',
                              6 : 'Cluster 6',
                              7 : 'Cluster 7',
@@ -826,32 +789,22 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=Fal
                     raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
 
                 data = bs.Data(city, year, month, day)
-            
-                traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
-                                                     user_type='Subscriber')
                 
-                traf_mat_b = np.concatenate((traf_df_b[0].to_numpy(), 
-                                             traf_df_b[1].to_numpy()),
-                                            axis=1)
+                traf_mats = data.pickle_daily_traffic(holidays=False, 
+                                              user_type='Subscriber',
+                                              overwrite=False)
                 
-                traf_df_w = data.daily_traffic_average_all(period='w', holidays=False, 
-                                                     user_type='Subscriber')
+                mask = ~asdf['n_trips'].isna()
                 
-                traf_mat_w = np.concatenate((traf_df_w[0].to_numpy(), 
-                                             traf_df_w[1].to_numpy()),
-                                            axis=1)
+                asdf = asdf[mask]
+                asdf = asdf.reset_index(drop=True)
                 
+                try:
+                    traf_mats = (traf_mats[0][mask], traf_mats[1])
+                except IndexError:
+                    pass
                 
-                traf_mats = (traf_mat_b, traf_mat_w)
-                
-                casual_stations = set(list(asdf.stat_id.unique())) - (set(list(traf_df_b[0].index)) | set(list(traf_df_b[1].index)))
-                
-                for station in list(casual_stations):
-                    asdf = asdf[asdf['stat_id'] != station]
-                
-                asdf = asdf.reset_index()
-                
-                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
+                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 42)
                 
                 clusters_dict[city] = clusters
                 
@@ -961,29 +914,19 @@ def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10,
             
             data = bs.Data(city, year, month)
             
-            traf_df_b = data.daily_traffic_average_all(period='b', holidays=False, 
-                                                 user_type='Subscriber')
+            traf_mats = data.pickle_daily_traffic(holidays=False, 
+                                              user_type='Subscriber',
+                                              overwrite=False)
+                
+            mask = ~asdf['n_trips'].isna()
             
-            traf_mat_b = np.concatenate((traf_df_b[0].to_numpy(), 
-                                         traf_df_b[1].to_numpy()),
-                                        axis=1)
+            asdf = asdf[mask]
+            asdf = asdf.reset_index(drop=True)
             
-            traf_df_w = data.daily_traffic_average_all(period='w', holidays=False, 
-                                                 user_type='Subscriber')
-            
-            traf_mat_w = np.concatenate((traf_df_w[0].to_numpy(), 
-                                         traf_df_w[1].to_numpy()),
-                                        axis=1)
-            
-            
-            traf_mats = (traf_mat_b, traf_mat_w)
-            
-            casual_stations = set(list(asdf.stat_id.unique())) - (set(list(traf_df_b[0].index)) | set(list(traf_df_b[1].index)))
-            
-            for station in list(casual_stations):
-                asdf = asdf[asdf['stat_id'] != station]
-            
-            asdf = asdf.reset_index()
+            try:
+                traf_mats = (traf_mats[0][mask], traf_mats[1])
+            except IndexError:
+                pass
             
             DB_list = []
             D_list = []
@@ -994,7 +937,7 @@ def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10,
                 
                 print(f'\nCalculating for k={k}...\n')
                 
-                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, cluster_seed)
+                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, cluster_seed)
                 
                 mask = ~labels.isna()
                 
@@ -1074,12 +1017,10 @@ if __name__ == "__main__":
               'london', 'helsinki', 'oslo', 'madrid']
     
     # sum_stat_table=make_summary_statistics_table(print_only=True)
-    # LR_table=make_LR_table(2019)
+    # LR_table=make_LR_table(2019, k=5)
     # k_table = k_test_table(plot_figures=True)
     # sr = city_tests(k=5)
-    
-    clusters, n_table = plot_cluster_centers('all',k=3, n_table=True)
-    
+    clusters, n_table = plot_cluster_centers('all', k=5, n_table=True)
     # clusters_list = []
     # for k in [2,3,4,5,6,7,8,9,10]:
         # clusters_list.append(plot_cluster_centers('all', k=k))

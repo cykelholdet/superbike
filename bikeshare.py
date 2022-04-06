@@ -163,7 +163,7 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
     if city not in supported_cities:
         raise ValueError(
-            "This city is not currently supported. Supported cities are {}".format(supported_cities))
+            f"{city} is not currently supported. Supported cities are {supported_cities}")
 
     # Make directory for dataframes if not found
     if not os.path.exists('python_variables'):
@@ -2463,9 +2463,6 @@ class Data:
                 n_days = np.busday_count(datetime.date(self.year, self.month, 1), datetime.date(self.year, self.month+1, 1), weekmask=weekmask, holidays=holiday_list)
             else:
                 n_days = np.busday_count(datetime.date(self.year, self.month, 1), datetime.date(self.year+1, 1, 1), weekmask=weekmask, holidays=holiday_list)
-
-
-
 
         print(f'Departures {period}...')
 
