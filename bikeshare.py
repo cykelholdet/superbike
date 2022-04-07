@@ -821,7 +821,10 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df.drop(columns=['start_t'], inplace=True)
 
             df = df[df['start_dt'].dt.month == month]
-
+            
+            # Remove trips with duration less than 1 minute
+            df = df[df['duration'] > 60] 
+            
             df['end_dt'] = df['start_dt'] + \
                 pd.to_timedelta(df['duration'], unit='s')
 
@@ -2918,6 +2921,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     pre = time.time()
-    data = Data('nyc', 2019, None, overwrite=False, user_type='all', remove_loops=True)
+    data = Data('madrid', 2019, None, overwrite=True, user_type='all', remove_loops=True)
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()
