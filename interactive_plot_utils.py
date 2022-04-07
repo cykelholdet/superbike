@@ -1413,8 +1413,8 @@ def sort_clusters2(station_df, cluster_means, labels, cluster_type=None, mask=No
     
         count+=1
     
-    morning_source[afternoon_hours] = -max_peak
-    morning_sink[afternoon_hours] = max_peak
+    # morning_source[afternoon_hours] = -max_peak
+    # morning_sink[afternoon_hours] = max_peak
     
     dist_to_sink = np.full(k, np.inf)
     for label, center in enumerate(cluster_means):
@@ -2221,6 +2221,28 @@ def get_silhouette_index(data_mat, centers, labels, verbose=False):
         print(f'Done. Time taken: {(time.time()-pre):.1f} s')
 
     return S_index
+
+def get_SSE(data_mat, centers, labels, verbose=False):
+    
+    k = len(centers)
+    
+    if verbose:
+        print('Calculating SSE...')
+    
+    pre = time.time()
+    
+    SSE_arr = np.zeros(k)
+    
+    for i in range(k):
+        cluster = data_mat[labels==i]
+        SSE_arr[i] = np.linalg.norm(cluster-centers[i], axis=1).sum()
+        
+    SSE = SSE_arr.sum()
+    
+    if verbose:
+        print('Done. Time taken: {(time.time()-pre):.1f} s')
+
+    return SSE
 
 def create_all_pickles(city, year, holidays=False, overwrite=False):
     

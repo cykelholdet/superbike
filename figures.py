@@ -943,24 +943,27 @@ def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10,
                 
                 labels = labels.to_numpy()[mask]
                 
-                data_mat = (traf_mat_b[:,:24] - traf_mat_b[:,24:])[mask]
+                data_mat = (traf_mats[0][:,:24] - traf_mats[0][:,24:])[mask]
                 
                 DB_list.append(ipu.get_Davies_Bouldin_index(data_mat, 
-                                                            clusters.cluster_centers_,
+                                                            clusters,
                                                             labels,
                                                             verbose=True))
                 
                 D_list.append(ipu.get_Dunn_index(data_mat, 
-                                                 clusters.cluster_centers_,
+                                                 clusters,
                                                  labels,
                                                  verbose=True))
                 
                 S_list.append(ipu.get_silhouette_index(data_mat, 
-                                                       clusters.cluster_centers_,
+                                                       clusters,
                                                        labels,
                                                        verbose=True))
                 
-                SS_list.append(clusters.inertia_)
+                SS_list.append(ipu.get_SSE(data_mat,
+                                           clusters,
+                                           labels,
+                                           verbose=True))
                 
             res_table[(city, 'DB')] = DB_list
             res_table[(city, 'D')] = D_list
@@ -1018,9 +1021,9 @@ if __name__ == "__main__":
     
     # sum_stat_table=make_summary_statistics_table(print_only=True)
     # LR_table=make_LR_table(2019, k=5)
-    # k_table = k_test_table(plot_figures=True)
+    # k_table = k_test_table(plot_figures=True, overwrite=True)
     # sr = city_tests(k=5)
-    clusters, n_table = plot_cluster_centers('all', k=5, n_table=True)
+    # clusters, n_table = plot_cluster_centers('all', k=5, n_table=True)
     # clusters_list = []
     # for k in [2,3,4,5,6,7,8,9,10]:
         # clusters_list.append(plot_cluster_centers('all', k=k))
