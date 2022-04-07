@@ -6,6 +6,7 @@ Created on Tue Jan 18 09:30:43 2022
 """
 from functools import partial
 import warnings
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -696,7 +697,7 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
 
 def make_model_and_plot_heatmaps(
         city, year, month, cols, modeltype='OLS', triptype='b_departures',
-        resolution=250, day_type='business_days', min_trips=100,
+        resolution=250, day_type='business_days', min_trips=4,
         clustering='k_means', k=3, seed=42, train_cities=None):
     
     if train_cities == None:
@@ -706,19 +707,36 @@ def make_model_and_plot_heatmaps(
     for tr_city in train_cities:
         data = bs.Data(tr_city, year, month)
     
-        station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
+        # station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
         traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
-        station_df, clusters, labels = ipu.get_clusters(
-            traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
+        # station_df, clusters, labels = ipu.get_clusters(
+        #     traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
         
         # asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
+        try:
+            with open(f'./python_variables/{data.city}{year}_avg_stat_df.pickle', 'rb') as file:
+                asdf = pickle.load(file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f'The average station DataFrame for {data.city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
+            
+        # mask = ~asdf['n_trips'].isna()
         
+        # asdf = asdf[mask]
+        # asdf = asdf.reset_index(drop=True)
+        
+        asdf, clusters, labels = ipu.get_clusters(
+            traffic_matrices, asdf, day_type, min_trips, clustering, k, seed)
+        
+        if tr_city in ['helsinki', 'oslo', 'madrid', 'london']:
+            df_cols = [col for col in cols if col != 'percent_industrial']
+        else:
+            df_cols = cols
         
         if modeltype == 'OLS':
-            model_results = linear_regression(station_df, cols, triptype)
+            model_results = linear_regression(asdf, df_cols, triptype)
         elif modeltype == 'LR':
             model_results, _, _ = ipu.stations_logistic_regression(
-                station_df, cols, cols, 
+                asdf, df_cols, df_cols, 
                 use_points_or_percents='percents', make_points_by='station location', 
                 const=True, test_model=False, test_ratio=0.2, test_seed=None,
                 plot_cm=False, normalise_cm=None, return_scaled=False)
@@ -735,7 +753,7 @@ def make_model_and_plot_heatmaps(
     data = bs.Data(city, year, month)
 
     station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
-    modeltype = f"{modeltype}_test_{city}_"
+    title_test_prefix = f"{modeltype}_test_{city}"
 
     polygon = Polygon(
         [(station_df['easting'].min()-1000, station_df['northing'].min()-1000),
@@ -748,11 +766,17 @@ def make_model_and_plot_heatmaps(
     grid_points, point_info = heatmap_grid(city, land_use, census_df, polygon.bounds, resolution)
     
     for model_results, tr_city in zip(models, train_cities):
-        pred = model_results.predict(point_info[['const', *cols]])
         
-        modeltype = f"{modeltype}_train_{tr_city}_"
+        if tr_city in ['helsinki', 'oslo', 'madrid', 'london']:
+            df_cols = [col for col in cols if col != 'percent_industrial']
+        else:
+            df_cols = cols
         
-        plot_multi_heatmaps(data, grid_points, point_info, pred, title=f"{modeltype}_{resolution}m_heatmap")
+        pred = model_results.predict(point_info[['const', *df_cols]])
+        
+        title_prefix = f"{title_test_prefix}_train_{tr_city}"
+        
+        plot_multi_heatmaps(data, grid_points, point_info, pred, title=f"{title_prefix}_{resolution}m_heatmap")
         
     return grid_points, point_info
 
@@ -825,5 +849,5 @@ if __name__ == "__main__":
     
     grid_points, point_info = make_model_and_plot_heatmaps(
         CITY, YEAR, MONTH, cols, modeltype=modeltype, triptype=triptype,
-        resolution=resolution, k=k, train_cities=['washdc'])
+        resolution=resolution, k=k, train_cities=['london', 'washdc', 'boston', 'chicago', 'helsinki', 'oslo', 'madrid', 'nyc'])
 

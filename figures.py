@@ -383,7 +383,7 @@ def make_LR_table(year=2019, k=3):
         data = bs.Data(city, year)
         
         traf_mats = data.pickle_daily_traffic(holidays=False, 
-                                              # user_type='Subscriber',
+                                              user_type='Subscriber',
                                               overwrite=False)
                 
         mask = ~asdf['n_trips'].isna()
