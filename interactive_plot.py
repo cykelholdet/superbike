@@ -181,7 +181,7 @@ class BikeDash(param.Parameterized):
     service_area_color = param.Selector(objects=['residential', 'commercial', 'recreational', 'pop_density'])
     use_road = param.Selector(objects=['False', 'True'])
     random_state = param.Integer(default=42, bounds=(0, 10000))
-    min_trips = param.Integer(default=100, bounds=(0, 800))
+    min_trips = param.Integer(default=100, bounds=(0, 8000))
     user_type = param.Selector(objects=['all', 'Subscriber', 'Customer'])
     
     # LR params
