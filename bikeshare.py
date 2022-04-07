@@ -2177,7 +2177,7 @@ class Data:
 
     """
 
-    def __init__(self, city, year, month=None, day=None, blocklist=None, overwrite=False, day_type=None, user_type=None):
+    def __init__(self, city, year, month=None, day=None, blocklist=None, overwrite=False, day_type=None, user_type=None, remove_loops=False):
         """
         Parameters
         ----------
@@ -2238,6 +2238,10 @@ class Data:
         elif (user_type == 'Customer') and ('user_type' in self.df.columns):
             self.df = self.df[self.df['user_type'] == 'Customer'] # weekend
         # else: Keep dataframe as is
+        
+        # Loops have same start and end station.
+        if remove_loops is True:
+            self.df = self.df[self.df['start_stat_id'] != self.df['end_stat_id']]
 
         self.stat = Stations(self.df)
 
@@ -2914,6 +2918,6 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     pre = time.time()
-    data = Data('london', 2018, 6, overwrite=True, user_type='all')
+    data = Data('nyc', 2019, None, overwrite=False, user_type='all', remove_loops=True)
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()
