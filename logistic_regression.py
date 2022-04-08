@@ -680,19 +680,19 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
     
     else:
         plot_heatmap(pred, grid_points, point_info, ax=ax[0,0])
-    plot_heatmap('pop_density', grid_points, point_info, zlabel='Population Density (pop/100m²)', ax=ax[nrows+0,1])
+    plot_heatmap('pop_density', grid_points, point_info, zlabel='Pop. Density (pop/100m²)', ax=ax[nrows+0,1])
     
-    plot_heatmap('percent_residential', grid_points, point_info, zlabel='Share of residential usage', ax=ax[nrows+1,0], vdims=(0,1))
-    plot_heatmap('percent_commercial', grid_points, point_info, zlabel='Share of commercial usage', ax=ax[nrows+1,1], vdims=(0,1))
-    plot_heatmap('percent_recreational', grid_points, point_info, zlabel='Share of recreational usage', ax=ax[nrows+2,0], vdims=(0,1))
-    plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Share of industrial usage', ax=ax[nrows+2,1], vdims=(0,1))
-    plot_heatmap('nearest_subway_dist', grid_points, point_info, zlabel='Nearest subway distance (km)', cmap='magma_r', ax=ax[nrows+3,0])
-    plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway distance (km)', cmap='magma_r', ax=ax[nrows+3,1])
+    plot_heatmap('percent_residential', grid_points, point_info, zlabel='Share of residential use', ax=ax[nrows+1,0], vdims=(0,1))
+    plot_heatmap('percent_commercial', grid_points, point_info, zlabel='Share of commercial use', ax=ax[nrows+1,1], vdims=(0,1))
+    plot_heatmap('percent_recreational', grid_points, point_info, zlabel='Share of recreational use', ax=ax[nrows+2,0], vdims=(0,1))
+    plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Share of industrial use', ax=ax[nrows+2,1], vdims=(0,1))
+    plot_heatmap('nearest_subway_dist', grid_points, point_info, zlabel='Nearest subway dist. (km)', cmap='magma_r', ax=ax[nrows+3,0])
+    plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway dist. (km)', cmap='magma_r', ax=ax[nrows+3,1])
     plt.subplots_adjust(wspace=-0.7)
     plt.tight_layout()
     if savefig:
         monstr = f'{data.month:02d}' if data.month is not None else ''
-        plt.savefig(f'figures/{title}_{data.city}{data.year}{monstr}.pdf', dpi=300)
+        plt.savefig(f'figures/{title}_{data.city}{data.year}{monstr}.pdf', dpi=300, bbox_inches='tight')
 
 
 def make_model_and_plot_heatmaps(
@@ -719,10 +719,10 @@ def make_model_and_plot_heatmaps(
         except FileNotFoundError:
             raise FileNotFoundError(f'The average station DataFrame for {data.city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
             
-        # mask = ~asdf['n_trips'].isna()
+        mask = ~asdf['n_trips'].isna()
         
-        # asdf = asdf[mask]
-        # asdf = asdf.reset_index(drop=True)
+        asdf = asdf[mask]
+        asdf = asdf.reset_index(drop=True)
         
         asdf, clusters, labels = ipu.get_clusters(
             traffic_matrices, asdf, day_type, min_trips, clustering, k, seed)
@@ -849,5 +849,5 @@ if __name__ == "__main__":
     
     grid_points, point_info = make_model_and_plot_heatmaps(
         CITY, YEAR, MONTH, cols, modeltype=modeltype, triptype=triptype,
-        resolution=resolution, k=k, train_cities=['london', 'washdc', 'boston', 'chicago', 'helsinki', 'oslo', 'madrid', 'nyc'])
+        resolution=resolution, k=k, train_cities=['boston', 'washdc', 'nyc', 'madrid', 'helsinki', 'oslo'])
 
