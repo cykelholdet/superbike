@@ -1039,29 +1039,45 @@ def pre_processing_table(cities=None, year=2019, month=None, min_trips=4):
         except FileNotFoundError:
             raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
             
-        data = bs.Data(city, year, month, day_type=None,
-                       user_type=None, remove_loops=False,
+        data = bs.Data(city, year, month, day_type='business_days',
+                       user_type='Subscribers', remove_loops=False,
                        overwrite=True)
         
-        table[city, ('Pre-cleaning', 'Trips')] = len(data.df)
-        table[city, ('Pre-cleaning', 'Stations')] = len(data.stat.id_index)
+        table.loc[city, ('Pre-cleaning', 'Trips')] = len(data.df)
+        table.loc[city, ('Pre-cleaning', 'Stations')] = len(data.stat.id_index)
         
-        data = bs.Data(city, year, month, remove_loops=True, overwrite=True)
+        data = bs.Data(city, year, month, day_type='business_days', 
+                       user_type='Subscriber', remove_loops=True, 
+                       overwrite=True)
   
-        traf_mats = data.pickle_daily_traffic(holidays=False, 
-                                              user_type='Subscriber',
-                                              normalise=False,
-                                              overwrite=True)
+        # traf_mats = data.pickle_daily_traffic(holidays=False, 
+        #                                       user_type='Subscriber',
+        #                                       normalise=False,
+        #                                       overwrite=True)
         
-        traffic_matrix, mask, x_trips = ipu.mask_traffic_matrix(
-            traf_mats, asdf, day_type='business_days', min_trips=min_trips, 
-            holidays=False, return_mask=True)
+        # mask = ~asdf['n_trips'].isna()
         
-        table[city, ('Post-cleaning', 'Trips')] = traffic_matrix.sum()
-        table[city, ('Post-cleaning', 'Station')] = ~asdf['label'].isna().sum()
+        # asdf = asdf[mask]
+        # asdf = asdf.reset_index(drop=True)
         
-        table[city, ('Data Retained (\%)', 'Trips')] = table[city,('Post-cleaning', 'Trips')]/table[city,('Pre-cleaning', 'Trips')]*100
-        table[city, ('Data Retained (\%)', 'Stations')] = table[city,('Post-cleaning', 'Stations')]/table[city,('Pre-cleaning', 'Stations')]*100
+        # try:
+        #     traf_mats = (traf_mats[0][mask], traf_mats[1])
+        # except IndexError:
+        #     pass
+        
+        asdf = asdf[asdf['b_trips'] >= min_trips]
+        
+        table.loc[city, ('Post-cleaning', 'Trips')] = (
+            data.df['start_stat_id'].isin(asdf['stat_id']) | 
+                     data.df['end_stat_id'].isin(asdf['stat_id'])).sum()
+        table.loc[city, ('Post-cleaning', 'Stations')] = len(asdf)
+        
+        table.loc[city, ('Data Retained (\%)', 'Trips')] = table.loc[city,('Post-cleaning', 'Trips')]/table.loc[city,('Pre-cleaning', 'Trips')]*100
+        table.loc[city, ('Data Retained (\%)', 'Stations')] = table.loc[city,('Post-cleaning', 'Stations')]/table.loc[city,('Pre-cleaning', 'Stations')]*100
+        
+        print(table.to_latex(column_format='@{}l'+('r'*len(table.columns)) + '@{}',
+                             index=False, multicolumn=True, multicolumn_format='c',
+                             float_format=lambda x: f'{x:.2f}'))
         
     return table
     
