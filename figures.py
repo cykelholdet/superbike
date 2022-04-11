@@ -29,7 +29,7 @@ import bikeshare as bs
 import interactive_plot_utils as ipu
 from logistic_table import lr_coefficients
 
-def service_area_figure(data, stat_df, land_use, return_fig=False):
+def service_area_figure(data, stat_df, land_use, return_fig=False): #TODO
     """
     Makes a figure of the stations and their service areas in a network.
 
@@ -164,7 +164,7 @@ def service_area_figure(data, stat_df, land_use, return_fig=False):
         return fig, ax
 
 
-def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='all', return_fig=False):
+def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='all', return_fig=False):#TODO
     """
     Makes a figure of the average daily traffic for a station.
 
@@ -221,7 +221,7 @@ def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='
         return fig, ax
         
 
-def make_summary_statistics_table(cities=None, variables=None, year=2019, print_only=False):
+def make_summary_statistics_table(cities=None, variables=None, year=2019, print_only=False): #TODO
     """
     Makes a table containing the summary statistics of the variables used in
     the model for all cities. Also calculates the variables for each station
@@ -309,7 +309,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
     return tab_df
 
 
-def make_LR_table(year=2019, k=3):
+def make_LR_table(year=2019, k=3): #TODO
     """
     Makes a table containing the coefficients of the Logistics Regression 
     model for all cities.
@@ -383,7 +383,7 @@ def make_LR_table(year=2019, k=3):
         data = bs.Data(city, year)
         
         traf_mats = data.pickle_daily_traffic(holidays=False, 
-                                              user_type='Subscriber',
+                                              # user_type='Subscriber',
                                               overwrite=False)
                 
         mask = ~asdf['n_trips'].isna()
@@ -507,7 +507,7 @@ def tuple_formatter(tup):
     
     return out
 
-def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42, 
+def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42, #TODO
                res='success_rates'):
     """
     
@@ -702,7 +702,7 @@ def n_table_formatter(x):
     else:
         return ""
 
-def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=False):
+def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=False):# TODO
     if city != 'all':
         try:
             with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
@@ -874,7 +874,7 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=Fal
             return clusters_dict
 
 
-def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10, 
+def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10, # TODO
                  cluster_seed=42, plot_figures=False, overwrite=False):
     
     if cities is None:
@@ -1013,7 +1013,62 @@ def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10,
         plt.savefig('figures/paper_figures/k_test_figures.pdf')
         
     return res_table
+
+
+def pre_processing_table(cities=None, year=2019, month=None, min_trips=4):
+    
+    if cities is None:
+        cities = ['nyc', 'chicago', 'washdc', 'boston', 
+                  'london', 'helsinki', 'oslo', 'madrid'] 
+
+    table_index = [['City', 'Pre-cleaning', 'Pre-cleaning', 
+                    'Post-cleaning', 'Post-cleaning', 'Data Retained (\%)', 
+                    'Data Retained (\%)'],
+                   ['','Trips','Stations','Trips','Stations','Trips','Stations']]
+
+    table = pd.DataFrame(index=cities, 
+                         columns=pd.MultiIndex.from_arrays(table_index))
+    
+    table[('City','')] = [bs.name_dict[city] for city in cities]
+    
+    for city in cities:
         
+        try:
+            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+                asdf = pickle.load(file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
+            
+        data = bs.Data(city, year, month, day_type=None,
+                       user_type=None, remove_loops=False,
+                       overwrite=True)
+        
+        table[city, ('Pre-cleaning', 'Trips')] = len(data.df)
+        table[city, ('Pre-cleaning', 'Stations')] = len(data.stat.id_index)
+        
+        data = bs.Data(city, year, month, day_type='business_days',
+                 user_type='Subscriber', remove_loops=True,
+                 overwrite=True)
+  
+        traf_mats = data.pickle_daily_traffic(holidays=False, 
+                                              user_type='Subscriber',
+                                              normalise=False,
+                                              overwrite=True)
+        
+        traffic_matrix, mask, x_trips = mask_traffic_matrix(
+            traf_mats, asdf, day_type='business_days', min_trips=min_trips, 
+            holidays=False, return_mask=True)
+        
+        table[city, ('Post-cleaning', 'Trips')] = traffic_matrix.sum()
+        table[city, ('Post-cleaning', 'Station')] = ~asdf['label'].isna().sum()
+        
+        table[city, ('Data Retained (\%)', 'Trips')] = table[city,('Post-cleaning', 'Trips')]/table[city,('Pre-cleaning', 'Trips')]*100
+        table[city, ('Data Retained (\%)', 'Stations')] = table[city,('Post-cleaning', 'Stations')]/table[city,('Pre-cleaning', 'Stations')]*100
+        
+    return table
+    
+
+
 if __name__ == "__main__":
     
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
@@ -1029,6 +1084,7 @@ if __name__ == "__main__":
         # clusters_list.append(plot_cluster_centers('all', k=k))
     #     plt.close()
     
+    pre_process_table = pre_processing_table()
    
     
     

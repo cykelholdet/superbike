@@ -37,7 +37,7 @@ from scipy.spatial import Voronoi
 import bikeshare as bs
 import dataframe_key
 
-warnings.filterwarnings("ignore", category=shapely.errors.ShapelyDeprecationWarning) 
+# warnings.filterwarnings("ignore", category=shapely.errors.ShapelyDeprecationWarning) 
 
 def census_key(city):
     """
@@ -2332,7 +2332,7 @@ if __name__ == "__main__":
     
     # create_all_pickles('boston', 2019, overwrite=True)
 
-    data = bs.Data('chicago', 2019, overwrite=True)
+    data = bs.Data('nyc', 2019, overwrite=True)
 
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=True)

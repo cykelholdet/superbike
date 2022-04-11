@@ -822,9 +822,6 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
             df = df[df['start_dt'].dt.month == month]
             
-            # Remove trips with duration less than 1 minute
-            df = df[df['duration'] > 60] 
-            
             df['end_dt'] = df['start_dt'] + \
                 pd.to_timedelta(df['duration'], unit='s')
 
@@ -1107,7 +1104,11 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
             df.dropna(inplace=True)
             df.sort_values(by=['start_dt'], inplace=True)
             df.reset_index(inplace=True, drop=True)
-
+        
+        # Remove trips with duration less than 1 minute
+        df = df[df['duration'] > 60] 
+        df = df.reset_index(drop=True)
+        
         if blocklist:
             df = df[~df['start_stat_id'].isin(blocklist)]
             df = df[~df['end_stat_id'].isin(blocklist)]
