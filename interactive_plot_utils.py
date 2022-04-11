@@ -1078,16 +1078,20 @@ def pickle_asdf(cities=None, variables=None, year=2019):
             
             var_dfs[var] = var_df
         
+        
+        # Get station df for each day in the year, grouped by month.
         stat_dfs = dict()
         
-        with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version            
+        with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version
             for month in bs.get_valid_months(city, year):
+                # Run stat_df_day via partial to get the station_df for each day in the month
                 stat_df_day_part = partial(stat_df_day, city=city, year=year, month=month, columns=variables + ['stat_id'])
                 days = range(1, calendar.monthrange(year, month)[1]+1)
                 stat_dfs[month] = pool.map(stat_df_day_part, days)
         
         print(stat_dfs)
         
+        # After computing all the station_dfs for every day in the year, collect them by variable in var_dfs
         for month in bs.get_valid_months(city, year):
             for day in range(1, calendar.monthrange(year, month)[1]+1):
                 stat_df = stat_dfs[month][day-1]
@@ -1096,6 +1100,7 @@ def pickle_asdf(cities=None, variables=None, year=2019):
                         var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
                         var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
         
+        # Make the average statin_df by averaging over the variables for each day in var_dfs
         avg_stat_df = pd.DataFrame()
         avg_stat_df['stat_id'] = stat_ids
         for var in variables:
@@ -1106,6 +1111,9 @@ def pickle_asdf(cities=None, variables=None, year=2019):
         
         with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
             pickle.dump(avg_stat_df, file)
+        
+        if [city] == cities:
+            return stat_dfs, var_dfs, avg_stat_df
 
 def nearest_transit(city, station_df):
     try:
@@ -2331,6 +2339,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     
     # create_all_pickles('boston', 2019, overwrite=True)
+    
+    pickle_asdf(cities=['boston'])
 
     data = bs.Data('nyc', 2019, overwrite=True)
 

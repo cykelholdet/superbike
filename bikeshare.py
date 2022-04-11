@@ -1819,7 +1819,7 @@ def get_elevation(lat, long, dataset="aster30m"):
                     response = True
                 else:
                     sleeptime = np.random.randint(1, 6)
-                    warnings.warn(f"No json response. Query = {loc_string}\nStatus code = {r.status_code}, waiting {sleeptime}s")
+                    warnings.warn(f"No json response. Status code = {r.status_code}, waiting {sleeptime}s")
                     time.sleep(sleeptime)
             
             
