@@ -1046,16 +1046,14 @@ def pre_processing_table(cities=None, year=2019, month=None, min_trips=4):
         table[city, ('Pre-cleaning', 'Trips')] = len(data.df)
         table[city, ('Pre-cleaning', 'Stations')] = len(data.stat.id_index)
         
-        data = bs.Data(city, year, month, day_type='business_days',
-                 user_type='Subscriber', remove_loops=True,
-                 overwrite=True)
+        data = bs.Data(city, year, month, remove_loops=True, overwrite=True)
   
         traf_mats = data.pickle_daily_traffic(holidays=False, 
                                               user_type='Subscriber',
                                               normalise=False,
                                               overwrite=True)
         
-        traffic_matrix, mask, x_trips = mask_traffic_matrix(
+        traffic_matrix, mask, x_trips = ipu.mask_traffic_matrix(
             traf_mats, asdf, day_type='business_days', min_trips=min_trips, 
             holidays=False, return_mask=True)
         
