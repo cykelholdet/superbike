@@ -1074,10 +1074,10 @@ def pre_processing_table(cities=None, year=2019, month=None, min_trips=4):
                      data.df['end_stat_id'].isin(asdf['stat_id'])).sum()
         table.loc[city, ('Post-cleaning', 'Stations')] = len(asdf)
         
-        table.loc[city, ('Data Retained (\%)', 'Trips')] = table.loc[city,('Post-cleaning', 'Trips')]/table.loc[city,('Pre-cleaning', 'Trips')]*100
-        table.loc[city, ('Data Retained (\%)', 'Stations')] = table.loc[city,('Post-cleaning', 'Stations')]/table.loc[city,('Pre-cleaning', 'Stations')]*100
+        table.loc[city, ('Data Retained (%)', 'Trips')] = table.loc[city,('Post-cleaning', 'Trips')]/table.loc[city,('Pre-cleaning', 'Trips')]*100
+        table.loc[city, ('Data Retained (%)', 'Stations')] = table.loc[city,('Post-cleaning', 'Stations')]/table.loc[city,('Pre-cleaning', 'Stations')]*100
         
-        print(table.to_latex(column_format='@{}l'+('r'*len(table.columns)) + '@{}',
+        print(table.to_latex(column_format='@{}l'+('r'*(len(table.columns)-1)) + '@{}',
                              index=False, multicolumn=True, multicolumn_format='c',
                              float_format=lambda x: f'{x:.2f}'))
         
