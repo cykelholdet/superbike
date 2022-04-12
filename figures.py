@@ -728,7 +728,7 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=Fal
             pass
                 
         
-        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 42)
+        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
         
         plt.style.use('seaborn-darkgrid')
         
@@ -804,7 +804,7 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=Fal
                 except IndexError:
                     pass
                 
-                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 42)
+                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 7, 'k_means', k, 42)
                 
                 clusters_dict[city] = clusters
                 
@@ -1021,15 +1021,17 @@ def pre_processing_table(cities=None, year=2019, month=None, min_trips=4):
         cities = ['nyc', 'chicago', 'washdc', 'boston', 
                   'london', 'helsinki', 'oslo', 'madrid'] 
 
-    table_index = [['City', 'Pre-cleaning', 'Pre-cleaning', 
-                    'Post-cleaning', 'Post-cleaning', 'Data Retained (\%)', 
-                    'Data Retained (\%)'],
-                   ['','Trips','Stations','Trips','Stations','Trips','Stations']]
+    table_index = [['City', 'Pre-cleaning', 'Pre-cleaning', 'h1', 
+                    'Post-cleaning', 'Post-cleaning', 'h2', 
+                    'Data Retained (%)', 'Data Retained (%)'],
+                   ['','Trips','Stations', '', 'Trips','Stations','',
+                    'Trips','Stations']]
 
     table = pd.DataFrame(index=cities, 
                          columns=pd.MultiIndex.from_arrays(table_index))
     
     table[('City','')] = [bs.name_dict[city] for city in cities]
+    table[('h1','')], table[('h2','')] = '', ''
     
     for city in cities:
         
