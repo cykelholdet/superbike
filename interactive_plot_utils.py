@@ -37,6 +37,7 @@ from scipy.spatial import Voronoi
 import bikeshare as bs
 import dataframe_key
 
+gpd.options.use_pygeos = False
 # warnings.filterwarnings("ignore", category=shapely.errors.ShapelyDeprecationWarning) 
 
 def census_key(city):
