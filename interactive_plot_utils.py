@@ -1048,7 +1048,122 @@ def stat_df_day(day, city, year, month, columns):
         stat_df = pd.DataFrame(columns=columns)
     return stat_df[stat_df.columns & columns]
 
-def pickle_asdf(cities=None, variables=None, year=2019):
+def pickle_asdf(cities=None, variables=None, year=2019, month=None):
+    if cities is None:
+        cities = ['nyc', 'chicago', 'washdc', 'boston', 
+                  'london', 'helsinki', 'oslo', 'madrid']
+    
+    if isinstance(cities, str):
+        cities = [cities]
+    
+    if variables is None:
+        variables = ['percent_residential', 'percent_commercial',
+                     'percent_recreational', 'percent_industrial',
+                     'percent_mixed', 'percent_transportation', 
+                     'percent_educational', 'percent_road', 'percent_UNKNOWN',
+                     'pop_density', 'nearest_subway_dist', 'nearest_railway_dist',
+                     'nearest_transit_dist', 'n_trips', 'b_trips', 'w_trips']
+
+  
+    for city in cities:
+        if month is None:
+            data_city = bs.Data(city, year)
+            
+            stat_ids = list(data_city.stat.id_index.keys())
+            
+            var_dfs = dict()
+            
+            for var in variables:
+                var_df = pd.DataFrame()
+                var_df['stat_id'] = stat_ids
+                
+                var_dfs[var] = var_df
+            
+            
+            # Get station df for each day in the year, grouped by month.
+            stat_dfs = dict()
+            
+            with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version
+                for month in bs.get_valid_months(city, year):
+                    # Run stat_df_day via partial to get the station_df for each day in the month
+                    stat_df_day_part = partial(stat_df_day, city=city, year=year, month=month, columns=variables + ['stat_id'])
+                    days = range(1, calendar.monthrange(year, month)[1]+1)
+                    stat_dfs[month] = pool.map(stat_df_day_part, days)
+            
+            print(stat_dfs)
+            
+            # After computing all the station_dfs for every day in the year, collect them by variable in var_dfs
+            for month in bs.get_valid_months(city, year):
+                for day in range(1, calendar.monthrange(year, month)[1]+1):
+                    stat_df = stat_dfs[month][day-1]
+                    for var in variables:
+                        if var in stat_df.columns:
+                            var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
+                            var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
+            
+            # Make the average statin_df by averaging over the variables for each day in var_dfs
+            avg_stat_df = pd.DataFrame()
+            avg_stat_df['stat_id'] = stat_ids
+            for var in variables:
+                if len(var_dfs[var].columns) > 1:
+                    avg_stat_df[var] = var_dfs[var][var_dfs[var].columns[1:]].mean(axis=1)
+            
+    
+            
+            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
+                pickle.dump(avg_stat_df, file)
+            
+            if [city] == cities:
+                return stat_dfs, var_dfs, avg_stat_df
+        else:
+            for month in bs.get_valid_months(city, year):
+                data_city = bs.Data(city, year, month)
+                
+                stat_ids = list(data_city.stat.id_index.keys())
+                
+                var_dfs = dict()
+                
+                for var in variables:
+                    var_df = pd.DataFrame()
+                    var_df['stat_id'] = stat_ids
+                    
+                    var_dfs[var] = var_df
+                
+                
+                # Get station df for each day in the year, grouped by month.
+                stat_dfs = dict()
+                
+                with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version
+                    for month in bs.get_valid_months(city, year):
+                        # Run stat_df_day via partial to get the station_df for each day in the month
+                        stat_df_day_part = partial(stat_df_day, city=city, year=year, month=month, columns=variables + ['stat_id'])
+                        days = range(1, calendar.monthrange(year, month)[1]+1)
+                        stat_dfs[month] = pool.map(stat_df_day_part, days)
+                
+                print(stat_dfs)
+                
+                # After computing all the station_dfs for every day in the year, collect them by variable in var_dfs
+                for month in bs.get_valid_months(city, year):
+                    for day in range(1, calendar.monthrange(year, month)[1]+1):
+                        stat_df = stat_dfs[month][day-1]
+                        for var in variables:
+                            if var in stat_df.columns:
+                                var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
+                                var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
+                
+                # Make the average statin_df by averaging over the variables for each day in var_dfs
+                avg_stat_df = pd.DataFrame()
+                avg_stat_df['stat_id'] = stat_ids
+                for var in variables:
+                    if len(var_dfs[var].columns) > 1:
+                        avg_stat_df[var] = var_dfs[var][var_dfs[var].columns[1:]].mean(axis=1)
+                
+        
+                
+                with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
+                    pickle.dump(avg_stat_df, file)
+
+def pickle_asdf2(cities=None, variables=None, year=2019, month=None):
     if cities is None:
         cities = ['nyc', 'chicago', 'washdc', 'boston', 
                   'london', 'helsinki', 'oslo', 'madrid']
@@ -1072,12 +1187,18 @@ def pickle_asdf(cities=None, variables=None, year=2019):
         stat_ids = list(data_city.stat.id_index.keys())
         
         var_dfs = dict()
+        avg_stat_df = dict()
         
-        for var in variables:
-            var_df = pd.DataFrame()
-            var_df['stat_id'] = stat_ids
-            
-            var_dfs[var] = var_df
+        for month in bs.get_valid_months(city, year):
+            data_month = bs.Data(city, year, month)
+            avg_stat_df[month] = pd.Dataframe()
+            avg_stat_df[month]['stat_id'] = list(data_city.stat.id_index.keys())
+
+            for var in variables:
+                var_df = pd.DataFrame()
+                var_df['stat_id'] = stat_ids
+                
+                var_dfs[month, var] = var_df
         
         
         # Get station df for each day in the year, grouped by month.
@@ -1098,23 +1219,43 @@ def pickle_asdf(cities=None, variables=None, year=2019):
                 stat_df = stat_dfs[month][day-1]
                 for var in variables:
                     if var in stat_df.columns:
-                        var_dfs[var] = var_dfs[var].merge(stat_df[['stat_id', var]], on='stat_id', how='outer')
-                        var_dfs[var].rename({var: f'{year}-{month:02d}-{day:02d}'}, axis=1, inplace=True)
+                        var_dfs[month, var] = var_dfs[month, var].merge(
+                            stat_df[['stat_id', var]], on='stat_id', how='outer')
+                        var_dfs[month, var].rename(
+                            {var: f'{year}-{month:02d}-{day:02d}'}, 
+                            axis=1, inplace=True)
         
-        # Make the average statin_df by averaging over the variables for each day in var_dfs
-        avg_stat_df = pd.DataFrame()
-        avg_stat_df['stat_id'] = stat_ids
+        # Make the average station_df by averaging over the variables for each day in var_dfs
+        avg_stat_df['year'] = pd.DataFrame()
+        avg_stat_df['year']['stat_id'] = stat_ids
+        
+        big_var_dfs = dict()
         for var in variables:
-            if len(var_dfs[var].columns) > 1:
-                avg_stat_df[var] = var_dfs[var][var_dfs[var].columns[1:]].mean(axis=1)
+            big_var_dfs[var] = pd.DataFrame()
+            big_var_dfs[var]['stat_id'] = stat_ids
         
+        
+        for month in bs.get_valid_months(city, year):
+            for var in variables:
+                if len(var_dfs[month, var].columns) > 1:
+                    avg_stat_df[month][var] = var_dfs[month, var][var_dfs[month, var].columns[1:]].mean(axis=1)
+                big_var_dfs[var] = big_var_dfs.merge(var_dfs[month, var], 
+                                                     on='stat_id', how='outer')
+                
+            with open(f'./python_variables/{city}{year}{month}_avg_stat_df.pickle', 'rb') as file:
+                pickle.dump(avg_stat_df[month], file)
 
+        for var in variables:
+            if len(big_var_dfs[var].columns) > 1:
+                avg_stat_df['year'][var] = big_var_dfs[var][big_var_dfs[var].columns[1:]].mean(axis=1)
         
         with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
-            pickle.dump(avg_stat_df, file)
+            pickle.dump(avg_stat_df['year'], file)
         
         if [city] == cities:
             return stat_dfs, var_dfs, avg_stat_df
+
+            
 
 def nearest_transit(city, station_df):
     try:
@@ -1840,7 +1981,8 @@ def logistic_regression_test(X_train, y_train, X_test, y_test, plot_cm=True, nor
         if normalise_cm == 'all':
             title='Normalised wrt. number of predictions'
         
-        
+        else:
+            title = ''
         
         plt.style.use('default')
         disp = ConfusionMatrixDisplay(confusion_matrix=cm)

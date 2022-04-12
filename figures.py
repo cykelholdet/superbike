@@ -579,7 +579,7 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42, #TODO
         except IndexError:
             pass
         
-        asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 42)[0]
+        asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 0)[0]
         
         zone_columns = ['percent_residential', 'percent_commercial',
                         'percent_recreational', 'percent_industrial']
@@ -597,7 +597,8 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42, #TODO
         lr_results, X[city], y[city] = ipu.stations_logistic_regression(
             asdf, zone_columns, other_columns, 
             use_points_or_percents='percents', 
-            make_points_by='station land use', const=False, return_scaled=True)
+            make_points_by='station land use', 
+            plot_cm=True, const=True, return_scaled=True)
 
 
         if test_seed:
@@ -689,6 +690,125 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42, #TODO
         plt.savefig('./figures/paper_figures/city_tests.pdf')
     
     return sr_mat
+
+def train_test_cm(city_train, city_test, k=5, year=2019): #TODO
+    omit_columns = {
+        'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'chicago': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'nyc': ['percent_mixed', 'n_trips'],
+        'washdc': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
+        'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips'],
+        'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'percent_industrial'],
+        'madrid': ['n_trips', 'percent_industrial'],
+        'oslo': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips', 'percent_mixed'],
+        'USA': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
+        'EUR': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
+        'All': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
+        }
+    if city_train == city_test:
+        city = city_train
+        
+        try:
+            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+                asdf = pickle.load(file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
+    
+            
+        data = bs.Data(city, year)
+        
+        traf_mats = data.pickle_daily_traffic(holidays=False, 
+                                              user_type='Subscriber',
+                                              overwrite=False)
+                
+        mask = ~asdf['n_trips'].isna()
+        
+        asdf = asdf[mask]
+        asdf = asdf.reset_index(drop=True)
+        
+        try:
+            traf_mats = (traf_mats[0][mask], traf_mats[1])
+        except IndexError:
+            pass
+        
+        asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 0)[0]
+        
+        zone_columns = ['percent_residential', 'percent_commercial',
+                        'percent_recreational', 'percent_industrial']
+        
+        for column in omit_columns[data.city]:
+            if column in zone_columns:
+                zone_columns.remove(column)
+    
+        other_columns = ['pop_density', 'nearest_transit_dist', 'b_trips']
+        
+        for column in omit_columns[data.city]:
+            if column in other_columns:
+                other_columns.remove(column)
+        
+        lr_results, X, y, predictions = ipu.stations_logistic_regression(
+            asdf, zone_columns, other_columns, 
+            use_points_or_percents='percents', 
+            make_points_by='station land use', 
+            test_model=True, plot_cm=True, normalise_cm='true',
+            const=True, return_scaled=True)
+    
+    else:
+        
+        X = dict()
+        y = dict()
+        
+        for city in [city_train, city_test]:
+            try:
+                with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+                    asdf = pickle.load(file)
+            except FileNotFoundError:
+                raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
+        
+            data = bs.Data(city, year)
+            
+            traf_mats = data.pickle_daily_traffic(holidays=False, 
+                                                  user_type='Subscriber',
+                                                  overwrite=False)
+                    
+            mask = ~asdf['n_trips'].isna()
+            
+            asdf = asdf[mask]
+            asdf = asdf.reset_index(drop=True)
+            
+            try:
+                traf_mats = (traf_mats[0][mask], traf_mats[1])
+            except IndexError:
+                pass
+            
+            asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 0)[0]
+            
+            zone_columns = ['percent_residential', 'percent_commercial',
+                            'percent_recreational', 'percent_industrial']
+            
+            for column in omit_columns[data.city]:
+                if column in zone_columns:
+                    zone_columns.remove(column)
+        
+            other_columns = ['pop_density', 'nearest_transit_dist', 'b_trips']
+            
+            for column in omit_columns[data.city]:
+                if column in other_columns:
+                    other_columns.remove(column)
+            
+            lr_results, X[city], y[city] = ipu.stations_logistic_regression(
+                asdf, zone_columns, other_columns, 
+                use_points_or_percents='percents', 
+                make_points_by='station land use', 
+                test_model=False, const=False, return_scaled=True)
+    
+        success_rate, cm, predictions = ipu.logistic_regression_test(
+            X[city_train], y[city_train], X[city_test], y[city_test], 
+            plot_cm=True, normalise_cm='true')
+        
+        plt.savefig(f'./figures/paper_figures/cm_{year}_{city_train}_{city_test}.pdf')
+        
+        return cm
 
 def n_table_formatter(x):
     
@@ -1074,10 +1194,10 @@ def pre_processing_table(cities=None, year=2019, month=None, min_trips=4):
                      data.df['end_stat_id'].isin(asdf['stat_id'])).sum()
         table.loc[city, ('Post-cleaning', 'Stations')] = len(asdf)
         
-        table.loc[city, ('Data Retained (\%)', 'Trips')] = table.loc[city,('Post-cleaning', 'Trips')]/table.loc[city,('Pre-cleaning', 'Trips')]*100
-        table.loc[city, ('Data Retained (\%)', 'Stations')] = table.loc[city,('Post-cleaning', 'Stations')]/table.loc[city,('Pre-cleaning', 'Stations')]*100
+        table.loc[city, ('Data Retained (%)', 'Trips')] = table.loc[city,('Post-cleaning', 'Trips')]/table.loc[city,('Pre-cleaning', 'Trips')]*100
+        table.loc[city, ('Data Retained (%)', 'Stations')] = table.loc[city,('Post-cleaning', 'Stations')]/table.loc[city,('Pre-cleaning', 'Stations')]*100
         
-        print(table.to_latex(column_format='@{}l'+('r'*len(table.columns)) + '@{}',
+        print(table.to_latex(column_format='@{}l'+('r'*(len(table.columns)-1)) + '@{}',
                              index=False, multicolumn=True, multicolumn_format='c',
                              float_format=lambda x: f'{x:.2f}'))
         
@@ -1094,13 +1214,14 @@ if __name__ == "__main__":
     # LR_table=make_LR_table(2019, k=5)
     # k_table = k_test_table(plot_figures=True, overwrite=True)
     # sr = city_tests(k=5)
+    cm = train_test_cm('nyc', 'nyc')
     # clusters, n_table = plot_cluster_centers('all', k=5, n_table=True)
     # clusters_list = []
     # for k in [2,3,4,5,6,7,8,9,10]:
         # clusters_list.append(plot_cluster_centers('all', k=k))
     #     plt.close()
     
-    pre_process_table = pre_processing_table()
+    # pre_process_table = pre_processing_table()
    
     
     
