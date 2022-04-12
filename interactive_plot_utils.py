@@ -1190,7 +1190,7 @@ def pickle_asdf2(cities=None, variables=None, year=2019, month=None):
         
         for month in bs.get_valid_months(city, year):
             data_month = bs.Data(city, year, month)
-            avg_stat_df[month] = pd.Dataframe()
+            avg_stat_df[month] = pd.DataFrame()
             avg_stat_df[month]['stat_id'] = list(data_city.stat.id_index.keys())
 
             for var in variables:
