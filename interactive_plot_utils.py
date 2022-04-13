@@ -1090,7 +1090,7 @@ def pickle_asdf_month(city, year, month, variables=None,
             stat_df_day_part = partial(stat_df_day, city=city, year=year, 
                                        month=month, columns=variables + ['stat_id'])
             days = range(1, calendar.monthrange(year, month)[1]+1)
-            stat_df = pool.map(stat_df_day_part, days)
+            stat_dfs = pool.map(stat_df_day_part, days)
         
         # After computing all the station_dfs for every day in the year, collect them by variable in var_dfs
         for var in variables:
