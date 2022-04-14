@@ -1110,14 +1110,17 @@ def pickle_asdf_month(city, year, month, variables=None,
             # For each row, count the number of non NaNs, disregarding stat_id column
             counts[var] = (~var_dfs[var].drop('stat_id', axis=1).isna()).sum(axis=1)
         
-        # TODO: check percent residential for stat_id 12 for all days in month 1
-        
         # Make the average station_df by averaging over the variables for each day in var_dfs
         avg_stat_df = pd.DataFrame()
         avg_stat_df['stat_id'] = stat_ids
         for var in variables:
             if len(var_dfs[var].columns) > 1:
                 avg_stat_df[var] = var_dfs[var].drop('stat_id', axis=1).mean(axis=1)
+            
+            else:
+                avg_stat_df[var] = np.nan
+            
+            
         
         with open(f'./python_variables/{city}{year}{month:02d}_avg_stat_df.pickle', 'wb') as file:
             pickle.dump(avg_stat_df, file)
@@ -1202,7 +1205,7 @@ def pickle_asdf(cities=None, variables=None, year=2019):
        
 
 def pickle_asdf2(cities=None, variables=None, year=2019, month=None):
-    #TODO: make this work
+
     if cities is None:
         cities = ['nyc', 'chicago', 'washdc', 'boston', 
                   'london', 'helsinki', 'oslo', 'madrid']
@@ -1264,7 +1267,7 @@ def pickle_asdf2(cities=None, variables=None, year=2019, month=None):
             
             print('hej')
         
-        with open(f'./python_variables/pickle_asdf2_test.pickle', 'wb') as file:
+        with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
             pickle.dump(avg_stat_df_year, file)
             
         return avg_stat_df_year
@@ -2499,7 +2502,7 @@ if __name__ == "__main__":
     
     # create_all_pickles('boston', 2019, overwrite=True)
     
-    asdf = pickle_asdf2('boston')
+    asdf = pickle_asdf2('nyc')
     
     data = bs.Data('boston', 2019, 9)
 
