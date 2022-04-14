@@ -1267,13 +1267,8 @@ def pickle_asdf2(cities=None, variables=None, year=2019, month=None):
             
             print('hej')
         
-        with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
-            pickle.dump(avg_stat_df_year, file)
-            
-        return avg_stat_df_year
-            
-        
-
+            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
+                pickle.dump(avg_stat_df_year, file)
             
 
 def nearest_transit(city, station_df):
