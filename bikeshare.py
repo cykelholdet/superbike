@@ -2925,3 +2925,4 @@ if __name__ == "__main__":
     data = Data('madrid', 2019, None, overwrite=True, user_type='all', remove_loops=True)
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()
+

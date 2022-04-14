@@ -672,27 +672,38 @@ def plot_heatmap(z, grid_points, point_info, zlabel="Demand (Average daily busin
 def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title='heatmaps'):
     names = ['Reference', 'High morning sink', 'Low morning sink', 'Low morning source', 'High morning source']
     ncols = 3
+    npred = pred.shape[1]
     
-    nrows = pred.shape[1] // ncols
+    nvars = 7
+    
+    ntotal = nvars + npred
+    nrows = int(np.ceil(ntotal / ncols))
     
     plt.style.use('seaborn-darkgrid')
-    fig, ax = plt.subplots(nrows=3+nrows, ncols=ncols, figsize=(10, 13))
+    fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(10, 13))
     plt.setp(ax, xticks=[], yticks=[])
-    if nrows > 0:
-        for pred_col in range(pred.shape[1]):
+    if npred > 1:
+        for pred_col in range(npred):
             plot_heatmap(pred[pred_col], grid_points, point_info,
                          ax=ax[pred_col // ncols, pred_col%ncols], zlabel=f'P({names[pred_col]})', vdims=(0,1))
     
     else:
         plot_heatmap(pred, grid_points, point_info, ax=ax[0,0])
-    plot_heatmap('pop_density', grid_points, point_info, zlabel='Pop. Density (pop/100m²)', ax=ax[nrows+0,2])
     
-    plot_heatmap('percent_residential', grid_points, point_info, zlabel='Share of residential use', ax=ax[nrows+1,0], vdims=(0,1))
-    plot_heatmap('percent_commercial', grid_points, point_info, zlabel='Share of commercial use', ax=ax[nrows+1,1], vdims=(0,1))
-    plot_heatmap('percent_recreational', grid_points, point_info, zlabel='Share of recreational use', ax=ax[nrows+1,2], vdims=(0,1))
-    plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Share of industrial use', ax=ax[nrows+2,0], vdims=(0,1))
-    plot_heatmap('nearest_subway_dist', grid_points, point_info, zlabel='Nearest subway dist. (km)', cmap='magma_r', ax=ax[nrows+2,1])
-    plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway dist. (km)', cmap='magma_r', ax=ax[nrows+2,2])
+    n = npred
+    plot_heatmap('pop_density', grid_points, point_info, zlabel='Pop. Density (pop/100m²)', ax=ax[n//ncols,n%ncols])
+    n += 1
+    plot_heatmap('percent_residential', grid_points, point_info, zlabel='Share of residential use', ax=ax[n//ncols,n%ncols], vdims=(0,1))
+    n += 1
+    plot_heatmap('percent_commercial', grid_points, point_info, zlabel='Share of commercial use', ax=ax[n//ncols,n%ncols], vdims=(0,1))
+    n += 1
+    plot_heatmap('percent_recreational', grid_points, point_info, zlabel='Share of recreational use', ax=ax[n//ncols,n%ncols], vdims=(0,1))
+    n += 1
+    plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Share of industrial use', ax=ax[n//ncols,n%ncols], vdims=(0,1))
+    n += 1
+    plot_heatmap('nearest_subway_dist', grid_points, point_info, zlabel='Nearest subway dist. (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
+    n += 1
+    plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway dist. (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
     plt.subplots_adjust(wspace=-0.5)
     plt.tight_layout()
     if savefig:
@@ -854,5 +865,5 @@ if __name__ == "__main__":
     
     grid_points, point_info = make_model_and_plot_heatmaps(
         CITY, YEAR, MONTH, cols, modeltype=modeltype, triptype=triptype,
-        resolution=resolution, k=k, train_cities=['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'madrid', 'london', 'oslo'])
+        resolution=resolution, k=k, train_cities=['nyc'])
 

@@ -99,7 +99,7 @@ for city in cities:
     
     for p1, p2 in zip(grid1['geometry'], grid2['geometry']):
         
-        query=f'way[highway~"^(motorway|trunk|primary|secondary|tertiary|residential)$"][~"^(name|ref)$"~"."]({p1.coords[0][1]},{p1.coords[0][0]},{p2.coords[0][1]},{p2.coords[0][0]}) -> .allways;foreach.allways -> .currentway( (.allways; - .currentway;)->.otherways_unfiltered;way.otherways_unfiltered(if:t["name"] != currentway.u(t["name"]) || t["ref"] != currentway.u(t["ref"])) -> .otherways; node(w.currentway)->.currentwaynodes; node(w.otherways)->.otherwaynodes; node.currentwaynodes.otherwaynodes;out;);'
+        query=f'way[highway~"^(residential|unclassified|path|tertiary|secondary|primary|living_street|trunk|cycleway|pedestrian)$"][~"^(name|ref)$"~"."]({p1.coords[0][1]},{p1.coords[0][0]},{p2.coords[0][1]},{p2.coords[0][0]}) -> .allways;foreach.allways -> .currentway( (.allways; - .currentway;)->.otherways_unfiltered;way.otherways_unfiltered(if:t["name"] != currentway.u(t["name"]) || t["ref"] != currentway.u(t["ref"])) -> .otherways; node(w.currentway)->.currentwaynodes; node(w.otherways)->.otherwaynodes; node.currentwaynodes.otherwaynodes;out;);'
     
     
         result = overpass.query(query, timeout=6000)
@@ -137,7 +137,7 @@ for city in cities:
     
     with open(f'./python_variables/union_{city}.pickle', 'rb') as file:
         union = pickle.load(file)
-    
+    union = gpd.GeoSeries(union)
     union = gpd.GeoDataFrame(geometry=union, crs='epsg:4326')
     
     node_df = inters.reset_index(drop=True)
@@ -149,8 +149,8 @@ for city in cities:
         
     #%%
     
-    # with open(f'./python_variables/intersections_{city}.pickle', 'rb') as file:
-    #     inters = pickle.load(file)
+    with open(f'./python_variables/intersections_{city}.pickle', 'rb') as file:
+        node_df = pickle.load(file)
     
     extend = (node_df['lat'].min(), node_df['lon'].min(), 
           node_df['lat'].max(), node_df['lon'].max())
@@ -170,3 +170,57 @@ for city in cities:
     ax.plot(x, y, 'ob', ms=2, mew=1.5)
     
     plt.savefig(f'figures/intersections_{city}.pdf', dpi=300, bbox_inches='tight')
+
+
+#%%
+import geoviews as gv
+import panel as pn
+from bokeh.models import HoverTool
+
+
+tiles = gv.tile_sources.StamenTerrainRetina()
+plot = gv.Points(node_df[['lon', 'lat', 'highway', 'street_count']],
+                 kdims=['lon', 'lat'],
+                 vdims=['highway', 'street_count'])
+plot.opts(fill_color='blue', line_color='black', size=8)
+
+tiles.opts(height=800, width=1600, active_tools=['wheel_zoom'])
+
+panelplot = pn.Column(tiles*plot)
+
+tooltips = [
+    ('highway', '@highway'),
+    ('street count', '@street_count'),
+]
+
+hover = HoverTool(tooltips=tooltips)
+plot.opts(tools=[hover])
+
+bokeh = panelplot.show(port=3000, websocket_origin=('130.225.39.60'))
+bokeh.stop()
+
+
+
+#%%
+
+import osmnx
+
+extend = (node_df['lat'].max(), node_df['lat'].min(), 
+      node_df['lon'].max(), node_df['lon'].min())
+
+gra = osmnx.graph.graph_from_bbox(
+    *extend,
+    custom_filter=(
+        '["highway"]["area"!~"yes"]["access"!~"private"]'
+        '["highway"!~"abandoned|bus_guideway|construction|corridor|elevator|escalator|footway|'
+        'motor|planned|platform|proposed|raceway|steps|service|motorway|motorway_link|track"]'
+        '["bicycle"!~"no"]["service"!~"private"]'
+    ), retain_all=True)
+grap = osmnx.projection.project_graph(gra)
+tol = 20  # Tolerance for distance between points in m (defualt 10m)
+graps = osmnx.simplification.consolidate_intersections(grap, tolerance=tol)
+gras = osmnx.projection.project_graph(graps, to_crs='epsg:4326')
+
+# osmnx.plot.plot_graph(graps, node_color='blue')
+
+node_df = osmnx.utils_graph.graph_to_gdfs(gras, nodes=True, edges=False)
