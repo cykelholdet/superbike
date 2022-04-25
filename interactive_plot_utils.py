@@ -1382,6 +1382,8 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips, clustering, 
         station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
         # station_df, means, labels = sort_clusters(station_df, means, labels, traffic_matrices, day_type, k)
+        # clusters = clusters.cluster_centers_
+        # labels = station_df['label']
         station_df, clusters, labels = sort_clusters2(station_df, 
                                                       clusters.cluster_centers_, 
                                                       labels)

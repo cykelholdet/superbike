@@ -29,7 +29,7 @@ import bikeshare as bs
 import interactive_plot_utils as ipu
 from logistic_table import lr_coefficients
 
-def service_area_figure(data, stat_df, land_use, return_fig=False): #TODO
+def service_area_figure(data, stat_df, land_use, return_fig=False):
     """
     Makes a figure of the stations and their service areas in a network.
 
@@ -164,7 +164,7 @@ def service_area_figure(data, stat_df, land_use, return_fig=False): #TODO
         return fig, ax
 
 
-def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='all', return_fig=False):#TODO
+def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='all', return_fig=False):
     """
     Makes a figure of the average daily traffic for a station.
 
@@ -221,7 +221,7 @@ def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='
         return fig, ax
         
 
-def make_summary_statistics_table(cities=None, variables=None, year=2019, print_only=False): #TODO
+def make_summary_statistics_table(cities=None, variables=None, year=2019, print_only=False):
     """
     Makes a table containing the summary statistics of the variables used in
     the model for all cities. Also calculates the variables for each station
@@ -309,7 +309,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
     return tab_df
 
 
-def make_LR_table(year=2019, k=3): #TODO
+def make_LR_table(year=2019, k=5, const=True):
     """
     Makes a table containing the coefficients of the Logistics Regression 
     model for all cities.
@@ -353,17 +353,17 @@ def make_LR_table(year=2019, k=3): #TODO
         }
     
     omit_columns = {
-        'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
-        'chicago': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
-        'nyc': ['percent_mixed', 'n_trips'],
-        'washdc': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
-        'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips'],
-        'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'percent_industrial'],
-        'madrid': ['n_trips', 'percent_industrial'],
-        'oslo': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips', 'percent_mixed'],
-        'USA': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
-        'EUR': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
-        'All': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
+        'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips', 'b_trips'],
+        'chicago': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips', 'b_trips'],
+        'nyc': ['percent_mixed', 'n_trips', 'b_trips'],
+        'washdc': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips', 'b_trips'],
+        'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips', 'b_trips'],
+        'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'percent_industrial', 'b_trips'],
+        'madrid': ['n_trips', 'percent_industrial', 'b_trips'],
+        'oslo': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips', 'b_trips', 'percent_mixed'],
+        'USA': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips', 'percent_mixed'],
+        'EUR': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips', 'percent_mixed'],
+        'All': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips', 'percent_mixed'],
         }
     
     month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
@@ -396,7 +396,7 @@ def make_LR_table(year=2019, k=3): #TODO
         except IndexError:
             pass
         
-        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 42)
+        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 8, 'k_means', k, 42)
         
         zone_columns = ['percent_residential', 'percent_commercial',
                         'percent_recreational', 'percent_industrial']
@@ -415,7 +415,7 @@ def make_LR_table(year=2019, k=3): #TODO
         lr_results, X, y, _ = ipu.stations_logistic_regression(
             asdf, zone_columns, other_columns, 
             use_points_or_percents='percents', 
-            make_points_by='station land use', const=True,
+            make_points_by='station land use', const=const,
             test_model=True, test_ratio=0.2, test_seed=42,
             )
         
@@ -455,7 +455,8 @@ def make_LR_table(year=2019, k=3): #TODO
     index_renamer = percent_index_dict
     column_renamer = dict(zip(cities, [bs.name_dict[city] for city in cities]))
     
-    index_list.insert(0, 'const')
+    if const:
+        index_list.insert(0, 'const')
     
     #index_list = set(index_list).intersection(set(table.index.get_level_values(1)))
     
@@ -507,13 +508,13 @@ def tuple_formatter(tup):
     
     return out
 
-def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42, #TODO
+def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42,
                res='success_rates'):
     """
     
     1. for each city: split data into training and test sets and train LR model.
-    2. test eac model on the 8 test sets
-    3. show scces rates in a nice figure
+    2. test eachh model on the 8 test sets
+    3. show succes rates in a nice figure
     
     bonus: redefine succes rate as rate at which a model does not confuse
            morning sinks and morning sources.
@@ -522,18 +523,19 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42, #TODO
     
     """
     
+    
     omit_columns = {
-        'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
-        'chicago': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
-        'nyc': ['percent_mixed', 'n_trips'],
-        'washdc': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
-        'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips'],
-        'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'percent_industrial'],
-        'madrid': ['n_trips', 'percent_industrial'],
-        'oslo': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips', 'percent_mixed'],
-        'USA': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
-        'EUR': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
-        'All': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
+        'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips', 'b_trips'],
+        'chicago': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips', 'b_trips'],
+        'nyc': ['percent_mixed', 'n_trips', 'b_trips'],
+        'washdc': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips', 'b_trips'],
+        'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips', 'b_trips'],
+        'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'percent_industrial', 'b_trips'],
+        'madrid': ['n_trips', 'percent_industrial', 'b_trips'],
+        'oslo': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips', 'b_trips', 'percent_mixed'],
+        'USA': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips', 'percent_mixed'],
+        'EUR': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips', 'percent_mixed'],
+        'All': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips', 'percent_mixed'],
         }
    
     
@@ -579,7 +581,8 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42, #TODO
         except IndexError:
             pass
         
-        asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 0)[0]
+        asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 8, 'k_means', 
+                                k, random_state=42)[0]
         
         zone_columns = ['percent_residential', 'percent_commercial',
                         'percent_recreational', 'percent_industrial']
@@ -691,19 +694,20 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42, #TODO
     
     return sr_mat
 
-def train_test_cm(city_train, city_test, k=5, year=2019): #TODO
+def train_test_cm(city_train, city_test, k=5, year=2019, const=True, savefig=True):
+    
     omit_columns = {
-        'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
-        'chicago': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
-        'nyc': ['percent_mixed', 'n_trips'],
-        'washdc': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips'],
-        'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips'],
-        'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'percent_industrial'],
-        'madrid': ['n_trips', 'percent_industrial'],
-        'oslo': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips', 'percent_mixed'],
-        'USA': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
-        'EUR': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
-        'All': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'percent_mixed'],
+        'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips', 'b_trips'],
+        'chicago': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips', 'b_trips'],
+        'nyc': ['percent_mixed', 'n_trips', 'b_trips'],
+        'washdc': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips', 'b_trips'],
+        'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips', 'b_trips'],
+        'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'percent_industrial', 'b_trips'],
+        'madrid': ['n_trips', 'percent_industrial', 'b_trips'],
+        'oslo': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips', 'b_trips', 'percent_mixed'],
+        'USA': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips', 'percent_mixed'],
+        'EUR': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips', 'percent_mixed'],
+        'All': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips', 'percent_mixed'],
         }
     if city_train == city_test:
         city = city_train
@@ -751,7 +755,7 @@ def train_test_cm(city_train, city_test, k=5, year=2019): #TODO
             use_points_or_percents='percents', 
             make_points_by='station land use', 
             test_model=True, plot_cm=True, normalise_cm='true',
-            const=True, return_scaled=True)
+            const=const, return_scaled=True)
     
     else:
         
@@ -800,13 +804,14 @@ def train_test_cm(city_train, city_test, k=5, year=2019): #TODO
                 asdf, zone_columns, other_columns, 
                 use_points_or_percents='percents', 
                 make_points_by='station land use', 
-                test_model=False, const=False, return_scaled=True)
+                test_model=False, const=const, return_scaled=True)
     
         success_rate, cm, predictions = ipu.logistic_regression_test(
             X[city_train], y[city_train], X[city_test], y[city_test], 
             plot_cm=True, normalise_cm='true')
         
-        plt.savefig(f'./figures/paper_figures/cm_{year}_{city_train}_{city_test}.pdf')
+        if savefig:
+            plt.savefig(f'./figures/paper_figures/cm_{year}_{city_train}_{city_test}.pdf')
         
         return cm
 
@@ -822,7 +827,8 @@ def n_table_formatter(x):
     else:
         return ""
 
-def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=False):# TODO
+def plot_cluster_centers(city, k=5, year=2019, month=None, day=None, 
+                         min_trips=8, n_table=False):
     if city != 'all':
         try:
             with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
@@ -835,7 +841,7 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=Fal
         
         traf_mats = data.pickle_daily_traffic(holidays=False, 
                                               user_type='Subscriber',
-                                              overwrite=False)
+                                              overwrite=True)
                 
         mask = ~asdf['n_trips'].isna()
         
@@ -848,7 +854,7 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=Fal
             pass
                 
         
-        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
+        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', min_trips, 'k_means', k, 42)
         
         plt.style.use('seaborn-darkgrid')
         
@@ -911,8 +917,9 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=Fal
                 data = bs.Data(city, year, month, day)
                 
                 traf_mats = data.pickle_daily_traffic(holidays=False, 
-                                              user_type='Subscriber',
-                                              overwrite=False)
+                                                      user_type='Subscriber',
+                                                      normalise=True,
+                                                      overwrite=True) 
                 
                 mask = ~asdf['n_trips'].isna()
                 
@@ -924,7 +931,11 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=Fal
                 except IndexError:
                     pass
                 
-                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 7, 'k_means', k, 42)
+                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 
+                                                          'business_days', 
+                                                          min_trips, 
+                                                          'k_means', k,
+                                                          random_state=42)
                 
                 clusters_dict[city] = clusters
                 
@@ -994,7 +1005,7 @@ def plot_cluster_centers(city, k=3, year=2019, month=None, day=None, n_table=Fal
             return clusters_dict
 
 
-def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10, # TODO
+def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10,
                  cluster_seed=42, plot_figures=False, overwrite=False):
     
     if cities is None:
@@ -1014,7 +1025,8 @@ def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10, # TODO
             print('No pickle found. Making pickle...')
             res_table = k_test_table(cities=cities, year=year, month=month, 
                                      k_min=k_min, k_max=k_max, 
-                                     cluster_seed=cluster_seed, plot_figures=plot_figures, 
+                                     cluster_seed=cluster_seed, 
+                                     plot_figures=plot_figures, 
                                      overwrite=True)
         
     else:
@@ -1057,7 +1069,10 @@ def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10, # TODO
                 
                 print(f'\nCalculating for k={k}...\n')
                 
-                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, cluster_seed)
+                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 
+                                                          'business_days', 8, 
+                                                          'k_means', k, 
+                                                          cluster_seed)
                 
                 mask = ~labels.isna()
                 
@@ -1135,7 +1150,7 @@ def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10, # TODO
     return res_table
 
 
-def pre_processing_table(cities=None, year=2019, month=None, min_trips=4):
+def pre_processing_table(cities=None, year=2019, month=None, min_trips=8):
     
     if cities is None:
         cities = ['nyc', 'chicago', 'washdc', 'boston', 
@@ -1211,17 +1226,30 @@ if __name__ == "__main__":
               'london', 'helsinki', 'oslo', 'madrid']
     
     # sum_stat_table=make_summary_statistics_table(print_only=True)
-    # LR_table=make_LR_table(2019, k=5)
+    # LR_table=make_LR_table(2019, k=5, const=True)
     # k_table = k_test_table(plot_figures=True, overwrite=True)
-    # sr = city_tests(k=5)
-    cm = train_test_cm('nyc', 'nyc')
-    # clusters, n_table = plot_cluster_centers('all', k=5, n_table=True)
+    
+    # sr = city_tests(k=5, test_seed=6)
+    
+    # seed_range = range(50,100)
+    # sr = np.zeros(shape=(8,8))
+    # for seed in seed_range:
+    #     sr += city_tests(k=5, test_seed=seed)
+    # sr_mean = sr/len(seed_range)
+        
+    # cm = train_test_cm('nyc', 'nyc')
+    clusters, n_table = plot_cluster_centers('all', k=5, n_table=True)
     # clusters_list = []
     # for k in [2,3,4,5,6,7,8,9,10]:
-        # clusters_list.append(plot_cluster_centers('all', k=k))
+    #     clusters_list.append(plot_cluster_centers('all', k=k))
     #     plt.close()
     
     # pre_process_table = pre_processing_table()
    
-    
+    # for city_train in cities:
+    #     for city_test in cities:
+    #         cm = train_test_cm(city_train, city_test, k=5, const=False)
+    #         plt.savefig(f'./figures/cm_plots/{city_train}_{city_test}.png')
+            
+            
     

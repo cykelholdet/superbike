@@ -159,6 +159,7 @@ class BikeDash(param.Parameterized):
     possible values. In addition, the plotting functions are defined.
     """
     city = param.Selector(default=CITY, objects=['nyc', 'chicago', 'washdc', 'minneapolis', 'boston', 'london', 'helsinki', 'madrid', 'edinburgh', 'oslo'])
+    sdf_or_asdf = param.Selector(objects=['Station DF', 'Averaged station DF'])
     #if MONTH == None:
     month = param.Selector(default=MONTH, objects=[None, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
     #else:
@@ -220,7 +221,10 @@ class BikeDash(param.Parameterized):
         self.service_area_modified = False
         
         self.plot_clusters_full()
-        self.make_service_areas()
+        if self.sdf_or_asdf == 'Station DF':
+            self.make_service_areas()
+        else:
+            self.min_trips = 4
         print("Make logi")
         self.make_logistic_regression()
         
@@ -230,10 +234,39 @@ class BikeDash(param.Parameterized):
         self.data = bs.Data(self.city, YEAR, self.month)
         self.station_df, self.land_use, self.census_df = ipu.make_station_df(self.data, holidays=False, return_land_use=True, return_census=True)
         self.traffic_matrices = self.data.pickle_daily_traffic(holidays=False)
+        
+        if self.sdf_or_asdf == 'Averaged station DF':
+            if self.month is None:
+                monstr ='{self.month:02d}'
+            else:
+                monstr = ''
+            try:
+                with open(f'./python_variables/{self.city}{YEAR}'+monstr+'_avg_stat_df.pickle', 'rb') as file:
+                    self.station_df = pickle.load(file)
+            except FileNotFoundError:
+                print(f'WARNING: asdf file for {self.city}{YEAR}'+monstr+' not found. Continuing with ordinary station DF...')
+                pass
+            
+            mask = ~self.station_df['n_trips'].isna()
+    
+            self.station_df = self.station_df[mask]
+            self.station_df = self.station_df.reset_index(drop=True)
+    
+            try:
+                self.traffic_matrices = (self.traffic_matrices[0][mask], 
+                                         self.traffic_matrices[1])
+            except IndexError:
+                pass
+            
+            self.min_trips = 4
+            
+        else:
+            self.min_trips = 100
         # print(len(self.station_df))
         
         self.plot_clusters_full()
-        self.make_service_areas()
+        if self.sdf_or_asdf == 'Station DF':
+            self.make_service_areas()
         self.make_logistic_regression()
         # self.boolean_ = not self.boolean_
     
@@ -595,28 +628,31 @@ def service_area_plot(show_service_area, service_radius, service_area_color, cit
     # bike_params.make_service_areas()
     
     if show_service_area == 'True':
-        zone_percents_columns = [column for column in bike_params.station_df.columns
-                                  if 'percent_' in column]
-        
-        # bike_params.station_df['service_color'] = ['#808080' for i in range(len(bike_params.station_df))]
-        
-        vdims = zone_percents_columns
-        vdims.append('service_area_size')
-        sdf = bike_params.station_df.set_geometry('service_area')
-        sdf['geometry'] = sdf.geometry
-        print(f"vdims={vdims}")
-        if service_area_color == 'residential':
-            return gv.Polygons(sdf, vdims=vdims).opts(color='percent_residential')
-        elif service_area_color == 'commercial':
-            return gv.Polygons(sdf, vdims=vdims).opts(color='percent_commercial')
-        elif service_area_color == 'recreational':
-            return gv.Polygons(sdf, vdims=vdims).opts(color='percent_recreational')
-        elif service_area_color == 'pop density':
-            if 'pop_density' in bike_params.station_df.columns:
-                return gv.Polygons(sdf, vdims=vdims).opts(color='pop_density')
-            else:
-                return gv.Polygons([])
-        
+        if 'service_area' in bike_params.station_df.columns:
+            zone_percents_columns = [column for column in bike_params.station_df.columns
+                                      if 'percent_' in column]
+            
+            # bike_params.station_df['service_color'] = ['#808080' for i in range(len(bike_params.station_df))]
+            
+            vdims = zone_percents_columns
+            vdims.append('service_area_size')
+            sdf = bike_params.station_df.set_geometry('service_area')
+            sdf['geometry'] = sdf.geometry
+            print(f"vdims={vdims}")
+            if service_area_color == 'residential':
+                return gv.Polygons(sdf, vdims=vdims).opts(color='percent_residential')
+            elif service_area_color == 'commercial':
+                return gv.Polygons(sdf, vdims=vdims).opts(color='percent_commercial')
+            elif service_area_color == 'recreational':
+                return gv.Polygons(sdf, vdims=vdims).opts(color='percent_recreational')
+            elif service_area_color == 'pop density':
+                if 'pop_density' in bike_params.station_df.columns:
+                    return gv.Polygons(sdf, vdims=vdims).opts(color='pop_density')
+                else:
+                    return gv.Polygons([])
+        else:
+            print('WARNING: No service areas have been calculated')
+            return gv.Polygons([])
     
     return gv.Polygons([])
 
@@ -710,10 +746,11 @@ city_dict = dict(zip([bs.name_dict[city] for city in city_list], city_list))
 # Parameters
 # =============================================================================
 
-param_split = 22 # add to this number if additional parameters/titles are added in the first column
+param_split = 23 # add to this number if additional parameters/titles are added in the first column
 
 params = pn.Param(bike_params.param, widgets={
     'city': {'widget_type': pn.widgets.Select, 'options': city_dict},
+    'sdf_or_asdf': pn.widgets.RadioButtonGroup,
     'clustering': pn.widgets.RadioBoxGroup,
     'month': {'widget_type': pn.widgets.RadioButtonGroup, 'button_type': 'success', 'css_classes': ['month-button']},
     'trip_type': {'widget_type': pn.widgets.RadioButtonGroup, 'button_type': 'success'},
@@ -807,7 +844,7 @@ for parstr in parameter_strings:
     params.layout.append(pane)
 
 parameter_names = [
-    'City', 'Month_title', 'Month', 'Day type', 'Clustering_title', 
+    'City', 'Month_title', 'Month', 'Sdf or asdf', 'Day type', 'Clustering_title', 
     'Clustering', 'K', 'traf_or_diff_title','Plot traf or diff','Plot all_title', 'Plot all clusters', 'Keep_fur_or_clo_title', 
     'Keep furthest or closest','% of stations furthest/closest to cluster center', 'Show land_title', 'Show land use', 
     'Show census_title', 'Show census', 'Show service_title', 'Show service area', 'Service radius', 'Service area color',
