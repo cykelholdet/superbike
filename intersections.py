@@ -184,9 +184,13 @@ plot = gv.Points(node_df[['lon', 'lat', 'highway', 'street_count']],
                  vdims=['highway', 'street_count'])
 plot.opts(fill_color='blue', line_color='black', size=8)
 
+plot2 = gv.Points(nodes_gdf[['lon', 'lat']],
+                 kdims=['lon', 'lat'],)
+plot2.opts(fill_color='blue', line_color='black', size=8)
+
 tiles.opts(height=800, width=1600, active_tools=['wheel_zoom'])
 
-panelplot = pn.Column(tiles*plot)
+panelplot = pn.Column(tiles*plot, tiles*plot2)
 
 tooltips = [
     ('highway', '@highway'),
@@ -204,9 +208,21 @@ bokeh.stop()
 #%%
 
 import osmnx
+import geopandas as gpd
 
-extend = (node_df['lat'].max(), node_df['lat'].min(), 
-      node_df['lon'].max(), node_df['lon'].min())
+import interactive_plot_utils as ipu
+import bikeshare as bs
+
+city = 'nyc'
+year = 2019
+month = None
+
+data = bs.Data(city, year, month)
+
+station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
+
+extend = (station_df['lat'].max(), station_df['lat'].min(), 
+      station_df['long'].max(), station_df['long'].min())
 
 gra = osmnx.graph.graph_from_bbox(
     *extend,
@@ -221,6 +237,12 @@ tol = 20  # Tolerance for distance between points in m (defualt 10m)
 graps = osmnx.simplification.consolidate_intersections(grap, tolerance=tol)
 gras = osmnx.projection.project_graph(graps, to_crs='epsg:4326')
 
+gra_only_intersect = gra
+
+nodes = osmnx.simplification.consolidate_intersections(grap, tolerance=tol, rebuild_graph=False, dead_ends=False)
+nodes_gdf = gpd.GeoDataFrame(geometry=nodes.to_crs(epsg=4326))
+nodes_gdf['lon'] = nodes_gdf['geometry'].x
+nodes_gdf['lat'] = nodes_gdf['geometry'].y
 # osmnx.plot.plot_graph(graps, node_color='blue')
 
-node_df = osmnx.utils_graph.graph_to_gdfs(gras, nodes=True, edges=False)
+node_df_s = osmnx.utils_graph.graph_to_gdfs(gras, nodes=True, edges=False)

@@ -1035,7 +1035,7 @@ panel_column = pn.Column(title_row, business_row)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
 """
-bokeh_server = panel_column.show(port=12345)
+bokeh_server = panel_column.show(port=3000, websocket_origin=('130.225.39.60'))
 """
 
 # plot_daily_traffic(5, bike_params.param.day_type, bike_params.param.city, 

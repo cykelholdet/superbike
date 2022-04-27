@@ -1401,7 +1401,7 @@ def neighborhood_percentages(city, station_df, land_use, service_radius=500, use
     return percentages
 
 
-def get_service_area(city, station_df, land_use, service_radius=500):
+def get_service_area(city, station_df, land_use, service_radius=500, voronoi=True):
     """
     
 
@@ -1438,49 +1438,61 @@ def get_service_area(city, station_df, land_use, service_radius=500):
                             [mean_point[0]-edge_dist, mean_point[1]+edge_dist],
                             [mean_point[0]+edge_dist, mean_point[1]+edge_dist],
                             [mean_point[0]+edge_dist, mean_point[1]-edge_dist]])
+    
+    if voronoi:
+        vor = Voronoi(np.concatenate([points, edge_points], axis=0))
+        
+        lines = [LineString(vor.vertices[line])
+            for line in vor.ridge_vertices if -1 not in line]
+        
+        poly_gdf = gpd.GeoDataFrame()
+        poly_gdf['vor_poly'] = [poly for poly in shapely.ops.polygonize(lines)]
+        poly_gdf['geometry'] = poly_gdf['vor_poly']
+        poly_gdf.set_crs(epsg=3857, inplace=True)
+    
+        poly_gdf = gpd.tools.sjoin(points_gdf, poly_gdf, op='within', how='left')
+        poly_gdf.drop('index_right', axis=1, inplace=True)
+        poly_gdf['geometry'] = poly_gdf['vor_poly']
+    
+        buffers = poly_gdf['coords'].buffer(service_radius)
+        
+        poly_gdf['service_area'] = poly_gdf.intersection(buffers)
+        poly_gdf.drop(columns='vor_poly', inplace=True)
+        
+        poly_gdf['service_area_size'] = poly_gdf['service_area'].apply(lambda area: area.area/1000000)
+    
+        poly_gdf['geometry'] = poly_gdf['service_area']
+        poly_gdf.set_crs(epsg=3857, inplace=True)
+        poly_gdf.to_crs(epsg=4326, inplace=True)
+        poly_gdf['service_area'] = poly_gdf['geometry']
+        coords = poly_gdf['coords'].to_crs(epsg=4326)
+        poly_gdf.drop(columns='coords', inplace=True)
+        
+        
+        sa_df = gpd.tools.sjoin(station_df[['coords']], poly_gdf, op='within', how='left')
+        sa_df.drop(columns=['index_right', 'coords'], inplace=True)
+        
+        service_areas = sa_df['service_area']
+        service_area_size = sa_df['service_area_size']
+        
+        service_areas = service_areas.to_crs(epsg=4326)
+    else:
+        poly_gdf = points_gdf
+        poly_gdf['service_area'] = points_gdf.buffer(service_radius)
+        
+        poly_gdf['service_area_size'] = poly_gdf['service_area'].apply(lambda area: area.area/1000000)
+    
+        service_areas = poly_gdf['service_area'].to_crs(epsg=4326)
+        service_area_size = poly_gdf['service_area_size']
+        coords = poly_gdf['coords'].to_crs(epsg=4326)
 
-    vor = Voronoi(np.concatenate([points, edge_points], axis=0))
-    
-    lines = [LineString(vor.vertices[line])
-        for line in vor.ridge_vertices if -1 not in line]
-    
-    poly_gdf = gpd.GeoDataFrame()
-    poly_gdf['vor_poly'] = [poly for poly in shapely.ops.polygonize(lines)]
-    poly_gdf['geometry'] = poly_gdf['vor_poly']
-    poly_gdf.set_crs(epsg=3857, inplace=True)
-
-    poly_gdf = gpd.tools.sjoin(points_gdf, poly_gdf, op='within', how='left')
-    poly_gdf.drop('index_right', axis=1, inplace=True)
-    poly_gdf['geometry'] = poly_gdf['vor_poly']
-    
-    buffers = poly_gdf['coords'].buffer(service_radius)
-    
-    poly_gdf['service_area'] = poly_gdf.intersection(buffers)
-    
-    poly_gdf['service_area_size'] = poly_gdf['service_area'].apply(lambda area: area.area/1000000)
-    
-    poly_gdf['geometry'] = poly_gdf['service_area']
-    poly_gdf.set_crs(epsg=3857, inplace=True)
-    poly_gdf.to_crs(epsg=4326, inplace=True)
-    poly_gdf['service_area'] = poly_gdf['geometry']
-    coords = poly_gdf['coords'].to_crs(epsg=4326)
-    poly_gdf.drop(columns='coords', inplace=True)
-    
-    
-    sa_df = gpd.tools.sjoin(station_df[['coords']], poly_gdf, op='within', how='left')
-    sa_df.drop(columns=['index_right', 'vor_poly', 'coords'], inplace=True)
-    
-    service_areas = sa_df['service_area']
-    service_area_size = sa_df['service_area_size']
-    
-    service_areas = service_areas.to_crs(epsg=4326)
     
     if len(land_use) > 0:
         union = land_use_union(city, land_use)
     
         service_areas = service_areas.apply(lambda area, union=union: area.intersection(union) if area else shapely.geometry.Polygon())
     else:
-        print("No land use available, continuing service area without intersection.")
+        print("No land use available or voronoi false, continuing service area without intersection.")
     
     mask = service_areas.apply(isinstance, args=[shapely.geometry.collection.GeometryCollection])
     
@@ -2011,16 +2023,17 @@ if __name__ == "__main__":
     
     # create_all_pickles('boston', 2019, overwrite=True)
     
-    asdf = pickle_asdf2('nyc')
+    # asdf = pickle_asdf2('nyc')
     
-    data = bs.Data('boston', 2019, 9)
+    data = bs.Data('nyc', 2019, 9)
 
+    overwrite = False
     pre = time.time()
-    traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=True)
+    traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=overwrite)
     station_df, land_use, census_df = make_station_df(data, holidays=False, 
                                                       return_land_use=True, return_census=True, 
-                                                      overwrite=True)
-    #station_df['service_area'], station_df['service_area_size'] = get_service_area(data.city, station_df, land_use, service_radius=500)
+                                                      overwrite=overwrite)
+    service_area, service_area_size = get_service_area(data.city, station_df, land_use, service_radius=500, voronoi=False)
     
     # percent_cols = [column for column in station_df.columns if "percent_" in column]
 

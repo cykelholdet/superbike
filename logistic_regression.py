@@ -527,7 +527,7 @@ def linear_regression(df, cols, triptype):
     
     y = df[triptype][~X.isna().any(axis=1)]
     
-    y = np.sqrt(y)
+    y = np.log(y)
     
     X = X[~X.isna().any(axis=1)]
     
@@ -670,6 +670,7 @@ def plot_heatmap(z, grid_points, point_info, zlabel="Demand (Average daily busin
 
 
 def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title='heatmaps'):
+    w_adjust = {'nyc': -0.5}
     names = ['Reference', 'High morning sink', 'Low morning sink', 'Low morning source', 'High morning source']
     ncols = 3
     npred = pred.shape[1]
@@ -704,7 +705,9 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
     plot_heatmap('nearest_subway_dist', grid_points, point_info, zlabel='Nearest subway dist. (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
     n += 1
     plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway dist. (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
-    plt.subplots_adjust(wspace=-0.5)
+    
+    if data.city in w_adjust.keys():
+        plt.subplots_adjust(wspace=w_adjust[data.city])
     plt.tight_layout()
     if savefig:
         monstr = f'{data.month:02d}' if data.month is not None else ''
@@ -858,12 +861,14 @@ if __name__ == "__main__":
     
     cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
             'pop_density', 'nearest_subway_dist', 'nearest_railway_dist']
-    triptype = 'b_departures'
+    triptype = 'b_trips'  # Only relevant for OLS
     resolution = 200  # Grid size in m
-    modeltype = 'LR'
+    modeltype = 'LR'  # LR or OLS
     k = 5
+    min_trips = 8
     
     grid_points, point_info = make_model_and_plot_heatmaps(
         CITY, YEAR, MONTH, cols, modeltype=modeltype, triptype=triptype,
-        resolution=resolution, k=k, train_cities=['nyc'])
+        resolution=resolution, k=k, train_cities=['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'madrid', 'london', 'oslo'],
+        min_trips=min_trips)
 
