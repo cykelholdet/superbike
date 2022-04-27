@@ -2483,14 +2483,16 @@ class Data:
         for station in stations_start:
             subset = df['start_dt'][df['start_stat_id'] == station]
             day_hour_count = pd.concat({'date': subset.dt.date, 'hour': subset.dt.hour}, axis=1).value_counts().unstack(fill_value=0)
-
-            shap = day_hour_count.shape
+            
+            start_mean.append(day_hour_count.mean().rename(station))
+            start_std.append(day_hour_count.std().rename(station))
+            # shap = day_hour_count.shape
             # If shap[0] > n_days, there are too many days in the data.
-            start_mean.append(day_hour_count.sum(axis=0).rename(station) / n_days)
-            start_std.append(
-                pd.concat(
-                    (day_hour_count, pd.DataFrame(np.zeros((n_days - shap[0], shap[1])),columns = day_hour_count.columns))
-                          ).std(axis=0).rename(station))
+            # start_mean.append(day_hour_count.sum(axis=0).rename(station) / n_days)
+            # start_std.append(
+            #     pd.concat(
+            #         (day_hour_count, pd.DataFrame(np.zeros((n_days - shap[0], shap[1])),columns = day_hour_count.columns))
+            #               ).std(axis=0).rename(station))
 
         departures_mean = pd.concat(start_mean, axis=1).fillna(0)
         departures_std = pd.concat(start_std, axis=1).fillna(0)
@@ -2530,13 +2532,15 @@ class Data:
                 day_hour_count = day_hour_count.loc[day_hour_count.index.year == self.year]
             else:
                 day_hour_count = day_hour_count.loc[(day_hour_count.index.month == self.month) & (day_hour_count.index.year == self.year)]
-
-            shap = day_hour_count.shape
-            end_mean.append(day_hour_count.sum(axis=0).rename(station) / n_days)
-            end_std.append(
-                pd.concat(
-                    (day_hour_count, pd.DataFrame(np.zeros((n_days - shap[0], shap[1])),columns = day_hour_count.columns))
-                          ).std(axis=0).rename(station))
+            
+            end_mean.append(day_hour_count.mean().rename(station))
+            end_std.append(day_hour_count.std().rename(station))
+            # shap = day_hour_count.shape
+            # end_mean.append(day_hour_count.sum(axis=0).rename(station) / n_days)
+            # end_std.append(
+            #     pd.concat(
+            #         (day_hour_count, pd.DataFrame(np.zeros((n_days - shap[0], shap[1])),columns = day_hour_count.columns))
+            #               ).std(axis=0).rename(station))
 
         arrivals_mean = pd.concat(end_mean, axis=1).fillna(0)
         arrivals_std = pd.concat(end_std, axis=1).fillna(0)
@@ -2622,7 +2626,8 @@ class Data:
             return departures_mean, arrivals_mean
 
 
-    def pickle_daily_traffic(self, normalise=True, plot=False, overwrite=False, holidays=True, user_type='all'):
+    def pickle_daily_traffic(self, normalise=True, plot=False, overwrite=False, 
+                             holidays=True, user_type='all', return_std=False):
         """
         Pickles matrices containing the average number of departures and
         arrivals to and from each station for every hour. One matrix
@@ -2650,57 +2655,115 @@ class Data:
         if normalise:
             monstr = monstr + "_normalised"
         if not overwrite:
-            try:
-                with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}.pickle', 'rb') as file:
-                    matrix_b, matrix_w = pickle.load(file)
-                return matrix_b, matrix_w
-            except FileNotFoundError:
-                print("Daily traffic pickle not found")
+            
+            if return_std:
+                try:
+                    with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}_std.pickle', 'rb') as file:
+                        matrix_b, matrix_w, matrix_b_std, matrix_w_std = pickle.load(file)
+                    return (matrix_b, matrix_w), (matrix_b_std, matrix_w_std)
+                except FileNotFoundError:
+                    print("Daily traffic pickle not found with stds")
+            
+            else:
+            
+                try:
+                    with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}.pickle', 'rb') as file:
+                        matrix_b, matrix_w = pickle.load(file)
+                    return matrix_b, matrix_w
+                except FileNotFoundError:
+                    print("Daily traffic pickle not found")
+        
         print('Pickling average daily traffic for all stations...')
         pre = time.time()
-        departures_b, arrivals_b = self.daily_traffic_average_all(
-            'b', normalise=normalise, plot=plot, holidays=holidays, user_type=user_type)
-        # print("Hang in there, we're halfway...")
-        departures_w, arrivals_w = self.daily_traffic_average_all(
-            'w', normalise=normalise, plot=plot, holidays=holidays, user_type=user_type)
+        
+        if return_std:
+            departures_b, arrivals_b, departures_b_std, arrivals_b_std = self.daily_traffic_average_all(
+                'b', normalise=normalise, plot=plot, holidays=holidays, 
+                user_type=user_type, return_all=True)
 
+            departures_w, arrivals_w, departures_w_std, arrivals_w_std = self.daily_traffic_average_all(
+                'w', normalise=normalise, plot=plot, holidays=holidays, 
+                user_type=user_type, return_all=True)
+        
+        else:
+            departures_b, arrivals_b = self.daily_traffic_average_all(
+                'b', normalise=normalise, plot=plot, holidays=holidays, 
+                user_type=user_type)
+    
+            departures_w, arrivals_w = self.daily_traffic_average_all(
+                'w', normalise=normalise, plot=plot, holidays=holidays, 
+                user_type=user_type)
+        
+        
         zeroseries = pd.Series(np.zeros((24,)))
         departures_b = departures_b.add(zeroseries).fillna(0)
         arrivals_b = arrivals_b.add(zeroseries).fillna(0)
 
         departures_w = departures_w.add(zeroseries).fillna(0)
         arrivals_w = arrivals_w.add(zeroseries).fillna(0)
-
+        
+        if return_std:
+            departures_b_std = departures_b_std.add(zeroseries).fillna(0)
+            arrivals_b_std = arrivals_b_std.add(zeroseries).fillna(0)
+    
+            departures_w_std = departures_w_std.add(zeroseries).fillna(0)
+            arrivals_w_std = arrivals_w_std.add(zeroseries).fillna(0)
+        
         id_index = self.stat.id_index
         matrix_b = np.zeros((len(id_index.keys()), 48))
         matrix_w = np.zeros((len(id_index.keys()), 48))
+        
+        if return_std:
+            matrix_b_std = np.zeros((len(id_index.keys()), 48))
+            matrix_w_std = np.zeros((len(id_index.keys()), 48))
+            
+        
         for id_, index in zip(id_index.keys(), id_index.values()):
             try:
                 matrix_b[index, :24] = departures_b.loc[id_]
+                if return_std: 
+                    matrix_b_std[index, :24] = departures_b_std.loc[id_]
             except KeyError:
                 print(f"Key {id_} not found in departures weekdays.")
             try:
                 matrix_b[index, 24:] = arrivals_b.loc[id_]
+                if return_std: 
+                    matrix_b_std[index, 24:] = arrivals_b_std.loc[id_]
             except KeyError:
                 print(f"Key {id_} not found in arrivals weekdays.")
             try:
                 matrix_w[index, :24] = departures_w.loc[id_]
+                if return_std:
+                    matrix_w_std[index, :24] = departures_w_std.loc[id_]
             except KeyError:
                 print(f"Key {id_} not found in departures weekend.")
             try:
                 matrix_w[index, 24:] = arrivals_w.loc[id_]
+                if return_std:
+                    matrix_w_std[index, 24:] = arrivals_w_std.loc[id_]
             except KeyError:
                 print(f"Key {id_} not found in arrivals weekdays.")
 
         matrix_b = np.nan_to_num(matrix_b, copy=False, nan=0.0)
         matrix_w = np.nan_to_num(matrix_w, copy=False, nan=0.0)
+        
+        if return_std:
+            matrix_b_std = np.nan_to_num(matrix_b_std, copy=False, nan=0.0)
+            matrix_w_std = np.nan_to_num(matrix_w_std, copy=False, nan=0.0)
 
-        with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}.pickle', 'wb') as file:
-            pickle.dump((matrix_b, matrix_w), file)
+        if return_std:
+            with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}_std.pickle', 'wb') as file:
+                pickle.dump((matrix_b, matrix_w, matrix_b_std, matrix_w_std), file)
+        else:
+            with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}.pickle', 'wb') as file:
+                pickle.dump((matrix_b, matrix_w), file)
 
         print(f'Pickling daily traffic done. Time taken: {(time.time()-pre):.1f} s')
-
-        return matrix_b, matrix_w
+        
+        if return_std:
+            return (matrix_b, matrix_w), (matrix_b_std, matrix_w_std)
+        else:
+            return matrix_b, matrix_w
 
 
     def df_subset(self, days='all', hours='all', minutes='all', activity_type='all'):
@@ -2922,7 +2985,10 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     pre = time.time()
-    data = Data('madrid', 2019, None, overwrite=True, user_type='all', remove_loops=True)
+    data = Data('nyc', 2019, None, overwrite=False, user_type='Subscriber', remove_loops=True)
     print(f"time taken: {time.time() - pre:.2f}s")
+    traf_mats = data.pickle_daily_traffic(overwrite=True, holidays=False, 
+                                          user_type='Subscriber')
+    
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()
 

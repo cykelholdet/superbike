@@ -28,6 +28,7 @@ from geopy.distance import geodesic
 import bikeshare as bs
 import interactive_plot_utils as ipu
 from logistic_table import lr_coefficients
+from clustering import get_clusters
 
 def service_area_figure(data, stat_df, land_use, return_fig=False):
     """
@@ -221,7 +222,7 @@ def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='
         return fig, ax
         
 
-def make_summary_statistics_table(cities=None, variables=None, year=2019, print_only=False):
+def make_summary_statistics_table(cities=None, variables=None, year=2019):
     """
     Makes a table containing the summary statistics of the variables used in
     the model for all cities. Also calculates the variables for each station
@@ -249,6 +250,16 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
 
     """
     
+    if cities is None:
+        cities = ['nyc', 'chicago', 'washdc', 'boston', 
+                  'london', 'helsinki', 'oslo', 'madrid']
+    
+    if variables is None:
+        variables = ['percent_residential', 'percent_commercial',
+                     'percent_recreational', 'percent_industrial', 
+                     'pop_density', 'nearest_subway_dist',
+                     'nearest_railway_dist']
+    
     multiindex = pd.MultiIndex.from_product((cities, 
                                              ['Mean', 'Std. Dev.', 'Min.', 'Max.']))   
     
@@ -260,6 +271,8 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019, print_
                 asdf = pickle.load(file)
         except FileNotFoundError:
             raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')
+        
+        asdf=asdf[asdf.b_trips >=8]
         
         asdf['pop_density'] =  asdf['pop_density']/10000 # convert to population per 100 m^2
         asdf['nearest_subway_dist']  =  asdf['nearest_subway_dist']/1000 # convert to km
@@ -353,17 +366,17 @@ def make_LR_table(year=2019, k=5, const=True):
         }
     
     omit_columns = {
-        'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips', 'b_trips'],
-        'chicago': ['percent_transportation', 'percent_UNKNOWN', 'percent_mixed', 'n_trips', 'b_trips'],
+        'boston': ['percent_educational', 'percent_UNKNOWN', 'n_trips', 'b_trips'],
+        'chicago': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'b_trips'],
         'nyc': ['percent_mixed', 'n_trips', 'b_trips'],
-        'washdc': ['percent_transportation', 'percent_industrial', 'percent_UNKNOWN', 'percent_mixed', 'n_trips', 'b_trips'],
-        'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips', 'b_trips'],
-        'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'percent_industrial', 'b_trips'],
-        'madrid': ['n_trips', 'percent_industrial', 'b_trips'],
-        'oslo': ['percent_transportation', 'percent_UNKNOWN', 'percent_industrial', 'n_trips', 'b_trips', 'percent_mixed'],
-        'USA': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips', 'percent_mixed'],
-        'EUR': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips', 'percent_mixed'],
-        'All': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips', 'percent_mixed'],
+        'washdc': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'b_trips'],
+        'helsinki': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'b_trips'],
+        'london': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'b_trips'],
+        'madrid': ['percent_industrial', 'n_trips', 'b_trips'],
+        'oslo': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'b_trips'],
+        'USA': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips',],
+        'EUR': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips',],
+        'All': ['percent_transportation', 'percent_UNKNOWN', 'percent_educational', 'n_trips', 'b_trips',],
         }
     
     month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
@@ -396,7 +409,7 @@ def make_LR_table(year=2019, k=5, const=True):
         except IndexError:
             pass
         
-        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 8, 'k_means', k, 42)
+        asdf, clusters, labels = get_clusters(traf_mats, asdf, 'business_days', 8, 'k_means', k, 42)
         
         zone_columns = ['percent_residential', 'percent_commercial',
                         'percent_recreational', 'percent_industrial']
@@ -581,7 +594,7 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42,
         except IndexError:
             pass
         
-        asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 8, 'k_means', 
+        asdf = get_clusters(traf_mats, asdf, 'business_days', 8, 'k_means', 
                                 k, random_state=42)[0]
         
         zone_columns = ['percent_residential', 'percent_commercial',
@@ -735,7 +748,7 @@ def train_test_cm(city_train, city_test, k=5, year=2019, const=True, savefig=Tru
         except IndexError:
             pass
         
-        asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 0)[0]
+        asdf = get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 0)[0]
         
         zone_columns = ['percent_residential', 'percent_commercial',
                         'percent_recreational', 'percent_industrial']
@@ -785,7 +798,7 @@ def train_test_cm(city_train, city_test, k=5, year=2019, const=True, savefig=Tru
             except IndexError:
                 pass
             
-            asdf = ipu.get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 0)[0]
+            asdf = get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 0)[0]
             
             zone_columns = ['percent_residential', 'percent_commercial',
                             'percent_recreational', 'percent_industrial']
@@ -814,341 +827,6 @@ def train_test_cm(city_train, city_test, k=5, year=2019, const=True, savefig=Tru
             plt.savefig(f'./figures/paper_figures/cm_{year}_{city_train}_{city_test}.pdf')
         
         return cm
-
-def n_table_formatter(x):
-    
-    if isinstance(x, tuple):
-        n, p = x
-        return f"\\multirow{{2}}{{*}}{{\\shortstack{{${n}$\\\$({p}\%)$}}}}"
-    
-    elif isinstance(x, str):
-        return f"\\multirow{{2}}{{*}}{{{x}}}"
-    
-    else:
-        return ""
-
-def plot_cluster_centers(city, k=5, year=2019, month=None, day=None, 
-                         min_trips=8, n_table=False):
-    if city != 'all':
-        try:
-            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
-                asdf = pickle.load(file)
-        except FileNotFoundError:
-            raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
-    
-        
-        data = bs.Data(city, year, month, day)
-        
-        traf_mats = data.pickle_daily_traffic(holidays=False, 
-                                              user_type='Subscriber',
-                                              overwrite=True)
-                
-        mask = ~asdf['n_trips'].isna()
-        
-        asdf = asdf[mask]
-        asdf = asdf.reset_index(drop=True)
-        
-        try:
-            traf_mats = (traf_mats[0][mask], traf_mats[1])
-        except IndexError:
-            pass
-                
-        
-        asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', min_trips, 'k_means', k, 42)
-        
-        plt.style.use('seaborn-darkgrid')
-        
-        fig, ax = plt.subplots()
-        
-        for i in range(k):
-            n = (labels==i).sum()
-            ax.plot(clusters.cluster_centers_[i], label=f'Cluster {i} (n={n})')
-        ax.set_xticks(range(24))
-        ax.set_xlabel('Hour')
-        ax.set_xlim(0,23)
-        ax.set_ylim(-0.125,0.125)
-        ax.set_ylabel('Relative difference')
-        ax.legend()
-        
-        plt.savefig(f'./figures/paper_figures/{city}_clusters.pdf')
-        
-        plt.style.use('default')
-    
-        return clusters
-
-    else:
-        
-        cities = np.array([['nyc', 'chicago'], 
-                           ['washdc', 'boston'], 
-                           ['london', 'helsinki'], 
-                           ['oslo', 'madrid']])
-        
-        cluster_name_dict = {0 : 'Reference', 
-                             1 : 'High morning sink', 
-                             2 : 'Low morning sink',
-                             3 : 'Low morning source',
-                             4 : 'High morning source',
-                             5 : 'Cluster 5',
-                             6 : 'Cluster 6',
-                             7 : 'Cluster 7',
-                             8 : 'Cluster 8',
-                             9 : 'Cluster 9',
-                             10 : 'Cluster 10',}
-       
-        fig, ax = plt.subplots(nrows=4, ncols=2, figsize=(10,10))
-        plt.style.use('seaborn-darkgrid')
-        
-        clusters_dict = dict()
-        
-        multiindex = pd.MultiIndex.from_product((list(cities.flatten()), ['n', 'p']), names=['city', 'number']) 
-        n_df = pd.DataFrame(index=multiindex, columns=['city'] +list(range(k)))
-        
-        for row in range(4):
-            for col in range(2):
-        
-                city = cities[row,col]
-                
-                try:
-                    with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
-                        asdf = pickle.load(file)
-                except FileNotFoundError:
-                    raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
-
-                data = bs.Data(city, year, month, day)
-                
-                traf_mats = data.pickle_daily_traffic(holidays=False, 
-                                                      user_type='Subscriber',
-                                                      normalise=True,
-                                                      overwrite=True) 
-                
-                mask = ~asdf['n_trips'].isna()
-                
-                asdf = asdf[mask]
-                asdf = asdf.reset_index(drop=True)
-                
-                try:
-                    traf_mats = (traf_mats[0][mask], traf_mats[1])
-                except IndexError:
-                    pass
-                
-                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 
-                                                          'business_days', 
-                                                          min_trips, 
-                                                          'k_means', k,
-                                                          random_state=42)
-                
-                clusters_dict[city] = clusters
-                
-                # Make figure
-                
-                for i in range(k):
-                    ax[row,col].plot(clusters[i], label=cluster_name_dict[i])
-                
-                ax[row,col].set_xticks(range(24))
-                ax[row,col].set_xlim(0,23)
-                ax[row,col].set_ylim(-0.15,0.15)
-                
-                # if row != 3:
-                #     ax[row,col].xaxis.set_ticklabels([])
-                # else:
-                #     ax[row,col].set_xlabel('Hour')
-                
-                if row == 3:
-                    ax[row,col].set_xlabel('Hour')
-                
-                if col == 1:
-                    ax[row,col].yaxis.set_ticklabels([])
-                else:
-                    ax[row,col].set_ylabel('Relative difference')
-                
-                ax[row,col].set_title(bs.name_dict[city])
-                
-                # Update n_df
-                
-                n_total = (~labels.isna()).sum()
-                n_df.loc[(city, 'n'), 'city'] = bs.name_dict[city]
-                n_df.loc[(city, 'p'), 'city'] = ''
-                for i in range(k):
-                    n = (labels==i).sum()
-                    n_df.loc[(city, 'n'), i] = (n, np.round(n/n_total*100, 1))
-                    n_df.loc[(city, 'p'), i] = ''
-                    
-                
-                    
-        # Print figure        
-                
-        plt.tight_layout(pad=2)
-        ax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.2), ncol=len(ax[3,0].get_lines()))
-        
-        try:
-            plt.savefig(f'./figures/paper_figures/clusters_all_cities_k={k}.pdf')
-        except PermissionError:
-            print('Permission Denied. Continuing...')
-        
-        # plt.style.use('default')
-        
-        if n_table:
-    
-            # Print n_df
-            # n_df = n_df.assign(help='').set_index('help',append=True)
-            # n_df = n_df.droplevel(level=1)
-            latex_table = n_df.to_latex(column_format='@{}l'+('r'*(len(n_df.columns)-1)) + '@{}', 
-                                           index=False, 
-                                           formatters = [n_table_formatter]*len(n_df.columns), 
-                                           escape=False)
-        
-            print(latex_table)
-        
-            return clusters_dict, n_df
-        
-        else:
-            return clusters_dict
-
-
-def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10,
-                 cluster_seed=42, plot_figures=False, overwrite=False):
-    
-    if cities is None:
-            cities = ['nyc', 'chicago', 'washdc', 'boston', 
-                      'london', 'helsinki', 'oslo', 'madrid'] 
-    
-    metrics = ['DB', 'D', 'S', 'SS']
-        
-    k_list = [i for i in range(k_min, k_max+1)]
-    
-    if not overwrite:
-        try:
-            with open('./python_variables/k_table.pickle', 'rb') as file:
-                res_table = pickle.load(file)
-        
-        except FileNotFoundError:
-            print('No pickle found. Making pickle...')
-            res_table = k_test_table(cities=cities, year=year, month=month, 
-                                     k_min=k_min, k_max=k_max, 
-                                     cluster_seed=cluster_seed, 
-                                     plot_figures=plot_figures, 
-                                     overwrite=True)
-        
-    else:
-        
-        multiindex = pd.MultiIndex.from_product((cities, metrics))  
-        
-        res_table = pd.DataFrame(index=k_list, columns=multiindex)
-        
-        for city in cities:
-            
-            try:
-                with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
-                    asdf = pickle.load(file)
-            except FileNotFoundError:
-                raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
-    
-            
-            data = bs.Data(city, year, month)
-            
-            traf_mats = data.pickle_daily_traffic(holidays=False, 
-                                              user_type='Subscriber',
-                                              overwrite=False)
-                
-            mask = ~asdf['n_trips'].isna()
-            
-            asdf = asdf[mask]
-            asdf = asdf.reset_index(drop=True)
-            
-            try:
-                traf_mats = (traf_mats[0][mask], traf_mats[1])
-            except IndexError:
-                pass
-            
-            DB_list = []
-            D_list = []
-            S_list = []
-            SS_list = []
-            
-            for k in k_list:
-                
-                print(f'\nCalculating for k={k}...\n')
-                
-                asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 
-                                                          'business_days', 8, 
-                                                          'k_means', k, 
-                                                          cluster_seed)
-                
-                mask = ~labels.isna()
-                
-                labels = labels.to_numpy()[mask]
-                
-                data_mat = (traf_mats[0][:,:24] - traf_mats[0][:,24:])[mask]
-                
-                DB_list.append(ipu.get_Davies_Bouldin_index(data_mat, 
-                                                            clusters,
-                                                            labels,
-                                                            verbose=True))
-                
-                D_list.append(ipu.get_Dunn_index(data_mat, 
-                                                 clusters,
-                                                 labels,
-                                                 verbose=True))
-                
-                S_list.append(ipu.get_silhouette_index(data_mat, 
-                                                       clusters,
-                                                       labels,
-                                                       verbose=True))
-                
-                SS_list.append(ipu.get_SSE(data_mat,
-                                           clusters,
-                                           labels,
-                                           verbose=True))
-                
-            res_table[(city, 'DB')] = DB_list
-            res_table[(city, 'D')] = D_list
-            res_table[(city, 'S')] = S_list
-            res_table[(city, 'SS')] = SS_list
-        
-        res_table = res_table.rename(columns=bs.name_dict)
-        
-        with open('./python_variables/k_table.pickle', 'wb') as file:
-            pickle.dump(res_table, file)
-        
-    print(res_table.to_latex(column_format='@{}l'+('r'*len(res_table.columns)) + '@{}',
-                             index=True, na_rep = '--', float_format='%.3f',
-                             multirow=True, multicolumn=True, multicolumn_format='c'))
-    
-    if plot_figures:
-        plt.style.use('seaborn-darkgrid')
-        
-        metrics_dict = {
-                        'D' : 'Dunn Index (higher is better)',
-                        'S' : 'Silhouette Index (higher is better)',
-                        'DB' : 'Davies-Bouldin index (lower is better)',
-                        'SS' : 'Sum of Squares (lower is better)'}
-        
-        fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10,8))
-        
-        count=0
-        for row in range(2):
-            for col in range(2):
-                for city in cities:
-                    ax[row, col].plot(res_table[(bs.name_dict[city], 
-                                                 list(metrics_dict.keys())[count])],
-                                      label=bs.name_dict[city])
-                    ax[row,col].set_title(metrics_dict[
-                        list(metrics_dict.keys())[count]])
-                    
-                    # if row == 0:
-                    #     ax[row,col].xaxis.set_ticklabels([])
-                    
-                    # else:
-                    ax[row,col].set_xlabel('k')
-                count+=1
-                
-        plt.tight_layout(pad=2)
-        ax[1,0].legend(loc='upper center', bbox_to_anchor=(1.05,-0.1), ncol=len(ax[0,0].get_lines()))
-        
-        plt.savefig('figures/paper_figures/k_test_figures.pdf')
-        
-    return res_table
-
 
 def pre_processing_table(cities=None, year=2019, month=None, min_trips=8):
     
@@ -1225,9 +903,8 @@ if __name__ == "__main__":
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
               'london', 'helsinki', 'oslo', 'madrid']
     
-    # sum_stat_table=make_summary_statistics_table(print_only=True)
+    sum_stat_table=make_summary_statistics_table()
     # LR_table=make_LR_table(2019, k=5, const=True)
-    # k_table = k_test_table(plot_figures=True, overwrite=True)
     
     # sr = city_tests(k=5, test_seed=6)
     
@@ -1238,11 +915,6 @@ if __name__ == "__main__":
     # sr_mean = sr/len(seed_range)
         
     # cm = train_test_cm('nyc', 'nyc')
-    clusters, n_table = plot_cluster_centers('all', k=5, n_table=True)
-    # clusters_list = []
-    # for k in [2,3,4,5,6,7,8,9,10]:
-    #     clusters_list.append(plot_cluster_centers('all', k=k))
-    #     plt.close()
     
     # pre_process_table = pre_processing_table()
    

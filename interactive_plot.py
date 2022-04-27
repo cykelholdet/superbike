@@ -24,6 +24,7 @@ from bokeh.themes.theme import Theme
 
 import bikeshare as bs
 import interactive_plot_utils as ipu
+from clustering import get_clusters, cluster_color_dict
 
 hv.extension('bokeh', logo=False)
 
@@ -33,7 +34,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = None
-CITY = 'boston'
+CITY = 'nyc'
 
 
 #station_df = ipu.make_station_df(data, holidays=False)
@@ -88,7 +89,7 @@ def plot_center(traffic_matrix, labels, cluster_j, c_center, plot_traf_or_diff,
         varea['hour'] = np.arange(0,24)
         
         cc_plot = varea.hvplot.area(x='hour', y='dep_low', y2='dep_high', alpha=0.5, line_width=0) * varea.hvplot.area(x='hour', y='arr_low', y2='arr_high', alpha=0.5, line_width=0) * cc_df['departures'].hvplot(xticks=list(zip(range(24),range(24)))) * cc_df['arrivals'].hvplot(xticks=list(zip(range(24),range(24))))
-        cc_plot.opts(title=f"{title_pre} of cluster {cluster_j} ({ipu.cluster_color_dict[cluster_j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage of all traffic')
+        cc_plot.opts(title=f"{title_pre} of cluster {cluster_j} ({cluster_color_dict[cluster_j]}) (n={n})", legend_position='top_right', xlabel='hour', ylabel='percentage of all traffic')
     
     else:
         
@@ -103,12 +104,13 @@ def plot_center(traffic_matrix, labels, cluster_j, c_center, plot_traf_or_diff,
         varea['hour'] = np.arange(0,24)
         
         cc_plot = varea.hvplot.area(x='hour', y='std_low', y2='std_high', alpha=0.5, line_width=0) * cc_df.hvplot(legend=False, xticks=list(zip(range(24),range(24))))
-        cc_plot.opts(title=f"{title_pre} of cluster {cluster_j} ({ipu.cluster_color_dict[cluster_j]}) (n={n})", xlabel='hour', ylabel='relative difference')
+        cc_plot.opts(title=f"{title_pre} of cluster {cluster_j} ({cluster_color_dict[cluster_j]}) (n={n})", xlabel='hour', ylabel='relative difference')
     
     return cc_plot
 
 
-def plot_dta_with_std(data, index, day_type, plot_traf_or_diff, user_type='all'):
+def plot_dta_with_std(traf_mats, std_mats, index, day_type, 
+                      plot_traf_or_diff, user_type='all'):
     """
     Plot daily traffic average of station including standard deviation bounds.
 
@@ -125,14 +127,27 @@ def plot_dta_with_std(data, index, day_type, plot_traf_or_diff, user_type='all')
         a plot.
 
     """
+    if day_type == 'business_days':
+        d_i = 0
+    else:
+        d_i = 1
     
     if plot_traf_or_diff == 'Traffic':
         
         print(f"{index=}. Plotting traffic...", end='')
-        a = data.daily_traffic_average(index, period=day_type_dict[day_type], 
-                                       return_std=True, user_type=user_type)
-        means = pd.DataFrame(a[:2]).T.rename(columns={0:'departures', 1:'arrivals'})
-        stds = pd.DataFrame(a[2:]).T.rename(columns={0:'departures', 1:'arrivals'})
+        
+       
+
+        means, stds = pd.DataFrame(), pd.DataFrame()
+        means['departures']= traf_mats[d_i][index][:24]
+        means['arrivals']  = traf_mats[d_i][index][24:]
+        stds['departures']  = std_mats[d_i][index][:24]
+        stds['arrivals']    = std_mats[d_i][index][24:]
+        
+        # a = data.daily_traffic_average(index, period=day_type_dict[day_type], 
+        #                                return_std=True, user_type=user_type)
+        # means = pd.DataFrame(a[:2]).T.rename(columns={0:'departures', 1:'arrivals'})
+        # stds = pd.DataFrame(a[2:]).T.rename(columns={0:'departures', 1:'arrivals'})
         varea = pd.DataFrame()
         varea['dep_low'] = means['departures'] - stds['departures']
         varea['dep_high'] = means['departures'] + stds['departures']
@@ -140,13 +155,28 @@ def plot_dta_with_std(data, index, day_type, plot_traf_or_diff, user_type='all')
         varea['arr_high'] = means['arrivals'] + stds['arrivals']
         varea['hour'] = np.arange(0,24)
         print('Done')
-        return varea.hvplot.area(x='hour', y='dep_low', y2='dep_high', alpha=0.5, line_width=0) * varea.hvplot.area(x='hour', y='arr_low', y2='arr_high', alpha=0.5, line_width=0) * means['departures'].hvplot() * means['arrivals'].hvplot(xticks=list(zip(range(24),range(24))))
+        plot = varea.hvplot.area(
+            x='hour', 
+            y='dep_low', 
+            y2='dep_high', 
+            alpha=0.5, 
+            line_width=0) * varea.hvplot.area(
+                x='hour', 
+                y='arr_low', 
+                y2='arr_high', 
+                alpha=0.5, 
+                line_width=0) * means['departures'].hvplot() * means['arrivals'].hvplot(
+                    xticks=list(zip(range(24),range(24))))
+        return plot
 
     else:    
         print(f"{index=}. Plotting difference...", end='')
-        a = data.daily_traffic_average(index, period=day_type_dict[day_type], 
-                                       return_std=False, user_type=user_type)
-        diff = pd.Series(a[0] - a[1], name='Relative difference')
+        diff = pd.Series(traf_mats[d_i][index][:24]-traf_mats[d_i][index][24:],
+                         name='Relative difference')
+        
+        # a = data.daily_traffic_average(index, period=day_type_dict[day_type], 
+        #                                return_std=False, user_type=user_type)
+        # diff = pd.Series(a[0] - a[1], name='Relative difference')
         print('Done')
         return diff.hvplot(xticks=list(zip(range(24),range(24))))
         
@@ -166,7 +196,7 @@ class BikeDash(param.Parameterized):
     #    month = param.Integer(default=MONTH, bounds=(1, 12))
     trip_type = param.Selector(objects=['departures', 'arrivals', 'all'])
     day_type = param.Selector(objects=['business_days', 'weekend',])
-    clustering = param.Selector(objects=['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture', 'none', 'zoning'], doc="Which clustering to perform")
+    clustering = param.Selector(objects=['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture', 'none', 'zoning'], doc="Which clustering to perform", default='gaussian_mixture')
     k = param.Integer(default=3, bounds=(1, 10))
     cnorm = param.Selector(objects=['linear', 'log'])
     day = param.Integer(default=1, bounds=(1, 31))
@@ -183,7 +213,8 @@ class BikeDash(param.Parameterized):
     use_road = param.Selector(objects=['False', 'True'])
     random_state = param.Integer(default=42, bounds=(0, 10000))
     min_trips = param.Integer(default=100, bounds=(0, 8000))
-    user_type = param.Selector(objects=['all', 'Subscriber', 'Customer'])
+    user_type = param.Selector(objects=['all', 'Subscriber', 'Customer'], 
+                               default='Subscriber')
     
     # LR params
     
@@ -216,7 +247,8 @@ class BikeDash(param.Parameterized):
         self.index = index
         self.data = bs.Data(self.city, YEAR, self.month)
         self.station_df, self.land_use, self.census_df = ipu.make_station_df(self.data, holidays=False, return_land_use=True, return_census=True)
-        self.traffic_matrices = self.data.pickle_daily_traffic(holidays=False)
+        self.traffic_matrices, self.std_matrices = self.data.pickle_daily_traffic(
+            holidays=False, return_std=True)
         
         self.service_area_modified = False
         
@@ -224,16 +256,17 @@ class BikeDash(param.Parameterized):
         if self.sdf_or_asdf == 'Station DF':
             self.make_service_areas()
         else:
-            self.min_trips = 4
+            self.min_trips = 8
         print("Make logi")
         self.make_logistic_regression()
         
-    @param.depends('month', 'city', watch=True)
+    @param.depends('month', 'city', 'sdf_or_asdf', watch=True)
     def get_data(self):
         print(f'getting {self.month}')
         self.data = bs.Data(self.city, YEAR, self.month)
         self.station_df, self.land_use, self.census_df = ipu.make_station_df(self.data, holidays=False, return_land_use=True, return_census=True)
-        self.traffic_matrices = self.data.pickle_daily_traffic(holidays=False)
+        self.traffic_matrices, self.std_matrices = self.data.pickle_daily_traffic(
+            holidays=False, user_type=self.user_type, return_std=True)
         
         if self.sdf_or_asdf == 'Averaged station DF':
             if self.month is None:
@@ -255,10 +288,14 @@ class BikeDash(param.Parameterized):
             try:
                 self.traffic_matrices = (self.traffic_matrices[0][mask], 
                                          self.traffic_matrices[1])
+                
+                self.std_matrices = (self.std_matrices[0][mask], 
+                                         self.std_matrices[1])
+                
             except IndexError:
                 pass
             
-            self.min_trips = 4
+            self.min_trips = 8
             
         else:
             self.min_trips = 100
@@ -276,7 +313,9 @@ class BikeDash(param.Parameterized):
                    'keep_furthest_or_closest', watch=False)
     def plot_clusters_full(self):
         print("Plotting Clusters")
-        self.station_df, self.clusters, self.labels = ipu.get_clusters(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, self.clustering, self.k, self.random_state)
+        self.station_df, self.clusters, self.labels = get_clusters(
+            self.traffic_matrices, self.station_df, self.day_type, 
+            self.min_trips, self.clustering, self.k, self.random_state)
         # print(self.station_df.label.iloc[0])
         
         
@@ -365,6 +404,7 @@ class BikeDash(param.Parameterized):
                     return f"Station index {i} is not in a cluster due to min_trips."
 
         elif self.clustering == 'gaussian_mixture':
+            traffic_matrix = ipu.mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
             if self.plot_all_clusters == 'True':
                 cc_plot_list = list()
                 for j in range(self.k):
@@ -379,7 +419,7 @@ class BikeDash(param.Parameterized):
                 i = index[0]
                 if ~np.isnan(self.station_df['label'][i]):
                     j = self.station_df['label'][i].argmax()
-                    textlist = [f"{j}: {self.labels[i][j]:.2f}\n\n" for j in range(self.k)]
+                    textlist = [f"{j}: {self.station_df['label_prob'][i][j]:.2f}\n\n" for j in range(self.k)]
                     ccs = self.clusters[j]
                     cc_plot = plot_center(traffic_matrix, self.labels, j, ccs,
                                           self.plot_traf_or_diff)
@@ -478,7 +518,8 @@ class BikeDash(param.Parameterized):
     
     @param.depends('user_type', watch=True)
     def get_traffic_matrix(self):
-        self.traffic_matrices = self.data.pickle_daily_traffic(holidays=False, user_type=self.user_type)
+        self.traffic_matrices, self.std_matrices = self.data.pickle_daily_traffic(
+            holidays=False, user_type=self.user_type, return_std=True)
         self.plot_clusters_full()
         self.make_service_areas()
         self.make_logistic_regression()
@@ -535,8 +576,8 @@ def plot_daily_traffic(index, day_type, city, month, user_type, plot_traf_or_dif
     else:
         i = index[0]
     
-    plot = plot_dta_with_std(bike_params.data, i, day_type, 
-                             plot_traf_or_diff, user_type)
+    plot = plot_dta_with_std(bike_params.traffic_matrices, bike_params.std_matrices,
+                             i, day_type, plot_traf_or_diff, user_type)
     
     if user_type == 'all':
         tripstring = ''
@@ -797,8 +838,8 @@ params.parameters = params.parameters[:param_split]
 # Change None to Year in month selector
 params.layout[1].options = city_dict
 
-params.layout[2].options.pop('None')
-params.layout[2].options['Year'] = None
+params.layout[3].options.pop('None')
+params.layout[3].options['Year'] = None
 
 
 # params.layout.insert(15, 'Use roads:')
