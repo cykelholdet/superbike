@@ -24,7 +24,7 @@ from bokeh.themes.theme import Theme
 
 import bikeshare as bs
 import interactive_plot_utils as ipu
-from clustering import get_clusters, cluster_color_dict
+from clustering import get_clusters, mask_traffic_matrix, cluster_color_dict
 
 hv.extension('bokeh', logo=False)
 
@@ -34,7 +34,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = None
-CITY = 'nyc'
+CITY = 'helsinki'
 
 
 #station_df = ipu.make_station_df(data, holidays=False)
@@ -196,7 +196,7 @@ class BikeDash(param.Parameterized):
     #    month = param.Integer(default=MONTH, bounds=(1, 12))
     trip_type = param.Selector(objects=['departures', 'arrivals', 'all'])
     day_type = param.Selector(objects=['business_days', 'weekend',])
-    clustering = param.Selector(objects=['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture', 'none', 'zoning'], doc="Which clustering to perform", default='gaussian_mixture')
+    clustering = param.Selector(objects=['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture', 'none', 'zoning'], doc="Which clustering to perform")
     k = param.Integer(default=3, bounds=(1, 10))
     cnorm = param.Selector(objects=['linear', 'log'])
     day = param.Integer(default=1, bounds=(1, 31))
@@ -380,7 +380,7 @@ class BikeDash(param.Parameterized):
             return "No clustering"
         elif self.clustering == 'h_clustering':
             if self.plot_all_clusters == 'True':
-                traffic_matrix = ipu.mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
+                traffic_matrix = mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
                 cc_plot_list = list()
                 for j in range(self.k):
                     #mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
@@ -393,7 +393,7 @@ class BikeDash(param.Parameterized):
                 return "Select a station to get cluster info"
             else:
                 i = index[0]
-                traffic_matrix = ipu.mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
+                traffic_matrix = mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
                 if ~np.isnan(self.station_df['label'][i]):
                     j = int(self.station_df['label'][i])
                     mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
@@ -404,7 +404,7 @@ class BikeDash(param.Parameterized):
                     return f"Station index {i} is not in a cluster due to min_trips."
 
         elif self.clustering == 'gaussian_mixture':
-            traffic_matrix = ipu.mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
+            traffic_matrix = mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
             if self.plot_all_clusters == 'True':
                 cc_plot_list = list()
                 for j in range(self.k):
@@ -428,7 +428,7 @@ class BikeDash(param.Parameterized):
                     return f"Station index {i} does not belong to a cluster duto to min_trips"
 
         else: # k-means or k-medoids
-            traffic_matrix = ipu.mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
+            traffic_matrix = mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
             if self.plot_all_clusters == 'True':
                 # if self.clusters == None:
                 #     return "Please select Clustering"

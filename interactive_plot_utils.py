@@ -36,7 +36,6 @@ from scipy.spatial import Voronoi
 
 import bikeshare as bs
 import dataframe_key
-from clustering import get_clusters
 
 gpd.options.use_pygeos = False
 # warnings.filterwarnings("ignore", category=shapely.errors.ShapelyDeprecationWarning) 
@@ -1303,48 +1302,6 @@ def nearest_transit(city, station_df):
     
     return df
 
-
-def mask_traffic_matrix(traffic_matrices, station_df, day_type, min_trips, holidays=False, return_mask=False):
-    """
-    Applies a mask to the daily traffic matrix based on the minimum number of 
-    trips to include.
-
-    Parameters
-    ----------
-    day_type : str
-        'business_days' or 'weekend'.
-    min_trips : int
-        the minimum number of trips for a station. If the station has fewer
-        trips than this, exclude it.
-    holidays : bool, optional
-        Whether to include holidays in business days (True) or remove them from
-        the business days (False). The default is False.
-
-    Returns
-    -------
-    np array
-        masked traffic matrix, that is, the number of 48-dimensional vectors 
-        which constitute the rows of the traffic matrix is reduced.
-
-    """
-    if day_type == 'business_days':
-        traffic_matrix = traffic_matrices[0]
-        x_trips = 'b_trips'
-    elif day_type == "weekend":
-        traffic_matrix = traffic_matrices[1]
-        x_trips = 'w_trips'
-    else:
-        raise ValueError("Please enter 'business_days' or 'weekend'.")
-    mask = station_df[x_trips] >= min_trips
-    if return_mask:
-        return traffic_matrix[mask], mask, x_trips
-    else:
-        return traffic_matrix[mask]
-
-
-
-
-
 def neighborhood_percentages(city, station_df, land_use, service_radius=500, use_road='False'):
     
     if 'service_area' not in station_df.columns or service_radius != 500:
@@ -1839,112 +1796,6 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=True):
         
     return closest_points
 
-
-def big_station_df(cities, year=2019, month=None, service_radius=500,
-                   use_road=False, day_type='business_days',
-                   min_trips=100, clustering='k_means', k=3,
-                   random_state=42):
-    station_df_list = []
-    traffic_matrix_b_list = []
-    traffic_matrix_w_list = []
-    for city in cities:
-        data = bs.Data(city, year, month)
-        station_df, land_use = make_station_df(data, holidays=False, return_land_use=True)
-        traffic_matrices = data.pickle_daily_traffic(holidays=False)
-        
-        #station_df['service_area'], station_df['service_area_size'] = get_service_area(data.city, station_df, land_use, service_radius=service_radius)
-        station_df = station_df.merge(
-            neighborhood_percentages(
-                data.city, station_df, land_use, 
-                service_radius=service_radius, use_road=use_road
-                ),
-            how='outer', left_index=True, right_index=True)
-        
-        station_df_list.append(pd.concat({city: station_df}))
-        traffic_matrix_b_list.append(traffic_matrices[0])
-        traffic_matrix_w_list.append(traffic_matrices[1])
-
-
-    big_station_df = pd.concat(station_df_list)
-    big_station_df = big_station_df.reset_index()
-
-    big_tm_b = np.concatenate(traffic_matrix_b_list)
-    big_tm_w = np.concatenate(traffic_matrix_w_list)
-    
-    traffic_matrices = [big_tm_b, big_tm_w]
-
-    big_station_df, clusters, labels = get_clusters(
-        traffic_matrices, big_station_df, day_type, min_trips, 
-        clustering, 
-        k, 
-        random_state=random_state)
-    
-
-    return big_station_df, traffic_matrices, labels
-
-
-def make_station_df_year(city, year=2019, months=None, service_radius=500,
-                   use_road=False, day_type='business_days',
-                   min_trips=100, clustering='k_means', k=3,
-                   random_state=42, return_land_use=False):
-    
-    month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
-          7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
-    
-    station_df_list = []
-    traffic_matrix_b_list = []
-    traffic_matrix_w_list = []
-    
-    if not months:
-        months = bs.get_valid_months(city, year)
-    elif isinstance(months, list):
-        for month in months:
-            if month not in bs.get_valid_months(city, year):
-                raise ValueError(f'month {month} is not a valid month for {city}')
-    else:
-        raise ValueError('months must be an iterable')
-    
-    for month in months:
-        data = bs.Data(city, year, month)
-        station_df, land_use = make_station_df(data, holidays=False, return_land_use=True)
-        traffic_matrices = data.pickle_daily_traffic(holidays=False)
-
-        #station_df['service_area'], station_df['service_area_size'] = get_service_area(data.city, station_df, land_use, service_radius=service_radius)
-        station_df = station_df.merge(
-            neighborhood_percentages(
-                data.city, station_df, land_use, 
-                service_radius=service_radius, use_road=use_road
-                ),
-            how='outer', left_index=True, right_index=True)
-        station_df[month_dict[month]] = 1
-        
-        station_df_list.append(pd.concat({city: station_df}))
-        traffic_matrix_b_list.append(traffic_matrices[0])
-        traffic_matrix_w_list.append(traffic_matrices[1])
-
-
-    big_station_df = pd.concat(station_df_list)
-    big_station_df = big_station_df.reset_index()
-    
-    for month in month_dict.values():
-        big_station_df[month] = big_station_df[month].fillna(0)
-    
-    big_tm_b = np.concatenate(traffic_matrix_b_list)
-    big_tm_w = np.concatenate(traffic_matrix_w_list)
-    
-    traffic_matrices = [big_tm_b, big_tm_w]
-
-    big_station_df, clusters, labels = get_clusters(
-        traffic_matrices, big_station_df, day_type, min_trips, 
-        clustering, 
-        k, 
-        random_state=random_state)
-    
-    if return_land_use:
-        return big_station_df, traffic_matrices, labels, land_use
-    else:
-        return big_station_df, traffic_matrices, labels
-
 def create_all_pickles(city, year, holidays=False, overwrite=False):
     
     if isinstance(city, str): # If city is a str (therefore not a list)
@@ -2025,9 +1876,9 @@ if __name__ == "__main__":
     
     # asdf = pickle_asdf2('nyc')
     
-    data = bs.Data('nyc', 2019, 9)
+    data = bs.Data('nyc', 2019)
 
-    overwrite = False
+    overwrite = True
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=overwrite)
     station_df, land_use, census_df = make_station_df(data, holidays=False, 
@@ -2043,10 +1894,6 @@ if __name__ == "__main__":
     #         service_radius=500, use_road=False
     #         ),
     #     how='outer', left_index=True, right_index=True)
-    
-    station_df, clusters, labels = get_clusters(
-        traffic_matrices, station_df, day_type='business_days', min_trips=100,
-        clustering='k_means', k=3, random_state=42)
     
     # print(f'station_df took {time.time() - pre:.2f} seconds')
     

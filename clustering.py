@@ -8,12 +8,14 @@ Created on Fri Feb 25 09:47:27 2022
 import time
 import pickle
 import logging
+import os
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 import skimage.color as skcolor
+import smopy as sm
 
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.mixture import GaussianMixture
@@ -21,12 +23,53 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.neighbors import BallTree
 from sklearn_extra.cluster import KMedoids
 
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+from matplotlib.offsetbox import AnchoredText, AnchoredOffsetbox
+
 import simpledtw as dtw
 import bikeshare as bs
 import interactive_plot_utils as ipu
 
+def mask_traffic_matrix(traffic_matrices, station_df, day_type, min_trips, holidays=False, return_mask=False):
+    """
+    Applies a mask to the daily traffic matrix based on the minimum number of 
+    trips to include.
+
+    Parameters
+    ----------
+    day_type : str
+        'business_days' or 'weekend'.
+    min_trips : int
+        the minimum number of trips for a station. If the station has fewer
+        trips than this, exclude it.
+    holidays : bool, optional
+        Whether to include holidays in business days (True) or remove them from
+        the business days (False). The default is False.
+
+    Returns
+    -------
+    np array
+        masked traffic matrix, that is, the number of 48-dimensional vectors 
+        which constitute the rows of the traffic matrix is reduced.
+
+    """
+    if day_type == 'business_days':
+        traffic_matrix = traffic_matrices[0]
+        x_trips = 'b_trips'
+    elif day_type == "weekend":
+        traffic_matrix = traffic_matrices[1]
+        x_trips = 'w_trips'
+    else:
+        raise ValueError("Please enter 'business_days' or 'weekend'.")
+    mask = station_df[x_trips] >= min_trips
+    if return_mask:
+        return traffic_matrix[mask], mask, x_trips
+    else:
+        return traffic_matrix[mask]
+
 def get_clusters(traffic_matrices, station_df, day_type, min_trips, 
-                 clustering, k, random_state=None):
+                 clustering, k, random_state=None, use_dtw=False, 
+                 linkage='average', city=None):
     """
     From a station dataframe and associated variables, return the updated 
     station df and clustering and labels
@@ -56,47 +99,77 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips,
         the labels of the masked traffic matrix.
 
     """
-    traffic_matrix, mask, x_trips = ipu.mask_traffic_matrix(
+    traffic_matrix, mask, x_trips = mask_traffic_matrix(
         traffic_matrices, station_df, day_type, 
         min_trips, holidays=False, return_mask=True)
     
     traffic_matrix = traffic_matrix[:,:24] - traffic_matrix[:,24:]
-
-    # if cluster_what == 'Relative difference':
-    #     traffic_matrix = traffic_matrix[:,:24] - traffic_matrix[:,24:]
     
-    # else:
-    #     traffic_matrix = traffic_matrix[:,:24] + traffic_matrix[:,24:]
-    
+    if use_dtw:
+        try:
+            with open(f'./python_variables/{city}_dtw_matrix_min_trips={min_trips}.pickle', 'rb') as file:
+                dtw_matrix = pickle.load(file)
+        
+        except FileNotFoundError:
+            print('Calculating dtw matrix...')
+            pre = time.time()
+            dtw_matrix = np.zeros(shape=(len(traffic_matrix), len(traffic_matrix)))
+            for i1, vec1 in enumerate(traffic_matrix):
+                for i2, vec2 in enumerate(traffic_matrix[:i1]):
+                    dtw_matrix[i2,i1] = dtw.dtw1(vec1, vec2)
+            for i1, vec1 in enumerate(traffic_matrix):
+                for i2, vec2 in enumerate(traffic_matrix[:i1]):
+                    dtw_matrix[i1,i2] = dtw_matrix[i2,i1]
+            
+            print(f'Done. Time taken: {time.time()-pre} s')
+            
+            with open(f'./python_variables/{city}_dtw_matrix_min_trips={min_trips}.pickle', 'wb') as file:
+                pickle.dump(dtw_matrix, file)
+            
     if clustering == 'k_means':
-        clusters = KMeans(k, random_state=random_state).fit(traffic_matrix)
+        clusters = KMeans(k, random_state=random_state, algorithm='full').fit(traffic_matrix)
         labels = clusters.predict(traffic_matrix)
         station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
         # station_df, means, labels = sort_clusters(station_df, means, labels, traffic_matrices, day_type, k)
         # clusters = clusters.cluster_centers_
         # labels = station_df['label']
-        station_df, clusters, labels = sort_clusters2(station_df, 
+        station_df, centers, labels = sort_clusters2(station_df, 
                                                       clusters.cluster_centers_, 
                                                       labels)
         station_df['color'] = station_df['label'].map(cluster_color_dict)
 
     elif clustering == 'k_medoids':
-        clusters = KMedoids(k, random_state=random_state).fit(traffic_matrix)
-        labels = clusters.predict(traffic_matrix)
+        
+        if use_dtw:
+            clusters = KMedoids(k, metric='precomputed', random_state=random_state).fit(dtw_matrix)
+            labels = clusters.labels_
+            centers = traffic_matrix[clusters.medoid_indices_]
+        else:
+            clusters = KMedoids(k, random_state=random_state).fit(traffic_matrix)
+            labels = clusters.predict(traffic_matrix)
+            centers = clusters.cluster_centers_
+        
         station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
-        station_df, clusters, labels = sort_clusters2(station_df, clusters.cluster_centers_, 
+        station_df, centers, labels = sort_clusters2(station_df, 
+                                                      centers, 
                                                       labels)
         station_df['color'] = station_df['label'].map(cluster_color_dict)
         
     elif clustering == 'h_clustering':
-        clusters = None
-        labels = AgglomerativeClustering(k).fit_predict(traffic_matrix)
+        
+        if use_dtw:
+            clusters = AgglomerativeClustering(k, affinity='precomputed',
+                                             linkage=linkage).fit(dtw_matrix)
+            labels = clusters.labels_
+        else:
+            labels = AgglomerativeClustering(k, linkage=linkage).fit_predict(traffic_matrix)
+        
         station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
-        clusters = cluster_mean(traffic_matrix, station_df, labels, k)
-        station_df, clusters, labels = sort_clusters2(station_df, clusters, labels)
+        centers = cluster_mean(traffic_matrix, station_df, labels, k)
+        station_df, centers, labels = sort_clusters2(station_df, centers, labels)
         station_df['color'] = station_df['label'].map(cluster_color_dict)
     
     elif clustering == 'gaussian_mixture':
@@ -105,43 +178,43 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips,
         
         clusters = GaussianMixture(k, n_init=100, means_init = clusters_init,
                                    random_state=random_state, 
-                                   verbose=2).fit(traffic_matrix)
-        labels = clusters.predict_proba(traffic_matrix)
-        station_df.loc[mask, 'label'] = pd.Series(list(labels), 
+                                   covariance_type='full').fit(traffic_matrix)
+        labels_prob = clusters.predict_proba(traffic_matrix)
+        station_df.loc[mask, 'label_prob'] = pd.Series(list(labels_prob), 
                                                   index=mask[mask].index)
-        station_df.loc[~mask, 'label'] = np.nan
-        # station_df, clusters, labels = sort_clusters2(station_df, clusters.means_, 
-        #                                               labels, 
-        #                                               cluster_type='gaussian_mixture',
-        #                                               mask=mask)
-        station_df.loc[mask, 'label_prob'] = station_df['label']
         station_df.loc[~mask, 'label_prob'] = np.nan
-        station_df.loc[mask, 'label'] = [np.argmax(x) for x in station_df['label_prob'].loc[mask]]
+        labels = [np.argmax(x) for x in station_df['label_prob'].loc[mask]]
+        station_df.loc[mask, 'label'] = labels
         station_df.loc[~mask, 'label'] = np.nan
         
+        station_df, centers, labels = sort_clusters2(station_df, clusters.means_, 
+                                                     labels, 
+                                                     cluster_type='gaussian_mixture',
+                                                     mask=mask)
+
         lab_mat = np.array(lab_color_list[:k]).T
         lab_cols = [np.sum(station_df['label_prob'][mask][i] * lab_mat, axis=1) for i in station_df['label_prob'][mask].index]
         labels_rgb = skcolor.lab2rgb(lab_cols)
         station_df.loc[mask, 'color'] = ['#%02x%02x%02x' % tuple(label.astype(int)) for label in labels_rgb*255]
         station_df.loc[~mask, 'color'] = 'gray'
         
-        clusters = clusters.means_
-        labels = station_df['label']
+        # clusters = clusters.means_
+        # labels = station_df['label']
         
     elif clustering == 'none':
-        clusters = None
+        centers = None
         labels = None
         station_df['label'] = np.nan
         station_df['color'] = station_df[x_trips].tolist()
     
     elif clustering == 'zoning':
-        clusters = None
+        centers = None
         labels = None
         station_df['label'] = np.nan
         station_df['color'] = [cluster_color_dict[zone] for zone in pd.factorize(station_df['zone_type'])[0]]
         
     else:
-        clusters = None
+        centers = None
         labels = None
         station_df['label'] = np.nan
         station_df['color'] = None
@@ -153,11 +226,11 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips,
         traf_mat = traffic_matrices[1][:,:24] - traffic_matrices[1][:,24:]
                  
         dist_to_center[np.where(labels == i)] = np.linalg.norm(
-            traf_mat[np.where(labels==i)] - clusters[i], axis=1)
+            traf_mat[np.where(labels==i)] - centers[i], axis=1)
     
     station_df['dist_to_center'] = dist_to_center
 
-    return station_df, clusters, labels
+    return station_df, centers, labels
 
 def sort_clusters(station_df, cluster_means, labels, traffic_matrices, day_type, k, cluster_type=None, mask=None):
     # Order the clusters by setting cluster 0 to be closest to the mean traffic.
@@ -299,13 +372,19 @@ def sort_clusters2(station_df, cluster_means, labels, cluster_type=None, mask=No
     logging.debug(labels_dict)
     
     if cluster_type == 'gaussian_mixture':
-        values = np.zeros_like(labels)
-        order = [int(i) for i in order] # make elements in order integers
-        values[:,order] = labels[:,range(k)]
+        # If Gaussian mixture, then also reorder the label probabilities
         
-        station_df['label'].loc[mask] = pd.Series(list(values), index=mask[mask].index)
-    else:
-        station_df = station_df.replace({'label' : labels_dict})
+        labels_prob = np.array([
+            list(row) for row in station_df['label_prob'][mask].to_numpy()
+            ]) # recreate the label probs
+        values = np.zeros_like(labels_prob)
+        order = [int(i) for i in order] # make elements in order integers
+        values[:,order] = labels_prob[:,range(k)]
+        
+        station_df.loc[mask, 'label_prob'] = pd.Series(list(values), index=mask[mask].index)
+        station_df.loc[~mask, 'label_prob'] = np.nan
+        
+    station_df = station_df.replace({'label' : labels_dict})
     labels = station_df['label']
     
     centers = np.zeros_like(cluster_means)
@@ -504,7 +583,7 @@ def silhouette_index(data_mat, centers, labels, verbose=False):
 
     return S_index
 
-def SSE(data_mat, centers, labels, verbose=False):
+def SSE(data_mat, centers, labels, dist='norm', verbose=False):
     
     k = len(centers)
     
@@ -518,7 +597,7 @@ def SSE(data_mat, centers, labels, verbose=False):
     for i in range(k):
         cluster = data_mat[labels==i]
         SSE_arr[i] = np.linalg.norm(cluster-centers[i], axis=1).sum()
-        
+
     SSE = SSE_arr.sum()
     
     if verbose:
@@ -527,7 +606,8 @@ def SSE(data_mat, centers, labels, verbose=False):
     return SSE
 
 def plot_cluster_centers(city, k=5, year=2019, month=None, day=None, 
-                         cluster_seed=42, min_trips=8, n_table=False):
+                         clustering='k_means', cluster_seed=42, min_trips=8, 
+                         n_table=False, use_dtw=False, linkage='average', savefig=True):
     if city != 'all':
         try:
             with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
@@ -553,11 +633,13 @@ def plot_cluster_centers(city, k=5, year=2019, month=None, day=None,
             pass
                 
         
-        asdf, clusters, labels = get_clusters(traf_mats, asdf, 
+        asdf, centers, labels = get_clusters(traf_mats, asdf, 
                                               day_type='business_days', 
                                               min_trips=min_trips, 
-                                              clustering='k_means', k=k, 
-                                              random_state=cluster_seed)
+                                              clustering=clustering, k=k, 
+                                              random_state=cluster_seed,
+                                              use_dtw=use_dtw, linkage=linkage,
+                                              city=city)
         
         plt.style.use('seaborn-darkgrid')
         
@@ -565,7 +647,7 @@ def plot_cluster_centers(city, k=5, year=2019, month=None, day=None,
         
         for i in range(k):
             n = (labels==i).sum()
-            ax.plot(clusters.cluster_centers_[i], label=f'Cluster {i} (n={n})')
+            ax.plot(centers[i], label=f'Cluster {i} (n={n})')
         ax.set_xticks(range(24))
         ax.set_xlabel('Hour')
         ax.set_xlim(0,23)
@@ -573,11 +655,12 @@ def plot_cluster_centers(city, k=5, year=2019, month=None, day=None,
         ax.set_ylabel('Relative difference')
         ax.legend()
         
-        plt.savefig(f'./figures/paper_figures/{city}_clusters.pdf')
+        if savefig:
+            plt.savefig(f'./figures/paper_figures/{city}_clusters.pdf')
         
         plt.style.use('default')
     
-        return clusters
+        return centers
 
     else:
         
@@ -637,8 +720,9 @@ def plot_cluster_centers(city, k=5, year=2019, month=None, day=None,
                 asdf, clusters, labels = get_clusters(traf_mats, asdf, 
                                                       day_type='business_days', 
                                                       min_trips=min_trips, 
-                                                      clustering='k_means', k=k,
-                                                      random_state=cluster_seed)
+                                                      clustering=clustering, k=k,
+                                                      random_state=cluster_seed,
+                                                      use_dtw=use_dtw, city=city)
                 
                 clusters_dict[city] = clusters
                 
@@ -683,10 +767,9 @@ def plot_cluster_centers(city, k=5, year=2019, month=None, day=None,
         plt.tight_layout(pad=2)
         ax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.2), ncol=len(ax[3,0].get_lines()))
         
-        try:
+        if savefig:
             plt.savefig(f'./figures/paper_figures/clusters_all_cities_k={k}.pdf')
-        except PermissionError:
-            print('Permission Denied. Continuing...')
+        
         
         # plt.style.use('default')
         
@@ -719,8 +802,9 @@ def n_table_formatter(x):
     else:
         return ""
 
-def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10,
-                 cluster_seed=42, savefig=False, overwrite=False):
+def k_test_table(cities=None, year=2019, month=None, clustering='k_means', 
+                 k_min=2, k_max=10, min_trips=8, cluster_seed=42, 
+                 savefig=False, overwrite=False, use_dtw=False):
     
     if cities is None:
             cities = ['nyc', 'chicago', 'washdc', 'boston', 
@@ -762,7 +846,7 @@ def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10,
             
             traf_mats = data.pickle_daily_traffic(holidays=False, 
                                                   user_type='Subscriber',
-                                                  overwrite=False)
+                                                  overwrite=overwrite)
                 
             mask = ~asdf['n_trips'].isna()
             
@@ -785,9 +869,10 @@ def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10,
                 
                 asdf, clusters, labels = get_clusters(traf_mats, asdf, 
                                                       day_type='business_days', 
-                                                      min_trips=8, 
-                                                      clustering='k_means', k=k, 
-                                                      random_state=cluster_seed)
+                                                      min_trips=min_trips, 
+                                                      clustering=clustering, k=k, 
+                                                      random_state=cluster_seed,
+                                                      use_dtw=use_dtw, city=city)
                 
                 mask = ~labels.isna()
                 
@@ -837,45 +922,116 @@ def k_test_table(cities=None, year=2019, month=None, k_min=2, k_max=10,
                     'DB' : 'Davies-Bouldin index (lower is better)',
                     'SS' : 'Sum of Squares (lower is better)'}
     
-    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10,8))
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(7,6))
     
     count=0
     for row in range(2):
         for col in range(2):
             for city in cities:
-                ax[row, col].plot(res_table[(bs.name_dict[city], 
+                ax[row, col].plot(k_list, 
+                                  res_table[(bs.name_dict[city], 
                                              list(metrics_dict.keys())[count])],
                                   label=bs.name_dict[city])
                 ax[row,col].set_title(metrics_dict[
                     list(metrics_dict.keys())[count]])
                 
-                # if row == 0:
-                #     ax[row,col].xaxis.set_ticklabels([])
+                ax[row, col].set_xticks(k_list)
+                ax[row, col].set_xlim(min(k_list)-0.4, max(k_list)+0.4)
                 
-                # else:
-                ax[row,col].set_xlabel('k')
+                ax[row,col].set_xlabel('$k$')
             count+=1
             
-    plt.tight_layout(pad=2)
-    ax[1,0].legend(loc='upper center', bbox_to_anchor=(1.05,-0.1), ncol=len(ax[0,0].get_lines()))
+    plt.tight_layout(pad=3)
+    ax[1,0].legend(loc='upper center', bbox_to_anchor=(1.05,-0.18), ncol=4)#len(ax[0,0].get_lines()))
     
     if savefig:
         plt.savefig('figures/paper_figures/k_test_figures.pdf')
     
     return res_table
 
+def make_cluster_algo_test_figure(res_table, city, year, month, 
+                                  clustering_algos, savefig=False):
+    
+    plt.style.use('seaborn-darkgrid')
+    
+    metrics_dict = {'D' : 'Dunn Index (higher is better)',
+                    'S' : 'Silhouette Index (higher is better)',
+                    'DB' : 'Davies-Bouldin index (lower is better)',
+                    'SS' : 'Sum of Squares (lower is better)'}
+    
+    cluster_dict = {'k_means' : '$k$-means',
+                    'k_medoids' : '$k$-medoids',
+                    'h_clustering' : 'Hierarchical clustering',
+                    'gaussian_mixture' : 'EM'}
+    
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10,8))
+    
+    count=0
+    for row in range(2):
+        for col in range(2):
+            for cluster_algo in clustering_algos:
+                ax[row, col].plot(res_table[(cluster_algo, 
+                                             list(metrics_dict.keys())[count])],
+                                  label=cluster_dict[cluster_algo])
+                ax[row,col].set_title(metrics_dict[
+                    list(metrics_dict.keys())[count]])
+                
+                ax[row,col].set_xlabel('$k$')
+            count+=1
+            
+    plt.tight_layout(pad=2)
+    ax[1,0].legend(loc='upper center', bbox_to_anchor=(1.05,-0.1), ncol=len(ax[0,0].get_lines()))
+    
+    if savefig:
+        if 'cluster_algo_tests' not in os.listdir('figures'):
+            os.mkdir('./figures/cluster_algo_tests')
+        
+        if month is None:
+            plt.savefig(f'./figures/cluster_algo_tests/{city}{year}.pdf')
+        else:
+            plt.savefig(f'./figures/cluster_algo_tests/{city}{year}{month:02d}.pdf')
+    
+
 def cluster_algo_test(cities=None, year=2019, month=None, k_min=2, k_max=10,
                       cluster_seed=42, min_trips=8, 
-                      savefig=False, overwrite=False):
+                      savefig=False, overwrite=False, use_dtw=False):
     
-    # clustering_algos = ['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture']
-    clustering_algos = ['gaussian_mixture']
-    metrics = ['DB', 'D', 'S', 'SS']
+    clustering_algos = ['k_means', 'k_medoids', 'h_clustering', 'gaussian_mixture']
+    # clustering_algos = ['h_clustering']
+    metrics = ['D', 'S', 'DB', 'SS']
     k_list = [i for i in range(k_min, k_max+1)]
-    # k_list = [2]
+    
+    cluster_dict = {'k_means' : '$k$-means',
+                    'k_medoids' : '$k$-medoids',
+                    'h_clustering' : 'Hierarchical clustering',
+                    'gaussian_mixture' : 'EM'}
+    
+    metrics_dict = {'D' : 'Dunn Index\n(higher is better)',
+                    'S' : 'Silhouette Index\n(higher is better)',
+                    'DB' : 'Davies-Bouldin index\n(lower is better)',
+                    'SS' : 'Sum of Squares\n(lower is better)'}
     
     if isinstance(cities, str):
         city = cities
+        
+        if not overwrite:
+            try:
+                if month is None:  
+                    with open(f'./python_variables/cluster_algo_test_{city}{year}.pickle', 'rb') as file:
+                        res_table = pickle.load(file)
+                else:
+                    with open(f'./python_variables/cluster_algo_test_{city}{year}{month:02d}.pickle', 'rb') as file:
+                        res_table = pickle.load(file)
+                
+                make_cluster_algo_test_figure(res_table, city, year, 
+                                              month, clustering_algos,
+                                              savefig=savefig)
+                
+                return res_table
+                
+            except FileNotFoundError:
+                print('WARNING: No existing file found. Continuing...')
+
         
         multiindex = pd.MultiIndex.from_product((clustering_algos, metrics))  
         res_table = pd.DataFrame(index=k_list, columns=multiindex)
@@ -901,7 +1057,6 @@ def cluster_algo_test(cities=None, year=2019, month=None, k_min=2, k_max=10,
         
         for clustering_algo in clustering_algos:
             
-            
             print(f'\nCalculating for {clustering_algo}...\n')
             
             DB_list = []
@@ -917,7 +1072,8 @@ def cluster_algo_test(cities=None, year=2019, month=None, k_min=2, k_max=10,
                                                       day_type='business_days', 
                                                       min_trips=min_trips, 
                                                       clustering=clustering_algo, 
-                                                      k=k, random_state=cluster_seed)
+                                                      k=k, random_state=cluster_seed,
+                                                      use_dtw=use_dtw, city=city)
                 
                 mask = ~labels.isna()
                 
@@ -933,15 +1089,15 @@ def cluster_algo_test(cities=None, year=2019, month=None, k_min=2, k_max=10,
                                                     labels,
                                                     verbose=True))
                 
-                # D_list.append(Dunn_index(data_mat, 
-                #                          clusters,
-                #                          labels,
-                #                          verbose=True))
+                D_list.append(Dunn_index(data_mat, 
+                                          clusters,
+                                          labels,
+                                          verbose=True))
                 
-                # S_list.append(silhouette_index(data_mat, 
-                #                                clusters,
-                #                                labels,
-                #                                verbose=True))
+                S_list.append(silhouette_index(data_mat, 
+                                               clusters,
+                                               labels,
+                                               verbose=True))
                 
                 SS_list.append(SSE(data_mat,
                                    clusters,
@@ -949,22 +1105,489 @@ def cluster_algo_test(cities=None, year=2019, month=None, k_min=2, k_max=10,
                                    verbose=True))
                 
             res_table[(clustering_algo, 'DB')] = DB_list
-            # res_table[(clustering_algo, 'D')] = D_list
-            # res_table[(clustering_algo, 'S')] = S_list
+            res_table[(clustering_algo, 'D')] = D_list
+            res_table[(clustering_algo, 'S')] = S_list
             res_table[(clustering_algo, 'SS')] = SS_list
         
+        make_cluster_algo_test_figure(res_table, city, year, 
+                                      month, clustering_algos,
+                                      savefig=savefig)
         
+        if month is None:  
+            with open(f'./python_variables/cluster_algo_test_{city}{year}.pickle', 'wb') as file:
+                pickle.dump(res_table, file)
+        else:
+            with open(f'./python_variables/cluster_algo_test_{city}{year}{month:02d}.pickle', 'wb') as file:
+                pickle.dump(res_table, file)
         
+        return res_table
         
         
     elif cities is None:
         cities = ['nyc', 'chicago', 'washdc', 'boston', 
                   'london', 'helsinki', 'oslo', 'madrid']
-    
+        
+        big_res_table = pd.DataFrame()
+        for city in cities:
+            res_table = cluster_algo_test(city, year=year, month=month, 
+                                          k_min=k_min, k_max=k_max,
+                                          cluster_seed=cluster_seed, 
+                                          min_trips=min_trips, 
+                                          savefig=savefig,
+                                          overwrite=overwrite)
+            
+            mindex = pd.MultiIndex.from_product(([city], list(res_table.index)))
+            res_table.index = mindex
+        
+            big_res_table = pd.concat([big_res_table, res_table])
+        
+        plt.style.use('seaborn-darkgrid')
+        
+        fig, ax = plt.subplots(nrows=len(cities), 
+                               ncols=len(metrics),
+                               figsize=(10,13))
+        
+        for row, city in enumerate(cities): 
+            for col, metric in enumerate(metrics):
+                
+                for cluster_algo in clustering_algos:
+                    ax[row, col].plot(k_list, big_res_table.loc[
+                        city, (cluster_algo, metric)].values, 
+                        label=cluster_dict[cluster_algo])
+                
+                ax[row, col].set_xticks(k_list)
+                ax[row, col].set_xlim(min(k_list)-0.4, max(k_list)+0.4)
+                    
+                if row == 0:
+                    ax[row,col].set_title(metrics_dict[metric])
+                elif row == (len(cities)-1):
+                    ax[row, col].set_xlabel('$k$')
+                    
+                
+                if col == 0:
+                    ax[row,col].set_ylabel(bs.name_dict[city])
+        
+        plt.tight_layout(pad=2)
+        ax[-1,0].legend(loc='upper center', bbox_to_anchor=(2.3,-0.3), ncol=len(ax[0,0].get_lines()))
+        
+        if savefig:
+            if 'cluster_algo_tests' not in os.listdir('figures'):
+                os.mkdir('./figures/cluster_algo_tests')
+            
+            if month is None:
+                plt.savefig(f'./figures/cluster_algo_tests/all_cities_{year}.pdf')
+            else:
+                plt.savefig(f'./figures/cluster_algo_tests/all_cities_{year}{month:02d}.pdf')
+        
+        return big_res_table
+        
     else:
         raise TypeError('Please provide cities as either a string (one city) or None (all cities).')
+
+def make_linkage_test_figure(res_table, city, year, month, 
+                             clusterings, savefig=False):
     
-    return res_table
+    plt.style.use('seaborn-darkgrid')
+    
+    metrics = ['D', 'S', 'DB', 'SS']
+    
+    legend = ['$k$-means', 
+              '$l_2$-norm, single linkage',
+              '$l_2$-norm, complete linkage',
+              '$l_2$-norm, average linkage',
+              'DTW, single linkage',
+              'DTW, complete linkage',
+              'DTW, average linkage']
+    cluster_dict = dict(zip(clusterings, legend))
+    
+    metrics_dict = {'D' : 'Dunn Index (higher is better)',
+                    'S' : 'Silhouette Index (higher is better)',
+                    'DB' : 'Davies-Bouldin index (lower is better)',
+                    'SS' : 'Sum of Squares (lower is better)'}
+    
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10,8))
+    
+    count=0
+    for row in range(2):
+        for col in range(2):
+            for clustering in clusterings:
+                ax[row, col].plot(res_table[(clustering, 
+                                             list(metrics_dict.keys())[count])],
+                                  label=cluster_dict[clustering])
+                ax[row,col].set_title(metrics_dict[
+                    list(metrics_dict.keys())[count]])
+                
+                ax[row,col].set_xlabel('$k$')
+            count+=1
+            
+    plt.tight_layout(pad=2)
+    ax[1,0].legend(loc='upper center', bbox_to_anchor=(1.05,-0.1), ncol=len(ax[0,0].get_lines()))
+    
+    if savefig:
+        if 'linkage_tests' not in os.listdir('figures'):
+            os.mkdir('./figures/linkage_tests')
+        
+        if month is None:
+            plt.savefig(f'./figures/linkage_tests/{city}{year}.pdf')
+        else:
+            plt.savefig(f'./figures/linkage_tests/{city}{year}{month:02d}.pdf')
+
+def linkage_test(cities=None, year=2019, month=None, k_min=2, k_max=10,
+                 cluster_seed=42, min_trips=8, 
+                 savefig=False, overwrite=False):
+    
+    # (algo, use_dtw, linkage)
+    clusterings = [('k_means', False, 'average'),
+                   ('h_clustering', False, 'single'),
+                   ('h_clustering', False, 'complete'),
+                   ('h_clustering', False, 'average'),
+                   ('h_clustering', True, 'single'),
+                   ('h_clustering', True, 'complete'),
+                   ('h_clustering', True, 'average')]
+    
+    metrics = ['D', 'S', 'DB', 'SS']
+    k_list = [i for i in range(k_min, k_max+1)]
+    
+    legend = ['$k$-means', 
+              '$l_2$-norm, single linkage',
+              '$l_2$-norm, complete linkage',
+              '$l_2$-norm, average linkage',
+              'DTW, single linkage',
+              'DTW, complete linkage',
+              'DTW, average linkage']
+    cluster_dict = dict(zip(clusterings, legend))
+    metrics_dict = {'D' : 'Dunn Index (higher is better)',
+                    'S' : 'Silhouette Index (higher is better)',
+                    'DB' : 'Davies-Bouldin index (lower is better)',
+                    'SS' : 'Sum of Squares (lower is better)'}
+    
+    if isinstance(cities, str):
+        city = cities
+        
+        if not overwrite:
+            try:
+                if month is None:  
+                    with open(f'./python_variables/linkage_test_{city}{year}.pickle', 'rb') as file:
+                        res_table = pickle.load(file)
+                else:
+                    with open(f'./python_variables/linkage_test_{city}{year}{month:02d}.pickle', 'rb') as file:
+                        res_table = pickle.load(file)
+                
+                make_linkage_test_figure(res_table, city, year, 
+                                         month, clustering_algos,
+                                         savefig=savefig)
+                
+                return res_table
+                
+            except FileNotFoundError:
+                print('WARNING: No existing file found. Continuing...')
+
+        
+        multiindex = pd.MultiIndex.from_product((clusterings, metrics))  
+        res_table = pd.DataFrame(index=k_list, columns=multiindex)
+        
+        try:
+            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'rb') as file:
+                asdf = pickle.load(file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
+        
+        data = bs.Data(city, year, month)
+        traf_mats = data.pickle_daily_traffic(holidays=False, 
+                                              user_type='Subscriber',
+                                              overwrite=False)
+        mask = ~asdf['n_trips'].isna()
+        asdf = asdf[mask]
+        asdf = asdf.reset_index(drop=True)
+        
+        try:
+            traf_mats = (traf_mats[0][mask], traf_mats[1])
+        except IndexError:
+            pass
+        
+        for clustering in clusterings:
+            
+            print(f'\nCalculating for {clustering}...\n')
+            
+            DB_list = []
+            D_list = []
+            S_list = []
+            SS_list = []
+                
+            for k in k_list:
+                
+                print(f'\nCalculating for k={k}...\n')
+                
+                asdf, clusters, labels = get_clusters(traf_mats, asdf, 
+                                                      day_type='business_days', 
+                                                      min_trips=min_trips, 
+                                                      clustering=clustering[0], 
+                                                      k=k, random_state=cluster_seed,
+                                                      use_dtw=clustering[1], 
+                                                      linkage=clustering[2],
+                                                      city=city)
+                
+                mask = ~labels.isna()
+                
+                labels = labels.to_numpy()[mask]
+                
+                data_mat = (traf_mats[0][:,:24] - traf_mats[0][:,24:])[mask]
+                
+                # if clustering_algo == 'gaussian_mixture':
+                #     labels = pd.Series(np.argmax(labels, axis=1))
+                
+                DB_list.append(Davies_Bouldin_index(data_mat, 
+                                                    clusters,
+                                                    labels,
+                                                    verbose=True))
+                
+                D_list.append(Dunn_index(data_mat, 
+                                          clusters,
+                                          labels,
+                                          verbose=True))
+                
+                S_list.append(silhouette_index(data_mat, 
+                                                clusters,
+                                                labels,
+                                                verbose=True))
+                
+                SS_list.append(SSE(data_mat,
+                                   clusters,
+                                   labels,
+                                   verbose=True))
+                
+            res_table[(clustering, 'DB')] = DB_list
+            res_table[(clustering, 'D')] = D_list
+            res_table[(clustering, 'S')] = S_list
+            res_table[(clustering, 'SS')] = SS_list
+        
+        make_linkage_test_figure(res_table, city, year, 
+                                 month, clusterings,
+                                 savefig=savefig)
+        
+        if month is None:  
+            with open(f'./python_variables/linkage_test_{city}{year}.pickle', 'wb') as file:
+                pickle.dump(res_table, file)
+        else:
+            with open(f'./python_variables/linkage_test_{city}{year}{month:02d}.pickle', 'wb') as file:
+                pickle.dump(res_table, file)
+        
+        return res_table
+        
+        
+    elif cities is None:
+        cities = ['nyc', 'chicago', 'washdc', 'boston', 
+                  'london', 'helsinki', 'oslo', 'madrid']
+        
+        big_res_table = pd.DataFrame()
+        for city in cities:
+            res_table = linkage_test(city, year=year, month=month, 
+                                     k_min=k_min, k_max=k_max,
+                                     cluster_seed=cluster_seed, 
+                                     min_trips=min_trips, 
+                                     savefig=savefig,
+                                     overwrite=overwrite)
+            
+            mindex = pd.MultiIndex.from_product(([city], list(res_table.index)))
+            res_table.index = mindex
+        
+            big_res_table = pd.concat([big_res_table, res_table])
+        
+        plt.style.use('seaborn-darkgrid')
+        
+        fig, ax = plt.subplots(nrows=len(cities), 
+                               ncols=len(metrics),
+                               figsize=(14,18))
+        
+        for row, city in enumerate(cities): 
+            for col, metric in enumerate(metrics):
+                
+                for clustering in clusterings:
+                    ax[row, col].plot(k_list, big_res_table.loc[
+                        city, (clustering, metric)].values, 
+                        label=cluster_dict[clustering])
+                
+                ax[row, col].set_xticks(k_list)
+                ax[row, col].set_xlim(min(k_list)-0.4, max(k_list)+0.4)
+                    
+                if row == 0:
+                    ax[row,col].set_title(metrics_dict[metric])
+                elif row == (len(cities)-1):
+                    ax[row, col].set_xlabel('k')
+                    
+                
+                if col == 0:
+                    ax[row,col].set_ylabel(bs.name_dict[city])
+        
+        
+        ax[-1,0].legend(loc='upper center', bbox_to_anchor=(2.3,-0.2), ncol=len(ax[0,0].get_lines()))
+        
+        if savefig:
+            if 'linkage_tests' not in os.listdir('figures'):
+                os.mkdir('./figures/linkage_tests')
+            
+            if month is None:
+                plt.savefig(f'./figures/linkage_tests/all_cities_{year}.pdf')
+            else:
+                plt.savefig(f'./figures/linkage_tests/all_cities_{year}{month:02d}.pdf')
+        
+        return big_res_table
+        
+    else:
+        raise TypeError('Please provide cities as either a string (one city) or None (all cities).')
+
+def plot_stations(city, year=2019, month=None, day=None, 
+                  clustering='k_means', k=5, cluster_seed=42, min_trips=8, 
+                  use_dtw=False, linkage='average', savefig=True):
+    
+    new_color_dict = {0 : 'tab:blue', 1 : 'tab:orange', 2 : 'tab:green',
+                      3 : 'tab:red', 4: 'tab:purple'}
+    
+    cluster_name_dict = {0 : 'Reference', 
+                         1 : 'High morning sink', 
+                         2 : 'Low morning sink',
+                         3 : 'Low morning source',
+                         4 : 'High morning source'}
+    
+    try:
+        if month is None:
+            filestr = f'./python_variables/{city}{year}_avg_stat_df.pickle'
+        else:
+            filestr = f'./python_variables/{city}{year}{month}_avg_stat_df.pickle'
+            
+        with open(filestr, 'rb') as file:
+            asdf = pickle.load(file)
+    except FileNotFoundError:
+        raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
+
+    data = bs.Data(city, year, month, day)
+    
+    stat_df= ipu.make_station_df(data, holidays=False)
+    
+    traf_mats = data.pickle_daily_traffic(holidays=False, 
+                                          user_type='Subscriber',
+                                          overwrite=False)
+            
+    mask = ~asdf['n_trips'].isna()
+    
+    asdf = asdf[mask]
+    asdf = asdf.reset_index(drop=True)
+    
+    try:
+        traf_mats = (traf_mats[0][mask], traf_mats[1])
+    except IndexError:
+        pass
+            
+    
+    asdf, centers, labels = get_clusters(traf_mats, asdf, 
+                                         day_type='business_days', 
+                                         min_trips=min_trips, 
+                                         clustering=clustering, k=k, 
+                                         random_state=cluster_seed,
+                                         use_dtw=use_dtw, linkage=linkage,
+                                         city=city)
+    
+    asdf['new_color'] = asdf['label'].apply(lambda l: new_color_dict[l] 
+                                            if not pd.isna(l) else 'grey')
+    
+    extend = (stat_df['lat'].min(), stat_df['long'].min(), 
+          stat_df['lat'].max(), stat_df['long'].max())
+    
+    tileserver = 'https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg' # Stamen Terrain
+    # tileserver = 'http://a.tile.stamen.com/toner/{z}/{x}/{y}.png' # Stamen Toner
+    # tileserver = 'http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.png' # Stamen Watercolor
+    # tileserver = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' # OSM Default
+    
+    m = sm.Map(extend, tileserver=tileserver)
+    
+    xlim_dict = {'nyc' : (150, 600), 'chicago' : (150,600), 
+                 'washdc' : (0,390), 'boston' : (0, 300),
+                 'london' : (30,800), 'helsinki' : (130,767),
+                 'oslo' : (0,600), 'madrid' : (0,511)}
+    ylim_dict = {'nyc' : (767.5,100), 'chicago' : (900,150),
+                 'washdc' : (580,180), 'boston' : (600,225),
+                 'london' : (550,30), 'helsinki' : (560,230),
+                 'oslo' : (500,100), 'madrid' : (750, 50)}
+   
+    ms_dict = {'nyc' : 6, 'chicago' : 6, 'washc' : 6, 'boston' : 6,
+               'london' : 3, 'helsinki' : 2, 'oslo' : 3, 'madrid' : 6}
+    
+    fig, ax = plt.subplots(figsize=(7,10))
+    
+    m.show_mpl(ax=ax)
+    
+    if city in ms_dict.keys():
+        ms = ms_dict[city]
+    else:
+        ms=6
+    
+    for i, stat in asdf.iterrows():
+        x, y = m.to_pixels(stat_df[stat_df.stat_id==stat.stat_id]['lat'], 
+                           stat_df[stat_df.stat_id==stat.stat_id]['long'])
+        ax.plot(x, y, 'o', ms=ms, color = stat['new_color'])
+    
+    if city in xlim_dict.keys():
+        ax.set_xlim(xlim_dict[city])
+    
+    if city in ylim_dict.keys():
+        ax.set_ylim(ylim_dict[city])
+    
+    ax.axis('off')
+    plt.tight_layout()
+    
+    for key in new_color_dict.keys():
+        ax.plot(0,0,'o', ms=6, 
+                color=new_color_dict[key], 
+                label=cluster_name_dict[key])
+    ax.plot(0,0,'o', ms=6, color='grey', label='Unclustered')
+    
+    # Add legend
+    
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5,0), ncol=3, frameon=False)
+    
+    # Add scalebar
+    
+    scalebar_size_km = 5
+    
+    c0 = (stat_df.iloc[0].easting, stat_df.iloc[0].northing)
+    c1 = (stat_df.iloc[1].easting, stat_df.iloc[1].northing)
+    
+    geo_dist = np.linalg.norm(np.array(c0) - np.array(c1))
+    
+    pix0 = m.to_pixels(stat_df.iloc[0].lat, stat_df.iloc[0].long)
+    pix1 = m.to_pixels(stat_df.iloc[1].lat, stat_df.iloc[1].long)
+    
+    pix_dist = np.linalg.norm(np.array(pix0) - np.array(pix1))
+    
+    scalebar_size = pix_dist/geo_dist*1000*scalebar_size_km
+    
+    
+    scalebar = AnchoredSizeBar(ax.transData, scalebar_size, 
+                                f'{scalebar_size_km} km', 'lower right', 
+                                pad=0.2, color='black', frameon=False, 
+                                size_vertical=2)
+    ax.add_artist(scalebar)
+    
+    # Add OSM attribute
+    
+    attr = AnchoredText("(C) Stamen Design. (C) OpenStreetMap contributors.",
+                        loc = 'lower left', frameon=True, pad=0.1, borderpad=0)
+    attr.patch.set_edgecolor('white')
+    ax.add_artist(attr)
+    
+    plt.tight_layout()
+    
+    if savefig:
+        fig.savefig(f'./figures/station_cluster_plot_{city}.pdf', bbox_inches='tight')
+    
+    return fig, ax
+
+
+
+
+
+
+
     
 cluster_color_dict = {0 : 'blue', 1 : 'red', 2 : 'yellow', 3 : 'green', #tab:
                       4 : 'purple', 5 : 'cyan', 6: 'pink',
@@ -980,11 +1603,27 @@ if __name__ == '__main__':
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
               'london', 'helsinki', 'oslo', 'madrid']
     
-    cluster_algo_test_table = cluster_algo_test('nyc')
+    # cluster_algo_test_table = cluster_algo_test(cluster_seed=42,
+    #                                             savefig=False, overwrite=True, 
+    #                                             use_dtw=True)
     
-    # k_table = k_test_table(savefig=True, overwrite=True)
-    # clusters, n_table = plot_cluster_centers('all', k=5, n_table=True)
+    # linkage_test_table = linkage_test(cluster_seed=42,
+    #                                   savefig=True, overwrite=True)
+    
+    # k_table = k_test_table(clustering='k_means', 
+    #                         savefig=True, overwrite=False, use_dtw=True)
+    
+    # clusters, n_table = plot_cluster_centers('all', k=5, clustering='k_means',
+    #                                           use_dtw=True, linkage='complete', n_table=True)
 
+    for city in cities:
+        fig, ax = plot_stations(city)
+    
+    
+    
+    
+    
+    
     # clusters_list = []
     # for k in [2,3,4,5,6,7,8,9,10]:
     #     clusters_list.append(plot_cluster_centers('all', k=k))

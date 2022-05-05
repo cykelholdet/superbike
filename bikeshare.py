@@ -2985,7 +2985,7 @@ month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     pre = time.time()
-    data = Data('nyc', 2019, None, overwrite=False, user_type='Subscriber', remove_loops=True)
+    data = Data('nyc', 2019, None, overwrite=True, user_type='Subscriber', remove_loops=True)
     print(f"time taken: {time.time() - pre:.2f}s")
     traf_mats = data.pickle_daily_traffic(overwrite=True, holidays=False, 
                                           user_type='Subscriber')

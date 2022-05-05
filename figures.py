@@ -30,7 +30,7 @@ import interactive_plot_utils as ipu
 from logistic_table import lr_coefficients
 from clustering import get_clusters
 
-def service_area_figure(data, stat_df, land_use, return_fig=False):
+def service_area_figure(city, year, month, day, return_fig=False):
     """
     Makes a figure of the stations and their service areas in a network.
 
@@ -57,8 +57,12 @@ def service_area_figure(data, stat_df, land_use, return_fig=False):
 
     """
     
+    data = bs.Data(city, year, month, day)
+    
+    stat_df= ipu.make_station_df(data, holidays=False)
+    
     extend = (stat_df['lat'].min(), stat_df['long'].min(), 
-          stat_df['lat'].max(), stat_df['long'].max())
+              stat_df['lat'].max(), stat_df['long'].max())
     
     tileserver = 'https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg' # Stamen Terrain
     # tileserver = 'http://a.tile.stamen.com/toner/{z}/{x}/{y}.png' # Stamen Toner
@@ -112,8 +116,8 @@ def service_area_figure(data, stat_df, land_use, return_fig=False):
             
             ax.add_artist(p)
             
-            # ax.fill(pixels[:,0], pixels[:,1], c='b')
-            # ax.plot(pixels[:,0], pixels[:,1], c='k')
+            ax.fill(pixels[:,0], pixels[:,1], c='b')
+            ax.plot(pixels[:,0], pixels[:,1], c='k')
             
     xlim_dict = {'nyc' : (150, 600)}
     ylim_dict = {'nyc' : (767.5,100)}
@@ -127,7 +131,7 @@ def service_area_figure(data, stat_df, land_use, return_fig=False):
     
     ax.plot(0, 0, 'ob', ms=2, mew=1.5, label='Station')
     p0 = Polygon([(0,0), (0,1), (1,0)], alpha=0.5, 
-                 facecolor='tab:cyan', edgecolor='k', label='Service Area')
+                  facecolor='tab:cyan', edgecolor='k', label='Service Area')
     ax.add_patch(p0)
     ax.legend()
     
@@ -147,12 +151,12 @@ def service_area_figure(data, stat_df, land_use, return_fig=False):
     
     
     scalebar = AnchoredSizeBar(ax.transData, scalebar_size, 
-                               f'{scalebar_size_km} km', 'lower right', 
-                               pad=0.2, color='black', frameon=False, 
-                               size_vertical=2)
+                                f'{scalebar_size_km} km', 'lower right', 
+                                pad=0.2, color='black', frameon=False, 
+                                size_vertical=2)
     ax.add_artist(scalebar)
     attr = AnchoredText("(C) Stamen Design. (C) OpenStreetMap contributors.",
-                       loc = 'lower left', frameon=True, pad=0.1, borderpad=0)
+                        loc = 'lower left', frameon=True, pad=0.1, borderpad=0)
     attr.patch.set_edgecolor('white')
     ax.add_artist(attr)
     
@@ -594,8 +598,8 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42,
         except IndexError:
             pass
         
-        asdf = get_clusters(traf_mats, asdf, 'business_days', 8, 'k_means', 
-                                k, random_state=42)[0]
+        asdf = get_clusters(traf_mats, asdf, 'business_days', 8, 'k_medoids', 
+                                k, random_state=42, use_dtw=True, city=city)[0]
         
         zone_columns = ['percent_residential', 'percent_commercial',
                         'percent_recreational', 'percent_industrial']
@@ -903,12 +907,14 @@ if __name__ == "__main__":
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
               'london', 'helsinki', 'oslo', 'madrid']
     
-    sum_stat_table=make_summary_statistics_table()
+    # sum_stat_table=make_summary_statistics_table()
     # LR_table=make_LR_table(2019, k=5, const=True)
     
     # sr = city_tests(k=5, test_seed=6)
     
-    # seed_range = range(50,100)
+    fig, ax = service_area_figure('nyc', 2019, 9, 5, return_fig=True)
+    
+    # seed_range = range(50,70)
     # sr = np.zeros(shape=(8,8))
     # for seed in seed_range:
     #     sr += city_tests(k=5, test_seed=seed)
