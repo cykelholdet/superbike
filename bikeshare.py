@@ -18,6 +18,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import rarfile
+import pyproj
 
 from workalendar.europe import CommunityofMadrid, Finland, UnitedKingdom, \
     Norway, Edinburgh
@@ -1571,8 +1572,12 @@ def get_data_year(city, year, blocklist=None, overwrite=False):
         elif city in ['edinburgh', 'bergen', 'trondheim', 'oslo']:
             dfs = []
             for month in get_valid_months(city, year):
+                if city == 'edinburgh':
+                    timestamp = f'{year:d}-{month:02d}'
+                else:
+                    timestamp = f'{year:d}{month:02d}'
                 try:
-                    df = pd.read_csv(f'./data/{city}/{year:d}{month:02d}-{city}.csv')
+                    df = pd.read_csv(f'./data/{city}/{timestamp}-{city}.csv')
                 except FileNotFoundError as exc:
                     raise FileNotFoundError(
                         'No trip data found. All relevant files can be found at') from exc
@@ -1594,8 +1599,8 @@ def get_data_year(city, year, blocklist=None, overwrite=False):
 
                 # Change timezone from UTC to wall time
                 if city == 'edinburgh':
-                    df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_convert('Europe/Edinburgh')
-                    df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_convert('Europe/Edinburgh')
+                    df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_convert('Europe/London')
+                    df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_convert('Europe/London')
                 else:
                     df['start_dt'] = pd.to_datetime(df['start_t']).dt.tz_convert('Europe/Oslo')
                     df['end_dt'] = pd.to_datetime(df['end_t']).dt.tz_convert('Europe/Oslo')
@@ -2093,7 +2098,7 @@ class Stations:
         self.locations = station_locations(df, self.id_index)
         print(".", end="")
         self.names = station_names(df, self.id_index)
-
+        
         print(" Done")
 
 
@@ -2248,6 +2253,10 @@ class Data:
             self.df = self.df[self.df['start_stat_id'] != self.df['end_stat_id']]
 
         self.stat = Stations(self.df)
+        
+        if self.city in city_center_dict.keys():
+            self.laea_crs = pyproj.crs.CRS(f"+proj=laea +lat_0={city_center_dict[self.city]['lat']} +lon_0={city_center_dict[self.city]['long']}")
+        
 
 
     def daily_traffic_average(self, stat_index, period='b', normalise=True, plot=False, return_all=False, return_fig=False, return_std=False, user_type='all'):
@@ -2918,11 +2927,31 @@ name_dict = {
 month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
               7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
 
+city_center_dict = {
+    'bergen': {'long': 5.38771445313615, 'lat': 60.383577733994045},
+    'boston': {'long': -71.08758305223354, 'lat': 42.35019750316253},
+    'buenos_aires': {'long': -58.42347574860326, 'lat': -34.60310703308861},
+    'chicago': {'long': -87.65545296053962, 'lat': 41.888300359494096},
+    'edinburgh': {'long': -3.20581957820512, 'lat': 55.93236528347738},
+    'guadalajara': {'long': -103.36447705145984, 'lat': 20.679296934525546},
+    'helsinki': {'long': 24.9017870418595, 'lat': 60.190035541236846},
+    'london': {'long': -0.1285233400760456, 'lat': 51.505906433548795},
+    'la': {'long': -118.32312902690583, 'lat': 34.03107351121076},
+    'madrid': {'long': -3.693598130516432, 'lat': 40.42447626338028},
+    'minneapolis': {'long': -93.26299728704082, 'lat': 44.97102880906168},
+    'montreal': {'long': -73.58646867352535, 'lat': 45.52028355707451},
+    'nyc': {'long': -73.9659602859011, 'lat': 40.72974815433999},
+    'oslo': {'long': 10.74278096032806, 'lat': 59.92224401048971},
+    'sfran': {'long': -122.08716554792483, 'lat': 37.82120403828431},
+    'taipei': {'long': 121.54354860523308, 'lat': 25.054554026691726},
+    'trondheim': {'long': 10.405688671739478, 'lat': 63.42914081309114},
+    'washdc': {'long': -77.03355484615385, 'lat': 38.89052952680653},
+}
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     pre = time.time()
-    data = Data('madrid', 2019, None, overwrite=True, user_type='all', remove_loops=True)
+    data = Data('nyc', 2019, None, overwrite=True, user_type='all', remove_loops=True)
     print(f"time taken: {time.time() - pre:.2f}s")
     #traffic_arr, traffic_dep = data.daily_traffic_average_all()
 

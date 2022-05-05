@@ -618,7 +618,7 @@ def linear_regression(df, cols, triptype):
 
 # For point, get percentages and pop density and nearest subway dist
 
-def heatmap_grid(city, land_use, census_df, bounds, resolution):
+def heatmap_grid(data, land_use, census_df, bounds, resolution):
     latmin, lonmin, latmax, lonmax = bounds
     grid_points = []
     for lat in np.arange(latmin, latmax, resolution):
@@ -636,13 +636,13 @@ def heatmap_grid(city, land_use, census_df, bounds, resolution):
 
     grid_points = grid_points.join(neighborhoods)
 
-    service_area = ipu.get_service_area(city, grid_points, land_use)
+    service_area = ipu.get_service_area(data, grid_points, land_use)
     
     grid_points['service_area'] = service_area[0]
     
-    percentages = ipu.neighborhood_percentages(city, grid_points, land_use)
+    percentages = ipu.neighborhood_percentages(data, grid_points, land_use)
     pop_density = ipu.pop_density_in_service_area(grid_points, census_df)
-    nearest_subway = ipu.nearest_transit(city, grid_points)
+    nearest_subway = ipu.nearest_transit(data, grid_points)
 
     point_info = pd.DataFrame(index=percentages.index)
     point_info['const'] = 1.0
@@ -673,7 +673,10 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
     w_adjust = {'nyc': -0.5}
     names = ['Reference', 'High morning sink', 'Low morning sink', 'Low morning source', 'High morning source']
     ncols = 3
-    npred = pred.shape[1]
+    if pred.ndim > 1:
+        npred = pred.shape[1]
+    else:
+        npred = 1
     
     nvars = 7
     
@@ -782,7 +785,7 @@ def make_model_and_plot_heatmaps(
     
     latmin, lonmin, latmax, lonmax = polygon.bounds
     
-    grid_points, point_info = heatmap_grid(city, land_use, census_df, polygon.bounds, resolution)
+    grid_points, point_info = heatmap_grid(data, land_use, census_df, polygon.bounds, resolution)
     
     for model_results, tr_city in zip(models, train_cities):
         
@@ -830,7 +833,7 @@ def make_model_and_plot_heatmaps(
     
 #     latmin, lonmin, latmax, lonmax = polygon.bounds
     
-#     grid_points, point_info = heatmap_grid(CITY, land_use, census_df, polygon.bounds, resolution)
+#     grid_points, point_info = heatmap_grid(data, land_use, census_df, polygon.bounds, resolution)
     
 #     # OLS_predict_partial = partial(OLS_predict, OLS_results=OLS_results, cols=cols)
     
@@ -863,12 +866,12 @@ if __name__ == "__main__":
             'pop_density', 'nearest_subway_dist', 'nearest_railway_dist']
     triptype = 'b_trips'  # Only relevant for OLS
     resolution = 200  # Grid size in m
-    modeltype = 'LR'  # LR or OLS
+    modeltype = 'OLS'  # LR or OLS
     k = 5
     min_trips = 8
     
     grid_points, point_info = make_model_and_plot_heatmaps(
         CITY, YEAR, MONTH, cols, modeltype=modeltype, triptype=triptype,
-        resolution=resolution, k=k, train_cities=['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'madrid', 'london', 'oslo'],
+        resolution=resolution, k=k, train_cities=['nyc'],#['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'madrid', 'london', 'oslo'],
         min_trips=min_trips)
 

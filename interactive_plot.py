@@ -33,7 +33,7 @@ cmap = cm.get_cmap('Blues')
 
 YEAR = 2019
 MONTH = None
-CITY = 'chicago'
+CITY = 'helsinki'
 
 
 #station_df = ipu.make_station_df(data, holidays=False)
@@ -391,14 +391,14 @@ class BikeDash(param.Parameterized):
         print("Making Service Areas")
         
         if self.service_radius != 500 or self.service_area_modified == True:
-            self.station_df['service_area'], self.station_df['service_area_size'] = ipu.get_service_area(self.data.city, self.station_df, self.land_use, self.service_radius)
+            self.station_df['service_area'], self.station_df['service_area_size'] = ipu.get_service_area(self.data, self.station_df, self.land_use, self.service_radius)
             self.service_area_modified = True
         
         percent_cols = [column for column in self.station_df.columns if "percent_" in column]
 
         self.station_df = self.station_df.drop(columns=percent_cols).merge(
             ipu.neighborhood_percentages(
-                self.data.city, self.station_df, self.land_use, 
+                self.data, self.station_df, self.land_use, 
                 self.service_radius,self.use_road
                 ),
             how='outer', left_index=True, right_index=True)
