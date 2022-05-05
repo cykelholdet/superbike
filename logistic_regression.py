@@ -18,6 +18,7 @@ import geopandas as gpd
 
 import bikeshare as bs
 import interactive_plot_utils as ipu
+from clustering import get_clusters
 from logistic_table import lr_coefficients
 
 gpd.options.use_pygeos = False
@@ -53,7 +54,7 @@ gpd.options.use_pygeos = False
         
 #         traffic_matrices = data.pickle_daily_traffic(holidays=False)
          
-#         station_df, clusters, labels = ipu.get_clusters(traffic_matrices, station_df, 
+#         station_df, clusters, labels = get_clusters(traffic_matrices, station_df, 
 #                                                         day_type, min_trips, 
 #                                                         clustering, k, seed)
             
@@ -79,7 +80,7 @@ gpd.options.use_pygeos = False
     
 #     traffic_matrices = data.pickle_daily_traffic(holidays=False)
      
-#     station_df, clusters, labels = ipu.get_clusters(traffic_matrices, station_df, 
+#     station_df, clusters, labels = get_clusters(traffic_matrices, station_df, 
 #                                                     day_type, min_trips, 
 #                                                     clustering, k, seed)
         
@@ -146,7 +147,7 @@ gpd.options.use_pygeos = False
 #     data_train = bs.Data(city_train, YEAR, month)
 #     stat_df_train, land_use_train = ipu.make_station_df(data_train, return_land_use=True)
 #     traffic_matrices_train = data_train.pickle_daily_traffic(holidays=False)
-#     stat_df_train = ipu.get_clusters(traffic_matrices_train, stat_df_train, 
+#     stat_df_train = get_clusters(traffic_matrices_train, stat_df_train, 
 #                                                     day_type, min_trips,
 #                                                     clustering, k, seed)[0]
 #     station_df = station_df.merge(
@@ -159,7 +160,7 @@ gpd.options.use_pygeos = False
 #     data_test = bs.Data(city_train, YEAR, month)
 #     stat_df_test, land_use_test = ipu.make_station_df(data_test, return_land_use=True)
 #     traffic_matrices_test = data_test.pickle_daily_traffic(holidays=False)
-#     stat_df_test = ipu.get_clusters(traffic_matrices_test, stat_df_test, 
+#     stat_df_test = get_clusters(traffic_matrices_test, stat_df_test, 
 #                                                     day_type, min_trips,
 #                                                     clustering, k, seed)[0]
 #     station_df = station_df.merge(
@@ -217,7 +218,7 @@ gpd.options.use_pygeos = False
 #     min_trips=min_trips, clustering=clustering, k=k,
 #     random_state=seed, return_land_use=True)
 
-# # stat_df_train_year_bad = ipu.get_clusters(traffic_matrices_train_year_bad, stat_df_train_year_bad, 
+# # stat_df_train_year_bad = get_clusters(traffic_matrices_train_year_bad, stat_df_train_year_bad, 
 # #                                                     day_type, min_trips,
 # #                                                     clustering, k, seed)[0]
 # # stat_df_train_year_bad = ipu.service_areas(city_train, stat_df_train_year_bad, land_use, 
@@ -249,7 +250,7 @@ gpd.options.use_pygeos = False
     
 #     traffic_matrices = data.pickle_daily_traffic(holidays=False)
      
-#     station_df, clusters, labels = ipu.get_clusters(traffic_matrices, station_df, 
+#     station_df, clusters, labels = get_clusters(traffic_matrices, station_df, 
 #                                                     day_type, min_trips, 
 #                                                     clustering, k, seed)
         
@@ -303,7 +304,7 @@ gpd.options.use_pygeos = False
 #     # data_train = bs.Data(city_train, YEAR, month)
 #     # stat_df_train, land_use_train = ipu.make_station_df(data_train, return_land_use=True)
 #     # traffic_matrices_train = data_train.pickle_daily_traffic(holidays=False)
-#     # stat_df_train = ipu.get_clusters(traffic_matrices_train, stat_df_train, 
+#     # stat_df_train = get_clusters(traffic_matrices_train, stat_df_train, 
 #     #                                                 day_type, min_trips,
 #     #                                                 clustering, k, seed)[0]
 #     # stat_df_train = ipu.service_areas(city_train, stat_df_train, land_use_train, 
@@ -313,7 +314,7 @@ gpd.options.use_pygeos = False
 #     # data_test = bs.Data(city_train, YEAR, month)
 #     # stat_df_test, land_use_test = ipu.make_station_df(data_test, return_land_use=True)
 #     # traffic_matrices_test = data_test.pickle_daily_traffic(holidays=False)
-#     # stat_df_test = ipu.get_clusters(traffic_matrices_test, stat_df_test, 
+#     # stat_df_test = get_clusters(traffic_matrices_test, stat_df_test, 
 #     #                                                 day_type, min_trips,
 #     #                                                 clustering, k, seed)[0]
 #     # stat_df_test = ipu.service_areas(city_train, stat_df_test, land_use_test, 
@@ -408,7 +409,7 @@ gpd.options.use_pygeos = False
 #             data_train = bs.Data(city_train, YEAR, month)
 #             stat_df_train, land_use_train = ipu.make_station_df(data_train, return_land_use=True)
 #             traffic_matrices_train = data_train.pickle_daily_traffic(holidays=False)
-#             stat_df_train = ipu.get_clusters(traffic_matrices_train, stat_df_train, 
+#             stat_df_train = get_clusters(traffic_matrices_train, stat_df_train, 
 #                                                             day_type, min_trips,
 #                                                             clustering, k, seed)[0]
 #             station_df = station_df.merge(
@@ -422,7 +423,7 @@ gpd.options.use_pygeos = False
 #             data_test = bs.Data(city, YEAR, month)
 #             stat_df_test, land_use_test = ipu.make_station_df(data_test, return_land_use=True)
 #             traffic_matrices_test = data_test.pickle_daily_traffic(holidays=False)
-#             stat_df_test = ipu.get_clusters(traffic_matrices_test, stat_df_test, 
+#             stat_df_test = get_clusters(traffic_matrices_test, stat_df_test, 
 #                                                             day_type, min_trips,
 #                                                             clustering, k, seed)[0]
 #             station_df = station_df.merge(
@@ -719,7 +720,7 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
 
 def make_model_and_plot_heatmaps(
         city, year, month, cols, modeltype='OLS', triptype='b_departures',
-        resolution=250, day_type='business_days', min_trips=4,
+        resolution=250, day_type='business_days', min_trips=8,
         clustering='k_means', k=3, seed=42, train_cities=None):
     
     if train_cities == None:
@@ -731,10 +732,10 @@ def make_model_and_plot_heatmaps(
     
         # station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
         traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
-        # station_df, clusters, labels = ipu.get_clusters(
+        # station_df, clusters, labels = get_clusters(
         #     traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
         
-        # asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
+        # asdf, clusters, labels = get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
         try:
             with open(f'./python_variables/{data.city}{year}_avg_stat_df.pickle', 'rb') as file:
                 asdf = pickle.load(file)
@@ -746,8 +747,9 @@ def make_model_and_plot_heatmaps(
         # asdf = asdf[mask]
         # asdf = asdf.reset_index(drop=True)
         
-        asdf, clusters, labels = ipu.get_clusters(
-            traffic_matrices, asdf, day_type, min_trips, clustering, k, seed)
+        asdf, clusters, labels = get_clusters(
+            traffic_matrices, asdf, day_type, min_trips, clustering, k, seed, 
+            use_dtw=True, city=tr_city)
         
         if tr_city in ['helsinki', 'oslo', 'madrid', 'london']:
             df_cols = [col for col in cols if col != 'percent_industrial']
@@ -807,7 +809,7 @@ def make_model_and_plot_heatmaps(
 
 #     station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
 #     traffic_matrices = data.pickle_daily_traffic(holidays=False)
-#     station_df, clusters, labels = ipu.get_clusters(
+#     station_df, clusters, labels = get_clusters(
 #         traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
 
 #     LR_results, X, y = ipu.stations_logistic_regression(
@@ -858,7 +860,7 @@ def make_model_and_plot_heatmaps(
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=FutureWarning)
 
-    CITY = 'nyc'
+    CITY = 'chicago'
     YEAR = 2019
     MONTH = None
     
