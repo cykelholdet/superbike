@@ -1257,6 +1257,7 @@ def pickle_asdf2(cities=None, variables=None, year=2019, month=None):
                                                             overwrite=True)
         
         for var in variables:
+            
             counts_df = pd.DataFrame()
             counts_df['stat_id'] = stat_ids
             
@@ -1267,13 +1268,14 @@ def pickle_asdf2(cities=None, variables=None, year=2019, month=None):
             for month in bs.get_valid_months(city, year):
                 asdf, count = asdfs[month], counts[month]
                 
-                var_df = var_df.merge(asdf[['stat_id', var]], 
-                                      on='stat_id', how='outer')
-                var_df.rename({var: month}, axis=1, inplace=True)
-
-                counts_df = counts_df.merge(count[['stat_id', var]],
-                                            on='stat_id', how='outer')
-                counts_df.rename({var: month}, axis=1, inplace=True)
+                if var in asdf.columns:
+                    var_df = var_df.merge(asdf[['stat_id', var]], 
+                                          on='stat_id', how='outer')
+                    var_df.rename({var: month}, axis=1, inplace=True)
+    
+                    counts_df = counts_df.merge(count[['stat_id', var]],
+                                                on='stat_id', how='outer')
+                    counts_df.rename({var: month}, axis=1, inplace=True)
 
             var_df = var_df.drop('stat_id', axis=1)
             counts_df = counts_df.drop('stat_id', axis=1)
@@ -1316,7 +1318,7 @@ def nearest_transit(city, station_df):
     
     return df
 
-def neighborhood_percentages(city, station_df, land_use, service_radius=500, use_road='False'):
+def neighborhood_percentages(data, station_df, land_use, service_radius=500, use_road='False'):
     
     if 'service_area' not in station_df.columns or service_radius != 500:
         print('Making service area...')
