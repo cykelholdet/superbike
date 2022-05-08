@@ -32,6 +32,7 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.neighbors import BallTree
 from sklearn_extra.cluster import KMedoids
 from statsmodels.discrete.discrete_model import MNLogit
+from statsmodels.tools import add_constant
 from scipy.spatial import Voronoi
 
 import bikeshare as bs
@@ -1051,7 +1052,7 @@ def stat_df_day(day, city, year, month, columns):
     return stat_df[stat_df.columns & columns]
 
 def pickle_asdf_month(city, year, month, variables=None, 
-                      return_counts=False, overwrite=False):
+                      return_counts=False, overwrite=False, n_cpus=mp.cpu_count()):
     
     if not overwrite:
         try:
@@ -1094,7 +1095,7 @@ def pickle_asdf_month(city, year, month, variables=None,
         counts = pd.DataFrame()
         counts['stat_id'] = stat_ids
         
-        with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version
+        with mp.Pool(n_cpus) as pool: # multiprocessing version
             # Run stat_df_day via partial to get the station_df for each day in the month
             stat_df_day_part = partial(stat_df_day, city=city, year=year, 
                                        month=month, columns=variables + ['stat_id'])
@@ -1138,7 +1139,7 @@ def pickle_asdf_month(city, year, month, variables=None,
 
 
 
-def pickle_asdf(cities=None, variables=None, year=2019):
+def pickle_asdf(cities=None, variables=None, year=2019, n_cpus=mp.cpu_count()):
     if cities is None:
         cities = ['nyc', 'chicago', 'washdc', 'boston', 
                   'london', 'helsinki', 'oslo', 'madrid']
@@ -1186,7 +1187,7 @@ def pickle_asdf(cities=None, variables=None, year=2019):
         # with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version
         #     stat_dfs2 = pool.map(stat_df_day_part, valid_days)
         
-        with mp.Pool(mp.cpu_count()) as pool: # multiprocessing version
+        with mp.Pool(n_cpus) as pool: # multiprocessing version
             for month in bs.get_valid_months(city, year):
                 # Run stat_df_day via partial to get the station_df for each day in the month
                 stat_df_day_part = partial(stat_df_day, city=city, year=year, month=month, columns=variables + ['stat_id'])
@@ -1220,7 +1221,7 @@ def pickle_asdf(cities=None, variables=None, year=2019):
             return stat_dfs, var_dfs, avg_stat_df
        
 
-def pickle_asdf2(cities=None, variables=None, year=2019, month=None):
+def pickle_asdf2(cities=None, variables=None, year=2019, month=None, n_cpus=mp.cpu_count()):
 
     if cities is None:
         cities = ['nyc', 'chicago', 'washdc', 'boston', 
@@ -1254,7 +1255,8 @@ def pickle_asdf2(cities=None, variables=None, year=2019, month=None):
             asdfs[month], counts[month] = pickle_asdf_month(city, year, month,
                                                             variables=variables,
                                                             return_counts=True,
-                                                            overwrite=True)
+                                                            overwrite=True,
+                                                            n_cpus=n_cpus)
         
         for var in variables:
             
@@ -1318,6 +1320,7 @@ def nearest_transit(city, station_df):
     
     return df
 
+
 def neighborhood_percentages(data, station_df, land_use, service_radius=500, use_road='False'):
     
     if 'service_area' not in station_df.columns or service_radius != 500:
@@ -1341,8 +1344,11 @@ def neighborhood_percentages(data, station_df, land_use, service_radius=500, use
     else:
         sdf = gpd.GeoDataFrame(station_df['service_area'].to_crs(data.laea_crs))
     
+    sdf = sdf.set_geometry('service_area')
+    sdf['service_area'] = sdf['service_area'].buffer(0)
+    
     for zone_type in zone_types:  # Project neighborhoods
-        sdf[f'neighborhood_{zone_type}'] = station_df[f'neighborhood_{zone_type}'].to_crs(data.laea_crs)
+        sdf[f'neighborhood_{zone_type}'] = station_df[f'neighborhood_{zone_type}'].to_crs(data.laea_crs).buffer(0)
     sdf['service_area_size'] = sdf['service_area'].area
     
     
@@ -1356,7 +1362,7 @@ def neighborhood_percentages(data, station_df, land_use, service_radius=500, use
                 
                 if stat[f'neighborhood_{zone_type}']:
                     
-                    zone_percents[i] = stat['service_area'].buffer(0).intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area_size']
+                    zone_percents[i] = stat['service_area'].intersection(stat[f'neighborhood_{zone_type}']).area/stat['service_area_size']
                 
             else:
                 zone_percents[i] = np.nan
@@ -1721,6 +1727,47 @@ def logistic_regression_test(X_train, y_train, X_test, y_test, plot_cm=True, nor
     return success_rate, cm, predictions
 
 
+def linear_regression(df, cols, triptype):
+        
+    #cols = ['percent_residential']
+    X = df[cols]
+    
+    y = df[triptype][~X.isna().any(axis=1)]
+    
+    y = np.log(y)
+    
+    X = X[~X.isna().any(axis=1)]
+    
+    X_scaled = X.copy()
+    if triptype in X_scaled.columns:
+        X_scaled[triptype] = X_scaled[triptype]/X_scaled[triptype].sum()
+    if 'nearest_subway_dist' in X_scaled.columns:
+        X_scaled['nearest_subway_dist'] = X_scaled['nearest_subway_dist']/1000
+    if 'pop_density' in X_scaled.columns:
+        X_scaled['pop_density'] = X_scaled['pop_density']/10000
+    
+        
+    
+    param_names = {'percent_industrial' : '% industrial',
+                   'percent_commercial' : '% commercial',
+                   'percent_residential' : '% residential',
+                   'percent_recreational' : '% recreational',
+                   'percent_mixed' : '% mixed',
+                   'pop_density' : 'pop density',
+                   'nearest_subway_dist' : 'nearest subway dist'}
+    
+    X_scaled = X_scaled.rename(param_names)
+    
+    X_scaled = add_constant(X_scaled)
+    
+    OLS_model = sm.OLS(y, X_scaled)
+    
+    OLS_results = OLS_model.fit(maxiter=10000)
+    
+    print(OLS_results.summary())
+    
+    return OLS_results
+
 
 proj_wgs84 = pyproj.Proj('+proj=longlat +datum=WGS84')
 
@@ -1897,11 +1944,11 @@ if __name__ == "__main__":
     
     # create_all_pickles('boston', 2019, overwrite=True)
     
-    asdf = pickle_asdf2('nyc')
+    # asdf = pickle_asdf2('nyc', n_cpus=1)
     
     data = bs.Data('nyc', 2019)
 
-    overwrite = True
+    overwrite = False
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=overwrite)
     station_df, land_use, census_df = make_station_df(data, holidays=False, 
