@@ -2234,12 +2234,16 @@ class Data:
 
         if day_type == 'business_days':
             self.df = self.df[self.df['start_dt'].dt.weekday <= 4] # business days minus holidays
+            self.df = self.df[self.df['end_dt'].dt.weekday <= 4] # business days minus holidays
             holiday_year = pd.DataFrame(
                 get_cal(city).get_calendar_holidays(year), columns=['day', 'name'])
             holiday_list = holiday_year['day'].tolist()
             self.df = self.df[~self.df['start_dt'].dt.date.isin(holiday_list)] # Rows which are not in holiday list
+            self.df = self.df[~self.df['end_dt'].dt.date.isin(holiday_list)] # Rows which are not in holiday list
+            
         elif day_type == 'weekend':
             self.df = self.df[self.df['start_dt'].dt.weekday > 4] # weekend
+            self.df = self.df[self.df['end_dt'].dt.weekday > 4] # weekend
         # else: Keep dataframe as is.
 
         if (user_type == 'Subscriber') and ('user_type' in self.df.columns):

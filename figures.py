@@ -1014,7 +1014,7 @@ if __name__ == "__main__":
                                    return_fig=True)
     
     # sum_stat_table=make_summary_statistics_table()
-    LR_table=make_LR_table(2019, k=5, const=True, method='OLS')
+    LR_table=make_LR_table(2019, k=5, const=True)
     
     # sr = city_tests(k=5, test_seed=6)
     
