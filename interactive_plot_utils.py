@@ -1046,7 +1046,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
 def stat_df_day(day, city, year, month, columns):
     data_day = bs.Data(city, year, month, day, day_type='business_days', user_type='Subscriber')
     if len(data_day.df) > 0: # Avoid the issue of days with no traffic. E.g. Oslo 2019-04-01
-        stat_df = make_station_df(data_day, holidays=False, overwrite=True)
+        stat_df = make_station_df(data_day, holidays=False, overwrite=False)
     else:
         stat_df = pd.DataFrame(columns=columns)
     return stat_df[stat_df.columns & columns]
@@ -1944,7 +1944,7 @@ if __name__ == "__main__":
     
     # create_all_pickles('boston', 2019, overwrite=True)
     
-    # asdf = pickle_asdf2('nyc', n_cpus=1)
+    asdf = pickle_asdf2('madrid', n_cpus=1)
     
     data = bs.Data('nyc', 2019)
 
