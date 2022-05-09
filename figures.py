@@ -405,7 +405,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019):
     return tab_df
 
 
-def make_LR_table(year=2019, k=5, const=True):
+def make_LR_table(year=2019, k=5, const=True, method = 'LR'):
     """
     Makes a table containing the coefficients of the Logistics Regression 
     model for all cities.
@@ -507,37 +507,60 @@ def make_LR_table(year=2019, k=5, const=True):
         for column in omit_columns[data.city]:
             if column in other_columns:
                 other_columns.remove(column)
-            
-        lr_results, X, y, _ = ipu.stations_logistic_regression(
-            asdf, zone_columns, other_columns, 
-            use_points_or_percents='percents', 
-            make_points_by='station land use', const=const,
-            test_model=True, test_ratio=0.2, test_seed=42,
-            )
         
-        # print(lr_results)
-        print(lr_results.summary())
+        if method == 'LR':
+            lr_results, X, y, _ = ipu.stations_logistic_regression(
+                asdf, zone_columns, other_columns, 
+                use_points_or_percents='percents', 
+                make_points_by='station land use', const=const,
+                test_model=True, test_ratio=0.2, test_seed=42,
+                )
 
-        single_index = lr_results.params[0].index
-
-        parameters = np.concatenate([lr_results.params[i] for i in range(0, k-1)])
-        stdev = np.concatenate([lr_results.bse[i] for i in range(0, k-1)])
-        pvalues = np.concatenate([lr_results.pvalues[i] for i in range(0, k-1)])
-        
-        index = np.concatenate([lr_results.params.index for i in range(0, k-1)])
+            # print(lr_results)
+            print(lr_results.summary())
     
-        multiindex = pd.MultiIndex.from_product([range(1,k), single_index], names=['Cluster', 'Coef. name'])
+            single_index = lr_results.params[0].index
     
-        pars = pd.Series(parameters, index=multiindex, name='coef')
-        sts = pd.Series(stdev, index=multiindex, name='stdev')
-        pvs = pd.Series(pvalues, index=multiindex, name='pvalues')
-        
-        coefs = pd.DataFrame(pars).join((sts, pvs))
+            parameters = np.concatenate([lr_results.params[i] for i in range(0, k-1)])
+            stdev = np.concatenate([lr_results.bse[i] for i in range(0, k-1)])
+            pvalues = np.concatenate([lr_results.pvalues[i] for i in range(0, k-1)])
             
+            index = np.concatenate([lr_results.params.index for i in range(0, k-1)])
+        
+            multiindex = pd.MultiIndex.from_product([range(1,k), single_index], names=['Cluster', 'Coef. name'])
+        
+            pars = pd.Series(parameters, index=multiindex, name='coef')
+            sts = pd.Series(stdev, index=multiindex, name='stdev')
+            pvs = pd.Series(pvalues, index=multiindex, name='pvalues')
+            
+            coefs = pd.DataFrame(pars).join((sts, pvs))
+                
+    
+            lr_coefs = pd.concat({data.city: coefs}, names="", axis=1)
+    
+            table = pd.concat([table, lr_coefs], axis=1)        
+        
 
-        lr_coefs = pd.concat({data.city: coefs}, names="", axis=1)
-
-        table = pd.concat([table, lr_coefs], axis=1)        
+        elif method == 'OLS':
+            lr_results = ipu.linear_regression(asdf, [*zone_columns, *other_columns], 'b_trips')
+            print(lr_results.summary())
+            
+            parameters = lr_results.params
+            stdev = lr_results.bse
+            pvalues = lr_results.pvalues
+            
+            multiindex = lr_results.params.index
+            
+            pars = pd.Series(parameters, index=multiindex, name='coef')
+            sts = pd.Series(stdev, index=multiindex, name='stdev')
+            pvs = pd.Series(pvalues, index=multiindex, name='pvalues')
+            
+            coefs = pd.DataFrame(pars).join((sts, pvs))
+                
+    
+            lr_coefs = pd.concat({data.city: coefs}, names="", axis=1)
+    
+            table = pd.concat([table, lr_coefs], axis=1)        
     
     
     signif_table = table.xs('pvalues', level=1, axis=1) < 0.05
@@ -991,7 +1014,7 @@ if __name__ == "__main__":
                                    return_fig=True)
     
     # sum_stat_table=make_summary_statistics_table()
-    # LR_table=make_LR_table(2019, k=5, const=True)
+    LR_table=make_LR_table(2019, k=5, const=True, method='OLS')
     
     # sr = city_tests(k=5, test_seed=6)
     

@@ -519,52 +519,6 @@ import smopy
 #         ),
 #     how='outer', left_index=True, right_index=True)
 
-
-
-def linear_regression(df, cols, triptype):
-        
-    #cols = ['percent_residential']
-    X = df[cols]
-    
-    y = df[triptype][~X.isna().any(axis=1)]
-    
-    y = np.log(y)
-    
-    X = X[~X.isna().any(axis=1)]
-    
-    X_scaled = X.copy()
-    if triptype in X_scaled.columns:
-        X_scaled[triptype] = X_scaled[triptype]/X_scaled[triptype].sum()
-    if 'nearest_subway_dist' in X_scaled.columns:
-        X_scaled['nearest_subway_dist'] = X_scaled['nearest_subway_dist']/1000
-    if 'pop_density' in X_scaled.columns:
-        X_scaled['pop_density'] = X_scaled['pop_density']/10000
-    
-        
-    
-    param_names = {'percent_industrial' : '% industrial',
-                   'percent_commercial' : '% commercial',
-                   'percent_residential' : '% residential',
-                   'percent_recreational' : '% recreational',
-                   'percent_mixed' : '% mixed',
-                   'pop_density' : 'pop density',
-                   'nearest_subway_dist' : 'nearest subway dist'}
-    
-    X_scaled = X_scaled.rename(param_names)
-    
-    X_scaled = add_constant(X_scaled)
-    
-    OLS_model = OLS(y, X_scaled)
-    
-    OLS_results = OLS_model.fit(maxiter=10000)
-    
-    print(OLS_results.summary())
-    
-    return OLS_results
-
-
-
-
 # OLS_pred = OLS_results.get_prediction()
 
 # iv_l = OLS_pred.summary_frame()["obs_ci_lower"]
@@ -643,7 +597,7 @@ def heatmap_grid(data, land_use, census_df, bounds, resolution):
     
     percentages = ipu.neighborhood_percentages(data, grid_points, land_use)
     pop_density = ipu.pop_density_in_service_area(grid_points, census_df)
-    nearest_subway = ipu.nearest_transit(data, grid_points)
+    nearest_subway = ipu.nearest_transit(data.city, grid_points)
 
     point_info = pd.DataFrame(index=percentages.index)
     point_info['const'] = 1.0
@@ -757,7 +711,7 @@ def make_model_and_plot_heatmaps(
             df_cols = cols
         
         if modeltype == 'OLS':
-            model_results = linear_regression(asdf, df_cols, triptype)
+            model_results = ipu.linear_regression(asdf, df_cols, triptype)
         elif modeltype == 'LR':
             model_results, _, _ = ipu.stations_logistic_regression(
                 asdf, df_cols, df_cols, 
@@ -871,7 +825,7 @@ if __name__ == "__main__":
     modeltype = 'OLS'  # LR or OLS
     k = 5
     min_trips = 8
-    
+
     grid_points, point_info = make_model_and_plot_heatmaps(
         CITY, YEAR, MONTH, cols, modeltype=modeltype, triptype=triptype,
         resolution=resolution, k=k, train_cities=['nyc'],#['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'madrid', 'london', 'oslo'],
