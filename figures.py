@@ -169,7 +169,9 @@ def service_area_figure(city, year, month, day, return_fig=False):
         return fig, ax
 
 
-def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='all', return_fig=False):
+def daily_traffic_figure(stat_id, city, year, month=None, day=None, traffic_type = 'traffic',
+                         period='b', normalise=True, user_type='Subscriber', std=True,
+                         return_fig=False, savefig=False):
     """
     Makes a figure of the average daily traffic for a station.
 
@@ -195,32 +197,109 @@ def daily_traffic_figure(data, stat_id,  period='b', normalise=True, user_type='
     None.
 
     """
-    traffic = data.daily_traffic_average(data.stat.id_index[stat_id], period=period, normalise=normalise, user_type=user_type)    
     
-    departures = traffic[0]
-    arrivals = traffic[1]
+    data = bs.Data(city, year, month, day)
     
-    plt.style.use('seaborn-darkgrid')
-    
-    fig, ax = plt.subplots(figsize=(10,5))
-
-    if normalise:
-        ax.plot(np.arange(24), departures*100, label='departures')
-        ax.plot(np.arange(24), arrivals*100, label='arrivals')
-
-        ax.set_ylabel('% of total trips')
-
+    if period == 'b':
+        d_i=0
     else:
-        ax.plot(np.arange(24), departures, label='departures')
-        ax.plot(np.arange(24), arrivals, label='arrivals')
+        d_i=1
+    
+    if std:
+        traf_mats, stds = data.pickle_daily_traffic(holidays=False, 
+                                                    user_type=user_type,
+                                                    overwrite=False,
+                                                    normalise=normalise,
+                                                    return_std = std)
+    else:
+        traf_mats = data.pickle_daily_traffic(holidays=False, 
+                                              user_type=user_type,
+                                              overwrite=False,
+                                              normalise=normalise,
+                                              return_std = std)
+        
+    if traffic_type == 'traffic':
+        
+        departures = traf_mats[d_i][data.stat.id_index[stat_id]][:24]
+        arrivals = traf_mats[d_i][data.stat.id_index[stat_id]][24:]
+        
+        plt.style.use('seaborn-darkgrid')
+        
+        fig, ax = plt.subplots(figsize=(10,5))
+        
+        if normalise:
+            ax.plot(np.arange(24), departures*100, label='departures')
+            ax.plot(np.arange(24), arrivals*100, label='arrivals')
+            
+            if std:
+                ax.fill_between(np.arange(24), 
+                                departures*100-stds[d_i][data.stat.id_index[stat_id]][:24]*100,
+                                departures*100+stds[d_i][data.stat.id_index[stat_id]][:24]*100,
+                                facecolor='tab:blue', alpha=0.2)
+                ax.fill_between(np.arange(24), 
+                                arrivals*100-stds[d_i][data.stat.id_index[stat_id]][:24]*100,
+                                arrivals*100+stds[d_i][data.stat.id_index[stat_id]][:24]*100,
+                                facecolor='tab:orange', alpha=0.2)
+            
+            ax.set_ylabel('% of total trips')
 
-        ax.set_ylabel('# trips')
+        else:
+            ax.plot(np.arange(24), departures, label='departures')
+            ax.plot(np.arange(24), arrivals, label='arrivals')
+            
+            if std:
+                ax.fill_between(np.arange(24), 
+                                departures-stds[d_i][data.stat.id_index[stat_id]][:24],
+                                departures+stds[d_i][data.stat.id_index[stat_id]][:24],
+                                facecolor='tab:blue', alpha=0.2)
+                ax.fill_between(np.arange(24), 
+                                arrivals-stds[d_i][data.stat.id_index[stat_id]][:24],
+                                arrivals+stds[d_i][data.stat.id_index[stat_id]][:24],
+                                facecolor='tab:orange', alpha=0.2)
+            
+            ax.set_ylabel('# trips')
+        
+        ax.legend()
+        
+    elif traffic_type == 'difference':
+        
+        departures = traf_mats[d_i][data.stat.id_index[stat_id]][:24]
+        arrivals = traf_mats[d_i][data.stat.id_index[stat_id]][24:]
+        
+        diff = departures-arrivals
+        
+        plt.style.use('seaborn-darkgrid')
+        fig, ax = plt.subplots(figsize=(10,5))
+        
+        if normalise:
+            ax.plot(np.arange(24), diff)
+            ax.set_ylabel('Relative difference')
 
+        else:
+            ax.plot(np.arange(24), diff)
+            ax.set_ylabel('Absolute difference')  
+        
+    else:
+        raise ValueError("Please provide either 'traffic' or 'difference' as traffic_type")
+    
     ax.set_xticks(np.arange(24))
-    plt.legend()
     ax.set_xlabel('Hour')
     
+    ax.set_title(f'Average daily traffic for {data.stat.names[data.stat.id_index[stat_id]]} (ID: {stat_id})')
+    
     plt.tight_layout()
+    
+    
+    if savefig:
+        
+        if month is None and day is None:
+            filestr = f'./figures/{city}{year}_{stat_id}_average_daily_traffic.pdf'
+        elif day is None:
+            filestr = f'./figures/{city}{year}{month:02d}_{stat_id}_average_daily_traffic.pdf'
+        else:
+            filestr = f'./figures/{city}{year}{month:02d}{day:02d}_{stat_id}_average_daily_traffic.pdf'
+    
+        plt.savefig(filestr)
     
     if return_fig:
         return fig, ax
@@ -907,12 +986,16 @@ if __name__ == "__main__":
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
               'london', 'helsinki', 'oslo', 'madrid']
     
+    fig, ax = daily_traffic_figure(200, 'helsinki', 2019, normalise=True, 
+                                   traffic_type='traffic', std=True,
+                                   return_fig=True)
+    
     # sum_stat_table=make_summary_statistics_table()
     # LR_table=make_LR_table(2019, k=5, const=True)
     
     # sr = city_tests(k=5, test_seed=6)
     
-    fig, ax = service_area_figure('nyc', 2019, 9, 5, return_fig=True)
+    # fig, ax = service_area_figure('nyc', 2019, 9, 5, return_fig=True)
     
     # seed_range = range(50,70)
     # sr = np.zeros(shape=(8,8))

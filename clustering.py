@@ -1613,8 +1613,9 @@ if __name__ == '__main__':
     # k_table = k_test_table(clustering='k_means', 
     #                         savefig=True, overwrite=False, use_dtw=True)
     
-    clusters, n_table = plot_cluster_centers('all', k=5, clustering='h_clustering',
-                                              use_dtw=True, linkage='complete', n_table=True)
+    clusters, n_table = plot_cluster_centers('all', k=7, clustering='k_medoids',
+                                              use_dtw=True, linkage='complete', 
+                                              n_table=True, savefig=True)
     
     
     # clusters_list = []
