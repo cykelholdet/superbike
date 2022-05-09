@@ -1046,7 +1046,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
 def stat_df_day(day, city, year, month, columns):
     data_day = bs.Data(city, year, month, day, day_type='business_days', user_type='Subscriber')
     if len(data_day.df) > 0: # Avoid the issue of days with no traffic. E.g. Oslo 2019-04-01
-        stat_df = make_station_df(data_day, holidays=False, overwrite=True)
+        stat_df = make_station_df(data_day, holidays=False, overwrite=False)
     else:
         stat_df = pd.DataFrame(columns=columns)
     return stat_df[stat_df.columns & columns]
@@ -1695,7 +1695,7 @@ def logistic_regression_test(X_train, y_train, X_test, y_test, plot_cm=True, nor
         LR_train_res = MNLogit(y_train, X_train).fit_regularized(maxiter=10000, disp=0)
     except np.linalg.LinAlgError:
           print("Singular matrix. Test aborted.")
-          return None, None
+          return None, None, None
     
     predictions = LR_train_res.predict(X_test)
     predictions['label'] = predictions.idxmax(axis=1)
