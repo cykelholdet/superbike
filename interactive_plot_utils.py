@@ -12,6 +12,7 @@ import logging
 import warnings
 import calendar
 from functools import partial
+import multiprocessing as mp
 
 import numpy as np
 import pandas as pd
@@ -22,7 +23,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 import skimage.color as skcolor
 import statsmodels.api as sm
-import multiprocessing as mp
+import geopy
 
 from holoviews.util.transform import lon_lat_to_easting_northing
 from shapely.geometry import Point, Polygon, LineString
@@ -702,6 +703,11 @@ def make_station_df(data, holidays=True, return_land_use=False,
     elif data.city in ['madrid', 'helsinki', 'london', 'oslo', 'bergen', 'trondheim', 'edinburgh']:
         # Land use data
         land_use = gpd.read_file(f'data/{data.city}/{data.city}_UA2018_v013.gpkg', bbox=bbox)
+        if data.city == 'madrid':
+            # Lago de la Casa de Campo is clasisfied as mineral extraction and
+            # dump site, as it is being dredged during the time of data recording. We classify it as a lake.
+            land_use.loc[land_use['identifier'] == "65147-ES001L3", 'code_2018'] = 50000       
+        
         land_use = land_use[['code_2018', 'class_2018', 'area', 'Pop2018', 'geometry']].to_crs('EPSG:4326')
         print(".", end="")
         df = gpd.tools.sjoin(df, land_use, op='within', how='left')
@@ -1016,6 +1022,9 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     land_use['color'] = land_use['zone_type'].map(color_dict).fillna("pink")
     
+    df['center_dist'] = geodesic_distance(df, bs.city_center_dict[data.city])
+    
+    
     if data.day is None:
         with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'wb') as file:
             pickle.dump([df, land_use, census_df], file)
@@ -1079,7 +1088,7 @@ def pickle_asdf_month(city, year, month, variables=None,
                          'percent_mixed', 'percent_transportation', 
                          'percent_educational', 'percent_road', 'percent_UNKNOWN',
                          'pop_density', 'nearest_subway_dist', 'nearest_railway_dist',
-                         'nearest_transit_dist', 'n_trips', 'b_trips', 'w_trips']
+                         'nearest_transit_dist', 'center_dist', 'n_trips', 'b_trips', 'w_trips']
     
         data = bs.Data(city, year, month)
         
@@ -1236,7 +1245,7 @@ def pickle_asdf2(cities=None, variables=None, year=2019, month=None, n_cpus=mp.c
                      'percent_mixed', 'percent_transportation', 
                      'percent_educational', 'percent_road', 'percent_UNKNOWN',
                      'pop_density', 'nearest_subway_dist', 'nearest_railway_dist',
-                     'nearest_transit_dist', 'n_trips', 'b_trips', 'w_trips']
+                     'nearest_transit_dist', 'center_dist', 'n_trips', 'b_trips', 'w_trips']
 
     for city in cities:
         
@@ -1285,8 +1294,11 @@ def pickle_asdf2(cities=None, variables=None, year=2019, month=None, n_cpus=mp.c
             
             avg_stat_df_year[var] = var_df.sum(axis=1)/counts_df.sum(axis=1)
         
-            with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
-                pickle.dump(avg_stat_df_year, file)
+        with open(f'./python_variables/{city}{year}_avg_stat_df.pickle', 'wb') as file:
+            pickle.dump(avg_stat_df_year, file)
+        
+        if [city] == cities:
+            return asdfs, var_df, avg_stat_df_year
             
 
 def nearest_transit(city, station_df):
@@ -1863,6 +1875,34 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=True):
         
     return closest_points
 
+
+def geodesic_distance(station_df, point):
+    """
+    pOINT IN latitude longitude in geopy.
+
+    Parameters
+    ----------
+    station_df : TYPE
+        DESCRIPTION.
+    point : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
+    coords = station_df['coords']
+    
+    point_co = (point['lat'], point['long'])
+    
+    dist = lambda coord: geopy.distance.geodesic((coord.y, coord.x), point_co).meters
+    
+    distances = coords.apply(dist)
+    
+    return distances
+
+
 def create_all_pickles(city, year, holidays=False, overwrite=False):
     
     if isinstance(city, str): # If city is a str (therefore not a list)
@@ -1937,18 +1977,18 @@ color_num_dict = {
     
 if __name__ == "__main__":
 
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.WARNING)
     
     
 
     
     # create_all_pickles('boston', 2019, overwrite=True)
     
-    asdf = pickle_asdf2('madrid', n_cpus=1)
+    # asdf = pickle_asdf2('madrid', n_cpus=1)
     
-    data = bs.Data('nyc', 2019)
+    data = bs.Data('madrid', 2019)
 
-    overwrite = False
+    overwrite = True
     pre = time.time()
     traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=overwrite)
     station_df, land_use, census_df = make_station_df(data, holidays=False, 

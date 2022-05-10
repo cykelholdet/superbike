@@ -2258,8 +2258,8 @@ class Data:
 
         self.stat = Stations(self.df)
         
-        if self.city in city_center_dict.keys():
-            self.laea_crs = pyproj.crs.CRS(f"+proj=laea +lat_0={city_center_dict[self.city]['lat']} +lon_0={city_center_dict[self.city]['long']}")
+        if self.city in system_center_dict.keys():
+            self.laea_crs = pyproj.crs.CRS(f"+proj=laea +lat_0={system_center_dict[self.city]['lat']} +lon_0={system_center_dict[self.city]['long']}")
         
 
 
@@ -2994,7 +2994,7 @@ name_dict = {
 month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
               7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
 
-city_center_dict = {
+system_center_dict = {
     'bergen': {'long': 5.38771445313615, 'lat': 60.383577733994045},
     'boston': {'long': -71.08758305223354, 'lat': 42.35019750316253},
     'buenos_aires': {'long': -58.42347574860326, 'lat': -34.60310703308861},
@@ -3015,8 +3015,30 @@ city_center_dict = {
     'washdc': {'long': -77.03355484615385, 'lat': 38.89052952680653},
 }
 
+city_center_dict = {
+    'bergen': {'long': 5.3259192, 'lat': 60.3943055},
+    'boston': {'long': -71.0582912, 'lat': 42.3602534},
+    'buenos_aires': {'long': -58.4370894, 'lat': -34.6075682},
+    'chicago': {'long': -87.6244212, 'lat': 41.8755616},
+    'edinburgh': {'long': -3.1883749, 'lat': 55.9533456},
+    'guadalajara': {'long': -103.338396, 'lat': 20.6720375},
+    'helsinki': {'long': 24.9427473, 'lat': 60.1674881},
+    'london': {'long': -0.1276474, 'lat': 51.5073219},
+    'la': {'long': -118.242766, 'lat': 34.0536909},
+    'madrid': {'long': -3.7035825, 'lat': 40.4167047},
+    'mexico': {'long': -99.1331785, 'lat': 19.4326296},
+    'minneapolis': {'long': -93.2654692, 'lat': 44.9772995},
+    'montreal': {'long': -73.5698065, 'lat': 45.5031824},
+    'nyc': {'long': -74.0060152, 'lat': 40.7127281},
+    'oslo': {'long': 10.7389701, 'lat': 59.9133301},
+    'sfran': {'long': -122.419906, 'lat': 37.7790262},
+    'taipei': {'long': 121.5636796, 'lat': 25.0375198},
+    'trondheim': {'long': 10.3951929, 'lat': 63.4305658},
+    'washdc': {'long': -77.0365427, 'lat': 38.8950368},
+}
+
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.WARNING)
     pre = time.time()
     data = Data('nyc', 2019, None, overwrite=True, user_type='Subscriber', remove_loops=True)
     print(f"time taken: {time.time() - pre:.2f}s")
