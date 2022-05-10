@@ -1984,7 +1984,7 @@ if __name__ == "__main__":
     
     # create_all_pickles('boston', 2019, overwrite=True)
     
-    # asdf = pickle_asdf2('madrid', n_cpus=1)
+    pickle_asdf2()
     
     data = bs.Data('madrid', 2019)
 
