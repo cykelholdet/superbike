@@ -2994,7 +2994,7 @@ name_dict = {
 month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun',
               7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
 
-system_center_dict = {
+system_center_dict = {  # Average of 2019 data station locations
     'bergen': {'long': 5.38771445313615, 'lat': 60.383577733994045},
     'boston': {'long': -71.08758305223354, 'lat': 42.35019750316253},
     'buenos_aires': {'long': -58.42347574860326, 'lat': -34.60310703308861},
@@ -3015,7 +3015,7 @@ system_center_dict = {
     'washdc': {'long': -77.03355484615385, 'lat': 38.89052952680653},
 }
 
-city_center_dict = {
+city_center_dict = {  # From OpenStreetMap May 2022
     'bergen': {'long': 5.3259192, 'lat': 60.3943055},
     'boston': {'long': -71.0582912, 'lat': 42.3602534},
     'buenos_aires': {'long': -58.4370894, 'lat': -34.6075682},
