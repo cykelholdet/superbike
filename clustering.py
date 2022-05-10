@@ -1581,13 +1581,6 @@ def plot_stations(city, year=2019, month=None, day=None,
         fig.savefig(f'./figures/station_cluster_plot_{city}.pdf', bbox_inches='tight')
     
     return fig, ax
-
-
-
-
-
-
-
     
 cluster_color_dict = {0 : 'blue', 1 : 'red', 2 : 'yellow', 3 : 'green', #tab:
                       4 : 'purple', 5 : 'cyan', 6: 'pink',

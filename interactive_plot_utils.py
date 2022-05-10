@@ -1707,7 +1707,7 @@ def logistic_regression_test(X_train, y_train, X_test, y_test, plot_cm=True, nor
         LR_train_res = MNLogit(y_train, X_train).fit_regularized(maxiter=10000, disp=0)
     except np.linalg.LinAlgError:
           print("Singular matrix. Test aborted.")
-          return None, None
+          return None, None, None
     
     predictions = LR_train_res.predict(X_test)
     predictions['label'] = predictions.idxmax(axis=1)
