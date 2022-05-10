@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 import skimage.color as skcolor
 import statsmodels.api as sm
-import geopy
+import geopy.distance
 
 from holoviews.util.transform import lon_lat_to_easting_northing
 from shapely.geometry import Point, Polygon, LineString

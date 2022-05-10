@@ -6,3 +6,4 @@ python_variables/big_data/
 cache/
 geo_plot.py
 nico_leg.py
+elevation.sqlite
