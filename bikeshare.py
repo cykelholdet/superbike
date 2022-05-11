@@ -19,7 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import rarfile
 import pyproj
-import requests_cache
+# import requests_cache
 
 from workalendar.europe import CommunityofMadrid, Finland, UnitedKingdom, \
     Norway, Edinburgh
@@ -30,7 +30,7 @@ from workalendar.america import Mexico, Argentina, Quebec
 
 import dataframe_key
 
-requests_cache.install_cache(cache_name='elevation', backend='sqlite', expire_after=3600)
+# requests_cache.install_cache(cache_name='elevation', backend='sqlite', expire_after=3600)
 
 
 
