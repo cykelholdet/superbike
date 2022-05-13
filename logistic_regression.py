@@ -736,15 +736,27 @@ def make_model_and_plot_heatmaps(
     station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
     title_test_prefix = f"{modeltype}_test_{city}"
 
+    # polygon = Polygon(
+    #     [(station_df['easting'].min()-1000, station_df['northing'].min()-1000),
+    #      (station_df['easting'].min()-1000, station_df['northing'].max()+1000),
+    #      (station_df['easting'].max()+1000, station_df['northing'].max()+1000),
+    #      (station_df['easting'].max()+1000, station_df['northing'].min()-1000)])
     polygon = Polygon(
-        [(station_df['easting'].min()-1000, station_df['northing'].min()-1000),
-         (station_df['easting'].min()-1000, station_df['northing'].max()+1000),
-         (station_df['easting'].max()+1000, station_df['northing'].max()+1000),
-         (station_df['easting'].max()+1000, station_df['northing'].min()-1000)])
+        [(station_df['long'].min(), station_df['lat'].min()),
+         (station_df['long'].min(), station_df['lat'].max()),
+         (station_df['long'].max(), station_df['lat'].max()),
+         (station_df['long'].max(), station_df['lat'].min())])
     
     latmin, lonmin, latmax, lonmax = polygon.bounds
     
-    grid_points, point_info = heatmap_grid(data, land_use, census_df, polygon.bounds, resolution)
+    polygon = gpd.GeoSeries(polygon, crs='epsg:4326').to_crs(data.laea_crs)
+    
+    bounds = (polygon.bounds['miny'][0]-1000,
+              polygon.bounds['minx'][0]-1000,
+              polygon.bounds['maxy'][0]+1000,
+              polygon.bounds['maxy'][0]+1000)
+    
+    grid_points, point_info = heatmap_grid(data, land_use, census_df, bounds, resolution)
     
     for model_results, tr_city in zip(models, train_cities):
         

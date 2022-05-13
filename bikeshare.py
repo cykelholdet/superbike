@@ -307,8 +307,8 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
             df = df.rename(columns=dataframe_key.get_key(city))
 
-            df = df[~df['start_stat_id'].isin([382, 383, 223, 230, 164, 158])] # Filter out virtual stations
-            df = df[~df['end_stat_id'].isin([382, 383, 223, 230,  164, 158])]
+            df = df[~df['start_stat_id'].isin([382, 383, 308, 223, 230, 164, 158])] # Filter out virtual stations
+            df = df[~df['end_stat_id'].isin([382, 383, 308, 223, 230,  164, 158])]
 
             # Merge stations which have the same coordinates and harmonise names.
             merge_id_dict = {241: 336, 242: 337, 254: 348, 256: 349, 263: 353}
