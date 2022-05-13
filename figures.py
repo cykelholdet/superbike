@@ -357,9 +357,10 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019):
         
         asdf=asdf[asdf.b_trips >=8]
         
-        asdf['pop_density'] =  asdf['pop_density']/10000 # convert to population per 100 m^2
-        asdf['nearest_subway_dist']  =  asdf['nearest_subway_dist']/1000 # convert to km
-        asdf['nearest_railway_dist']  =  asdf['nearest_railway_dist']/1000 # convert to km
+        # asdf['pop_density'] =  asdf['pop_density']/10000 # convert to population per 100 m^2
+        # asdf['nearest_subway_dist']  =  asdf['nearest_subway_dist']/1000 # convert to km
+        # asdf['nearest_railway_dist']  =  asdf['nearest_railway_dist']/1000 # convert to km
+        
         # avg_stat_df['n_trips'] = avg_stat_df['n_trips']/avg_stat_df['n_trips'].sum() # convert to percentage
         # avg_stat_df['b_trips'] = avg_stat_df['b_trips']/avg_stat_df['b_trips'].sum() # convert to percentage
         # avg_stat_df['w_trips'] = avg_stat_df['w_trips']/avg_stat_df['w_trips'].sum() # convert to percentage

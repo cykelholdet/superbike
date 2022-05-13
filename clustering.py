@@ -224,7 +224,8 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips,
         traf_mat = traffic_matrices[0][:,:24] - traffic_matrices[0][:,24:]
     elif day_type == 'weekend':
         traf_mat = traffic_matrices[1][:,:24] - traffic_matrices[1][:,24:]
-                 
+             
+    for i in range(k):
         dist_to_center[np.where(labels == i)] = np.linalg.norm(
             traf_mat[np.where(labels==i)] - centers[i], axis=1)
     
@@ -1274,7 +1275,7 @@ def linkage_test(cities=None, year=2019, month=None, k_min=2, k_max=10,
                         res_table = pickle.load(file)
                 
                 make_linkage_test_figure(res_table, city, year, 
-                                         month, clustering_algos,
+                                         month, clusterings,
                                          savefig=savefig)
                 
                 return res_table
