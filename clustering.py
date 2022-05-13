@@ -30,7 +30,7 @@ import simpledtw as dtw
 import bikeshare as bs
 import interactive_plot_utils as ipu
 
-def mask_traffic_matrix(traffic_matrices, station_df, day_type, min_trips, holidays=False, return_mask=False):
+def mask_traffic_matrix(traffic_matrix, station_df, day_type, min_trips, return_mask=False):
     """
     Applies a mask to the daily traffic matrix based on the minimum number of 
     trips to include.
@@ -54,20 +54,19 @@ def mask_traffic_matrix(traffic_matrices, station_df, day_type, min_trips, holid
 
     """
     if day_type == 'business_days':
-        traffic_matrix = traffic_matrices[0]
         x_trips = 'b_trips'
     elif day_type == "weekend":
-        traffic_matrix = traffic_matrices[1]
         x_trips = 'w_trips'
     else:
-        raise ValueError("Please enter 'business_days' or 'weekend'.")
+        raise ValueError("Please enter 'business_days' or 'weekend'")
     mask = station_df[x_trips] >= min_trips
     if return_mask:
         return traffic_matrix[mask], mask, x_trips
     else:
         return traffic_matrix[mask]
 
-def get_clusters(traffic_matrices, station_df, day_type, min_trips, 
+
+def get_clusters(traffic_matrix_full, station_df, day_type, min_trips, 
                  clustering, k, random_state=None, use_dtw=False, 
                  linkage='average', city=None):
     """
@@ -100,8 +99,8 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips,
 
     """
     traffic_matrix, mask, x_trips = mask_traffic_matrix(
-        traffic_matrices, station_df, day_type, 
-        min_trips, holidays=False, return_mask=True)
+            traffic_matrix_full, station_df, day_type, 
+            min_trips, return_mask=True)
     
     traffic_matrix = traffic_matrix[:,:24] - traffic_matrix[:,24:]
     
@@ -219,17 +218,18 @@ def get_clusters(traffic_matrices, station_df, day_type, min_trips,
         station_df['label'] = np.nan
         station_df['color'] = None
     
-    dist_to_center = np.full(traffic_matrices[0].shape[0], np.nan)
-    if day_type == 'business_days':
-        traf_mat = traffic_matrices[0][:,:24] - traffic_matrices[0][:,24:]
-    elif day_type == 'weekend':
-        traf_mat = traffic_matrices[1][:,:24] - traffic_matrices[1][:,24:]
-             
-    for i in range(k):
-        dist_to_center[np.where(labels == i)] = np.linalg.norm(
-            traf_mat[np.where(labels==i)] - centers[i], axis=1)
+    # dist_to_center = np.full(traffic_matrix_full[0].shape[0], np.nan)
+    # if day_type == 'business_days':
+    #     traf_mat = traffic_matrix[0][:,:24] - traffic_matrix[0][:,24:]
+    # elif day_type == 'weekend':
+    # traf_mat = traffic_matrix_full[:,:24] - traffic_matrix_full[:,24:]
     
-    station_df['dist_to_center'] = dist_to_center
+    #station_df['dist_to_center'] = dist_to_center
+    # for i in range(k):
+    #     dist_to_center[np.where(labels == i)] = np.linalg.norm(
+    #         traf_mat[np.where(labels==i)] - centers[i], axis=1)
+    
+    station_df['dist_to_center'] = 0
 
     return station_df, centers, labels
 
@@ -238,7 +238,7 @@ def sort_clusters(station_df, cluster_means, labels, traffic_matrices, day_type,
     
     if day_type == 'business_days':
         
-        traffic_matrices = traffic_matrices[0][station_df.index][:,:24] - traffic_matrices[0][station_df.index][:,24:]
+        traffic_matrices = traffic_matrix[station_df.index][:,:24] - traffic_matrix[station_df.index][:,24:]
         # mean = np.mean(traffic_matrices)
         
         # mean = np.mean(traffic_matrices[0][station_df.index], axis=0)
@@ -315,7 +315,35 @@ def sort_clusters(station_df, cluster_means, labels, traffic_matrices, day_type,
 
 
 def sort_clusters2(station_df, cluster_means, labels, cluster_type=None, mask=None):
-    
+    """
+    Sorts clusters obtained in get_clusters().
+
+    Parameters
+    ----------
+    station_df : pandas DataFrame
+        Has each station as a row. Must have a 'label' column.
+    cluster_means : array
+        Means obtained from the clustering algorithm.
+    labels : array
+        Array containing labels of the stations in station_df.
+    cluster_type : str, optional
+        The clustering which was done. Only relevant if the cluster type is 
+        'gaussian_mixture', otherwise ignored. The default is None.
+    mask : pandas Series, optional
+        Booelean Series used to mask station_df and traffic matrices. Only used
+        if cluster_type is 'gaussian_mixture', otherwise ignored. The default 
+        is None.
+
+    Returns
+    -------
+    station_df : pandas DataFrame
+        The station_df given with sorted 'label' column.
+    cluster_means : array
+        Sorted cluster means.
+    labels : array
+        Sorted labels.
+
+    """
     k = len(cluster_means)
     
     max_peak = np.max(np.abs(cluster_means))
@@ -410,9 +438,10 @@ def Davies_Bouldin_index(data_mat, centers, labels, verbose=False):
        ----------
        data_mat : ndarray
            Array containing the feature vectors.
-       labels : itr, optional
-           Iterable containg the labels of the feature vectors. If no labels
-           are given, they are calculated using the mass_predict method.
+       labels : itr
+           Iterable containing the labels of the feature vectors..
+       verbose : Bool
+           Prints stuff when True. The default is False.
 
        Returns
        -------
@@ -462,9 +491,10 @@ def Dunn_index(data_mat, centers, labels=None, verbose=False):
     ----------
     data_mat : ndarray
         Array containing the feature vectors.
-    labels : itr, optional
-        Iterable containg the labels of the feature vectors. If no labels
-        are given, they are calculated using the mass_predict method.
+    labels : itr
+        Iterable containing the labels of the feature vectors.
+    verbose : Bool
+        Prints stuff when True. The default is False.
 
     Returns
     -------
@@ -522,9 +552,10 @@ def silhouette_index(data_mat, centers, labels, verbose=False):
     ----------
     data_mat : ndarray
         Array containing the feature vectors.
-    labels : itr, optional
-        Iterable containg the labels of the feature vectors. If no labels
-        are given, they are calculated using the mass_predict method.
+    labels : itr
+        Iterable containing the labels of the feature vectors.
+    verbose : Bool
+        Prints stuff when True. The default is False.
 
     Returns
     -------
@@ -584,8 +615,27 @@ def silhouette_index(data_mat, centers, labels, verbose=False):
 
     return S_index
 
-def SSE(data_mat, centers, labels, dist='norm', verbose=False):
-    
+def SSE(data_mat, centers, labels, verbose=False):
+    """
+    Calculates the Sum-of-Squares Error (SSE) of clustered data.
+
+    Parameters
+    ----------
+    data_mat : array
+        Array containing the feature vectors.
+    centers : array
+        The centers obtained from the clustering.
+    labels : itr
+        Iterable containing the labels of the feature vectors.
+    verbose : Bool
+        Prints stuff when True. The default is False.
+
+    Returns
+    -------
+    SSE : TYPE
+        DESCRIPTION.
+
+    """
     k = len(centers)
     
     if verbose:
@@ -619,8 +669,9 @@ def plot_cluster_centers(city, k=5, year=2019, month=None, day=None,
         
         data = bs.Data(city, year, month, day)
         
-        traf_mats = data.pickle_daily_traffic(holidays=False, 
+        traf_mat = data.pickle_daily_traffic(holidays=False, 
                                               user_type='Subscriber',
+                                              day_type='business_days',
                                               overwrite=False)
                 
         mask = ~asdf['n_trips'].isna()
@@ -629,12 +680,12 @@ def plot_cluster_centers(city, k=5, year=2019, month=None, day=None,
         asdf = asdf.reset_index(drop=True)
         
         try:
-            traf_mats = (traf_mats[0][mask], traf_mats[1])
+            traf_mat = traf_mat[mask]
         except IndexError:
             pass
                 
         
-        asdf, centers, labels = get_clusters(traf_mats, asdf, 
+        asdf, centers, labels = get_clusters(traf_mat, asdf, 
                                               day_type='business_days', 
                                               min_trips=min_trips, 
                                               clustering=clustering, k=k, 
@@ -703,8 +754,9 @@ def plot_cluster_centers(city, k=5, year=2019, month=None, day=None,
 
                 data = bs.Data(city, year, month, day)
                 
-                traf_mats = data.pickle_daily_traffic(holidays=False, 
+                traf_mat = data.pickle_daily_traffic(holidays=False, 
                                                       user_type='Subscriber',
+                                                      day_type='business_days',
                                                       normalise=True,
                                                       overwrite=False) 
                 
@@ -714,11 +766,11 @@ def plot_cluster_centers(city, k=5, year=2019, month=None, day=None,
                 asdf = asdf.reset_index(drop=True)
                 
                 try:
-                    traf_mats = (traf_mats[0][mask], traf_mats[1])
+                    traf_mat = traf_mat[mask]
                 except IndexError:
                     pass
                 
-                asdf, clusters, labels = get_clusters(traf_mats, asdf, 
+                asdf, clusters, labels = get_clusters(traf_mat, asdf, 
                                                       day_type='business_days', 
                                                       min_trips=min_trips, 
                                                       clustering=clustering, k=k,
@@ -845,8 +897,9 @@ def k_test_table(cities=None, year=2019, month=None, clustering='k_means',
             
             data = bs.Data(city, year, month)
             
-            traf_mats = data.pickle_daily_traffic(holidays=False, 
+            traf_mat = data.pickle_daily_traffic(holidays=False, 
                                                   user_type='Subscriber',
+                                                  day_type='business_days',
                                                   overwrite=overwrite)
                 
             mask = ~asdf['n_trips'].isna()
@@ -855,7 +908,7 @@ def k_test_table(cities=None, year=2019, month=None, clustering='k_means',
             asdf = asdf.reset_index(drop=True)
             
             try:
-                traf_mats = (traf_mats[0][mask], traf_mats[1])
+                traf_mat = traf_mat[mask]
             except IndexError:
                 pass
             
@@ -868,7 +921,7 @@ def k_test_table(cities=None, year=2019, month=None, clustering='k_means',
                 
                 print(f'\nCalculating for k={k}...\n')
                 
-                asdf, clusters, labels = get_clusters(traf_mats, asdf, 
+                asdf, clusters, labels = get_clusters(traf_mat, asdf, 
                                                       day_type='business_days', 
                                                       min_trips=min_trips, 
                                                       clustering=clustering, k=k, 
@@ -879,7 +932,7 @@ def k_test_table(cities=None, year=2019, month=None, clustering='k_means',
                 
                 labels = labels.to_numpy()[mask]
                 
-                data_mat = (traf_mats[0][:,:24] - traf_mats[0][:,24:])[mask]
+                data_mat = (traf_mat[:,:24] - traf_mat[:,24:])[mask]
                 
                 DB_list.append(Davies_Bouldin_index(data_mat, 
                                                     clusters,
@@ -1044,15 +1097,16 @@ def cluster_algo_test(cities=None, year=2019, month=None, k_min=2, k_max=10,
             raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
         
         data = bs.Data(city, year, month)
-        traf_mats = data.pickle_daily_traffic(holidays=False, 
+        traf_mat = data.pickle_daily_traffic(holidays=False, 
                                               user_type='Subscriber',
+                                              day_type='business_days',
                                               overwrite=False)
         mask = ~asdf['n_trips'].isna()
         asdf = asdf[mask]
         asdf = asdf.reset_index(drop=True)
         
         try:
-            traf_mats = (traf_mats[0][mask], traf_mats[1])
+            traf_mat = traf_mat[mask]
         except IndexError:
             pass
         
@@ -1069,7 +1123,7 @@ def cluster_algo_test(cities=None, year=2019, month=None, k_min=2, k_max=10,
                 
                 print(f'\nCalculating for k={k}...\n')
                 
-                asdf, clusters, labels = get_clusters(traf_mats, asdf, 
+                asdf, clusters, labels = get_clusters(traf_mat, asdf, 
                                                       day_type='business_days', 
                                                       min_trips=min_trips, 
                                                       clustering=clustering_algo, 
@@ -1080,7 +1134,7 @@ def cluster_algo_test(cities=None, year=2019, month=None, k_min=2, k_max=10,
                 
                 labels = labels.to_numpy()[mask]
                 
-                data_mat = (traf_mats[0][:,:24] - traf_mats[0][:,24:])[mask]
+                data_mat = (traf_mat[:,:24] - traf_mat[:,24:])[mask]
                 
                 # if clustering_algo == 'gaussian_mixture':
                 #     labels = pd.Series(np.argmax(labels, axis=1))
@@ -1294,15 +1348,16 @@ def linkage_test(cities=None, year=2019, month=None, k_min=2, k_max=10,
             raise FileNotFoundError(f'The average station DataFrame for {city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
         
         data = bs.Data(city, year, month)
-        traf_mats = data.pickle_daily_traffic(holidays=False, 
+        traf_mat = data.pickle_daily_traffic(holidays=False, 
                                               user_type='Subscriber',
+                                              day_type='business_days',
                                               overwrite=False)
         mask = ~asdf['n_trips'].isna()
         asdf = asdf[mask]
         asdf = asdf.reset_index(drop=True)
         
         try:
-            traf_mats = (traf_mats[0][mask], traf_mats[1])
+            traf_mat = traf_mat[mask]
         except IndexError:
             pass
         
@@ -1319,7 +1374,7 @@ def linkage_test(cities=None, year=2019, month=None, k_min=2, k_max=10,
                 
                 print(f'\nCalculating for k={k}...\n')
                 
-                asdf, clusters, labels = get_clusters(traf_mats, asdf, 
+                asdf, clusters, labels = get_clusters(traf_mat, asdf, 
                                                       day_type='business_days', 
                                                       min_trips=min_trips, 
                                                       clustering=clustering[0], 
@@ -1332,7 +1387,7 @@ def linkage_test(cities=None, year=2019, month=None, k_min=2, k_max=10,
                 
                 labels = labels.to_numpy()[mask]
                 
-                data_mat = (traf_mats[0][:,:24] - traf_mats[0][:,24:])[mask]
+                data_mat = (traf_mat[:,:24] - traf_mat[:,24:])[mask]
                 
                 # if clustering_algo == 'gaussian_mixture':
                 #     labels = pd.Series(np.argmax(labels, axis=1))
@@ -1465,8 +1520,9 @@ def plot_stations(city, year=2019, month=None, day=None,
     
     stat_df= ipu.make_station_df(data, holidays=False)
     
-    traf_mats = data.pickle_daily_traffic(holidays=False, 
+    traf_mat = data.pickle_daily_traffic(holidays=False, 
                                           user_type='Subscriber',
+                                          day_type='business_days',
                                           overwrite=False)
             
     mask = ~asdf['n_trips'].isna()
@@ -1475,12 +1531,12 @@ def plot_stations(city, year=2019, month=None, day=None,
     asdf = asdf.reset_index(drop=True)
     
     try:
-        traf_mats = (traf_mats[0][mask], traf_mats[1])
+        traf_mat = traf_mat[mask]
     except IndexError:
         pass
             
     
-    asdf, centers, labels = get_clusters(traf_mats, asdf, 
+    asdf, centers, labels = get_clusters(traf_mat, asdf, 
                                          day_type='business_days', 
                                          min_trips=min_trips, 
                                          clustering=clustering, k=k, 
@@ -1607,7 +1663,7 @@ if __name__ == '__main__':
     # k_table = k_test_table(clustering='k_means', 
     #                         savefig=True, overwrite=False, use_dtw=True)
     
-    clusters, n_table = plot_cluster_centers('all', k=7, clustering='k_medoids',
+    clusters, n_table = plot_cluster_centers('all', k=5, clustering='k_means',
                                               use_dtw=True, linkage='complete', 
                                               n_table=True, savefig=True)
     

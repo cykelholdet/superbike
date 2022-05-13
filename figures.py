@@ -170,7 +170,7 @@ def service_area_figure(city, year, month, day, return_fig=False):
 
 
 def daily_traffic_figure(stat_id, city, year, month=None, day=None, traffic_type = 'traffic',
-                         period='b', normalise=True, user_type='Subscriber', std=True,
+                         day_type='business_days', normalise=True, user_type='Subscriber', std=True,
                          return_fig=False, savefig=False):
     """
     Makes a figure of the average daily traffic for a station.
@@ -200,28 +200,26 @@ def daily_traffic_figure(stat_id, city, year, month=None, day=None, traffic_type
     
     data = bs.Data(city, year, month, day)
     
-    if period == 'b':
-        d_i=0
-    else:
-        d_i=1
     
     if std:
-        traf_mats, stds = data.pickle_daily_traffic(holidays=False, 
+        traf_mat, std_mat = data.pickle_daily_traffic(holidays=False, 
                                                     user_type=user_type,
+                                                    day_type=day_type,
                                                     overwrite=False,
                                                     normalise=normalise,
                                                     return_std = std)
     else:
-        traf_mats = data.pickle_daily_traffic(holidays=False, 
+        traf_mat = data.pickle_daily_traffic(holidays=False, 
                                               user_type=user_type,
+                                              day_type=day_type,
                                               overwrite=False,
                                               normalise=normalise,
                                               return_std = std)
         
     if traffic_type == 'traffic':
         
-        departures = traf_mats[d_i][data.stat.id_index[stat_id]][:24]
-        arrivals = traf_mats[d_i][data.stat.id_index[stat_id]][24:]
+        departures = traf_mat[data.stat.id_index[stat_id]][:24]
+        arrivals = traf_mat[data.stat.id_index[stat_id]][24:]
         
         plt.style.use('seaborn-darkgrid')
         
@@ -233,12 +231,12 @@ def daily_traffic_figure(stat_id, city, year, month=None, day=None, traffic_type
             
             if std:
                 ax.fill_between(np.arange(24), 
-                                departures*100-stds[d_i][data.stat.id_index[stat_id]][:24]*100,
-                                departures*100+stds[d_i][data.stat.id_index[stat_id]][:24]*100,
+                                departures*100-std_mat[data.stat.id_index[stat_id]][:24]*100,
+                                departures*100+std_mat[data.stat.id_index[stat_id]][:24]*100,
                                 facecolor='tab:blue', alpha=0.2)
                 ax.fill_between(np.arange(24), 
-                                arrivals*100-stds[d_i][data.stat.id_index[stat_id]][:24]*100,
-                                arrivals*100+stds[d_i][data.stat.id_index[stat_id]][:24]*100,
+                                arrivals*100-std_mat[data.stat.id_index[stat_id]][:24]*100,
+                                arrivals*100+std_mat[data.stat.id_index[stat_id]][:24]*100,
                                 facecolor='tab:orange', alpha=0.2)
             
             ax.set_ylabel('% of total trips')
@@ -249,12 +247,12 @@ def daily_traffic_figure(stat_id, city, year, month=None, day=None, traffic_type
             
             if std:
                 ax.fill_between(np.arange(24), 
-                                departures-stds[d_i][data.stat.id_index[stat_id]][:24],
-                                departures+stds[d_i][data.stat.id_index[stat_id]][:24],
+                                departures-std_mat[data.stat.id_index[stat_id]][:24],
+                                departures+std_mat[data.stat.id_index[stat_id]][:24],
                                 facecolor='tab:blue', alpha=0.2)
                 ax.fill_between(np.arange(24), 
-                                arrivals-stds[d_i][data.stat.id_index[stat_id]][:24],
-                                arrivals+stds[d_i][data.stat.id_index[stat_id]][:24],
+                                arrivals-std_mat[data.stat.id_index[stat_id]][:24],
+                                arrivals+std_mat[data.stat.id_index[stat_id]][:24],
                                 facecolor='tab:orange', alpha=0.2)
             
             ax.set_ylabel('# trips')
@@ -263,8 +261,8 @@ def daily_traffic_figure(stat_id, city, year, month=None, day=None, traffic_type
         
     elif traffic_type == 'difference':
         
-        departures = traf_mats[d_i][data.stat.id_index[stat_id]][:24]
-        arrivals = traf_mats[d_i][data.stat.id_index[stat_id]][24:]
+        departures = traf_mat[data.stat.id_index[stat_id]][:24]
+        arrivals = traf_mat[data.stat.id_index[stat_id]][24:]
         
         diff = departures-arrivals
         
@@ -338,10 +336,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019):
                   'london', 'helsinki', 'oslo', 'madrid']
     
     if variables is None:
-        variables = ['percent_residential', 'percent_commercial',
-                     'percent_recreational', 'percent_industrial', 
-                     'pop_density', 'nearest_subway_dist',
-                     'nearest_railway_dist']
+        variables = variables_list
     
     multiindex = pd.MultiIndex.from_product((cities, 
                                              ['Mean', 'Std. Dev.', 'Min.', 'Max.']))   
@@ -361,6 +356,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019):
         # asdf['nearest_subway_dist']  =  asdf['nearest_subway_dist']/1000 # convert to km
         # asdf['nearest_railway_dist']  =  asdf['nearest_railway_dist']/1000 # convert to km
         
+        asdf['center_dist']  =  asdf['center_dist']/1000 # convert to km
         # avg_stat_df['n_trips'] = avg_stat_df['n_trips']/avg_stat_df['n_trips'].sum() # convert to percentage
         # avg_stat_df['b_trips'] = avg_stat_df['b_trips']/avg_stat_df['b_trips'].sum() # convert to percentage
         # avg_stat_df['w_trips'] = avg_stat_df['w_trips']/avg_stat_df['w_trips'].sum() # convert to percentage
@@ -378,26 +374,12 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019):
         
         # tab_df = pd.concat([tab_df, city_df])
     
-    var_renames = {'percent_residential' : 'Share of residential use',
-                   'percent_commercial' : 'Share of commercial use',
-                   'percent_industrial' : 'Share of industrial use',
-                   'percent_recreational' : 'Share of recreational use',
-                   'percent_mixed' : 'Share of mixed use',
-                   'percent_transportation' : 'Share of transportation use',
-                   'percent_educational' : 'Share of educational use',
-                   'percent_road' : 'Share of road use',
-                   'percent_UNKNOWN' : 'Share of unknown use',
-                   'n_trips' : 'Number of daily trips',
-                   'b_trips' : 'Number of daily business trips',
-                   'w_trips' : 'Number of daily weekend trips',
-                   'pop_density' : 'Population density [per 100 sq. m]',
-                   'nearest_subway_dist' : 'Distance to nearest subway [km]',
-                   'nearest_railway_dist' : 'Distance to nearest railway [km]'}
+    
     # tab_df = tab_df.replace(var_renames)
     
     # city_names = [bs.name_dict[city] for city in cities]
     
-    tab_df = tab_df.rename(index=var_renames, columns=bs.name_dict)
+    tab_df = tab_df.rename(index=variables_dict, columns=bs.name_dict)
     
     print(tab_df.to_latex(column_format='@{}l'+('r'*len(tab_df.columns)) + '@{}',
                           index=True, na_rep = '--', float_format='%.2f',
@@ -430,25 +412,6 @@ def make_LR_table(year=2019, k=5, const=True, method = 'LR'):
     city_lists = [(['nyc', 'chicago', 'washdc', 'boston'], 'USA'),
                       (['london', 'helsinki', 'oslo', 'madrid'], 'EUR')]
     
-    
-    percent_index_dict = {
-        'percent_UNKNOWN': 'Share of unknown use',
-        'percent_residential': 'Share of residential use',
-        'percent_commercial': 'Share of commercial use',
-        'percent_industrial': 'Share of industrial use',
-        'percent_recreational': 'Share of recreational use',
-        'percent_educational': 'Share of educational use',
-        'percent_mixed': 'Share of mixed use',
-        'percent_road': 'Share of road use',
-        'percent_transportation': 'Share of transportational use',
-        'pop_density': 'Population density [per 100 sq. m]',
-        'nearest_subway_dist': 'Distance to nearest subway [km]',
-        'nearest_railway_dist': 'Distance to nearest railway [km]',
-        'n_trips': 'Share of daily trips',
-        'b_trips': 'Share of business trips',
-        'w_trips': 'Share of business trips',
-        }
-    
     omit_columns = {
         'boston': ['percent_educational', 'percent_UNKNOWN', 'n_trips', 'b_trips'],
         'chicago': ['percent_transportation', 'percent_UNKNOWN', 'n_trips', 'b_trips'],
@@ -479,8 +442,9 @@ def make_LR_table(year=2019, k=5, const=True, method = 'LR'):
     
         data = bs.Data(city, year)
         
-        traf_mats = data.pickle_daily_traffic(holidays=False, 
+        traf_mat = data.pickle_daily_traffic(holidays=False,
                                               # user_type='Subscriber',
+                                              day_type='business_days',
                                               overwrite=False)
                 
         mask = ~asdf['n_trips'].isna()
@@ -489,21 +453,19 @@ def make_LR_table(year=2019, k=5, const=True, method = 'LR'):
         asdf = asdf.reset_index(drop=True)
         
         try:
-            traf_mats = (traf_mats[0][mask], traf_mats[1])
+            traf_mat = traf_mat[mask]
         except IndexError:
             pass
         
-        asdf, clusters, labels = get_clusters(traf_mats, asdf, 'business_days', 8, 'k_means', k, 42)
+        asdf, clusters, labels = get_clusters(traf_mat, asdf, 'business_days', 8, 'k_means', k, 42)
         
-        zone_columns = ['percent_residential', 'percent_commercial',
-                        'percent_recreational', 'percent_industrial']
+        zone_columns = [var for var in variables_list if 'percent' in var]
         
         for column in omit_columns[data.city]:
             if column in zone_columns:
                 zone_columns.remove(column)
-    
-        other_columns = ['pop_density', 'nearest_subway_dist', 
-                         'nearest_railway_dist', 'b_trips']
+        
+        other_columns = [var for var in variables_list if 'percent' not in var]
         
         for column in omit_columns[data.city]:
             if column in other_columns:
@@ -570,9 +532,9 @@ def make_LR_table(year=2019, k=5, const=True, method = 'LR'):
     
     tuple_table = pd.concat([coeftable,signif_table]).stack(dropna=False).groupby(level=[0,1,2]).apply(tuple).unstack()
     
-    index_list = list(percent_index_dict.keys())
+    index_list = list(variables_dict.keys())
     
-    index_renamer = percent_index_dict
+    index_renamer = variables_dict
     column_renamer = dict(zip(cities, [bs.name_dict[city] for city in cities]))
     
     if const:
@@ -628,7 +590,7 @@ def tuple_formatter(tup):
     
     return out
 
-def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42,
+def city_tests(year=2019, cities=None, k=5, test_ratio=0.2, test_seed=42,
                res='success_rates'):
     """
     
@@ -642,7 +604,6 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42,
     
     
     """
-    
     
     omit_columns = {
         'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips', 'b_trips'],
@@ -687,8 +648,9 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42,
             
         data = bs.Data(city, year)
         
-        traf_mats = data.pickle_daily_traffic(holidays=False, 
+        traf_mat = data.pickle_daily_traffic(holidays=False, 
                                               user_type='Subscriber',
+                                              day_type='business_days',
                                               overwrite=False)
                 
         mask = ~asdf['n_trips'].isna()
@@ -697,21 +659,20 @@ def city_tests(year=2019, cities=None, k=3, test_ratio=0.2, test_seed=42,
         asdf = asdf.reset_index(drop=True)
         
         try:
-            traf_mats = (traf_mats[0][mask], traf_mats[1])
+            traf_mat = traf_mat[mask]
         except IndexError:
             pass
         
-        asdf = get_clusters(traf_mats, asdf, 'business_days', 8, 'k_medoids', 
+        asdf = get_clusters(traf_mat, asdf, 'business_days', 8, 'k_means', 
                                 k, random_state=42, use_dtw=True, city=city)[0]
         
-        zone_columns = ['percent_residential', 'percent_commercial',
-                        'percent_recreational', 'percent_industrial']
+        zone_columns = [var for var in variables_list if 'percent' in var]
         
         for column in omit_columns[data.city]:
             if column in zone_columns:
                 zone_columns.remove(column)
     
-        other_columns = ['pop_density', 'nearest_transit_dist', 'b_trips']
+        other_columns = [var for var in variables_list if 'percent' not in var]
         
         for column in omit_columns[data.city]:
             if column in other_columns:
@@ -841,8 +802,9 @@ def train_test_cm(city_train, city_test, k=5, year=2019, const=True, savefig=Tru
             
         data = bs.Data(city, year)
         
-        traf_mats = data.pickle_daily_traffic(holidays=False, 
+        traf_mat = data.pickle_daily_traffic(holidays=False, 
                                               user_type='Subscriber',
+                                              day_type='business_days',
                                               overwrite=False)
                 
         mask = ~asdf['n_trips'].isna()
@@ -851,20 +813,19 @@ def train_test_cm(city_train, city_test, k=5, year=2019, const=True, savefig=Tru
         asdf = asdf.reset_index(drop=True)
         
         try:
-            traf_mats = (traf_mats[0][mask], traf_mats[1])
+            traf_mat = traf_mat[mask]
         except IndexError:
             pass
         
-        asdf = get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 0)[0]
+        asdf = get_clusters(traf_mat, asdf, 'business_days', 4, 'k_means', k, 0)[0]
         
-        zone_columns = ['percent_residential', 'percent_commercial',
-                        'percent_recreational', 'percent_industrial']
+        zone_columns = [var for var in variables_list if 'percent' in var]
         
         for column in omit_columns[data.city]:
             if column in zone_columns:
                 zone_columns.remove(column)
     
-        other_columns = ['pop_density', 'nearest_transit_dist', 'b_trips']
+        other_columns = [var for var in variables_list if 'percent' not in var]
         
         for column in omit_columns[data.city]:
             if column in other_columns:
@@ -891,8 +852,9 @@ def train_test_cm(city_train, city_test, k=5, year=2019, const=True, savefig=Tru
         
             data = bs.Data(city, year)
             
-            traf_mats = data.pickle_daily_traffic(holidays=False, 
+            traf_mat = data.pickle_daily_traffic(holidays=False, 
                                                   user_type='Subscriber',
+                                                  day_type='business_days',
                                                   overwrite=False)
                     
             mask = ~asdf['n_trips'].isna()
@@ -901,20 +863,19 @@ def train_test_cm(city_train, city_test, k=5, year=2019, const=True, savefig=Tru
             asdf = asdf.reset_index(drop=True)
             
             try:
-                traf_mats = (traf_mats[0][mask], traf_mats[1])
+                traf_mat = traf_mat[mask]
             except IndexError:
                 pass
             
-            asdf = get_clusters(traf_mats, asdf, 'business_days', 4, 'k_means', k, 0)[0]
+            asdf = get_clusters(traf_mat, asdf, 'business_days', 8, 'k_means', k, 0)[0]
             
-            zone_columns = ['percent_residential', 'percent_commercial',
-                            'percent_recreational', 'percent_industrial']
+            zone_columns = [var for var in variables_list if 'percent' in var]
             
             for column in omit_columns[data.city]:
                 if column in zone_columns:
                     zone_columns.remove(column)
         
-            other_columns = ['pop_density', 'nearest_transit_dist', 'b_trips']
+            other_columns = [var for var in variables_list if 'percent' not in var]
             
             for column in omit_columns[data.city]:
                 if column in other_columns:
@@ -971,21 +932,6 @@ def pre_processing_table(cities=None, year=2019, month=None, min_trips=8):
         data = bs.Data(city, year, month, day_type='business_days', 
                        user_type='Subscriber', remove_loops=True, 
                        overwrite=True)
-  
-        # traf_mats = data.pickle_daily_traffic(holidays=False, 
-        #                                       user_type='Subscriber',
-        #                                       normalise=False,
-        #                                       overwrite=True)
-        
-        # mask = ~asdf['n_trips'].isna()
-        
-        # asdf = asdf[mask]
-        # asdf = asdf.reset_index(drop=True)
-        
-        # try:
-        #     traf_mats = (traf_mats[0][mask], traf_mats[1])
-        # except IndexError:
-        #     pass
         
         asdf = asdf[asdf['b_trips'] >= min_trips]
         
@@ -1002,26 +948,80 @@ def pre_processing_table(cities=None, year=2019, month=None, min_trips=8):
                              float_format=lambda x: f'{x:.2f}'))
         
     return table
-    
 
+def chaining_effect_fig():
+    
+    np.random.seed(8)
+    
+    means = [(1.5,2.5), (3.55,2.45)]
+    
+    cluster_1 = np.random.multivariate_normal(means[0], 0.1*np.identity(2), 100)
+    cluster_2 = np.random.multivariate_normal(means[1], 0.1*np.identity(2), 100)
+    
+    plt.plot([2.70057, 2.28188], [2.4436, 2.45356], linestyle='--', c='k', zorder=1)
+    
+    plt.scatter(cluster_1[:,0], cluster_1[:,1], c='r', zorder=2)
+    plt.scatter(cluster_2[:,0], cluster_2[:,1], c='b', zorder=2)
+    
+    
+    # plt.scatter(2.70057, 2.4436, c='k')
+    # plt.scatter(2.28188, 2.45356, c='k')
+    
+    
+    plt.scatter(4.5,1.5, c='orange')
+    plt.scatter(1,4, c='purple')
+    
+    
+    plt.xlim(0,5)
+    plt.ylim(0,5)
+    
+    plt.tight_layout()
+    
+    plt.savefig('./figures/chaining_effect.pdf')
+    
+    # plt.axis('off')
+
+variables_list = ['percent_residential', 'percent_commercial',
+                  'percent_recreational', 
+                  'pop_density', 'nearest_subway_dist',
+                  'nearest_railway_dist', 'center_dist']
+
+variables_dict = {'percent_residential' : 'Share of residential use',
+                  'percent_commercial' : 'Share of commercial use',
+                  'percent_industrial' : 'Share of industrial use',
+                  'percent_recreational' : 'Share of recreational use',
+                  'percent_mixed' : 'Share of mixed use',
+                  'percent_transportation' : 'Share of transportation use',
+                  'percent_educational' : 'Share of educational use',
+                  'percent_road' : 'Share of road use',
+                  'percent_UNKNOWN' : 'Share of unknown use',
+                  'n_trips' : 'Number of daily trips',
+                  'b_trips' : 'Number of daily business trips',
+                  'w_trips' : 'Number of daily weekend trips',
+                  'pop_density' : 'Population density [per 100 sq. m]',
+                  'nearest_subway_dist' : 'Distance to nearest subway [km]',
+                  'nearest_railway_dist' : 'Distance to nearest railway [km]',
+                  'center_dist' : 'Distance to city center [km]'}
 
 if __name__ == "__main__":
     
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
               'london', 'helsinki', 'oslo', 'madrid']
     
-    fig, ax = daily_traffic_figure(200, 'helsinki', 2019, normalise=True, 
-                                   traffic_type='traffic', std=True,
-                                   return_fig=True)
+    chaining_effect_fig()
+    
+    fig, ax = daily_traffic_figure(3, 'boston', 2019, normalise=True, 
+                                    traffic_type='traffic', std=True,
+                                    return_fig=True)
     
     # sum_stat_table=make_summary_statistics_table()
-    LR_table=make_LR_table(2019, k=5, const=True)
+    # LR_table=make_LR_table(2019, k=5, const=True, method='OLS')
     
     # sr = city_tests(k=5, test_seed=6)
     
     # fig, ax = service_area_figure('nyc', 2019, 9, 5, return_fig=True)
     
-    # seed_range = range(50,70)
+    # seed_range = [69]#range(50,70)
     # sr = np.zeros(shape=(8,8))
     # for seed in seed_range:
     #     sr += city_tests(k=5, test_seed=seed)

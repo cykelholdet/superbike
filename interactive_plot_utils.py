@@ -1298,8 +1298,7 @@ def pickle_asdf2(cities=None, variables=None, year=2019, month=None, n_cpus=mp.c
             pickle.dump(avg_stat_df_year, file)
         
         if [city] == cities:
-            return asdfs, var_df, avg_stat_df_year
-            
+            return avg_stat_df_year, var_df
 
 def nearest_transit(city, station_df):
     try:
@@ -1744,9 +1743,7 @@ def linear_regression(df, cols, triptype):
     X = add_constant(X)
     
     OLS_model = sm.OLS(y, X)
-    
     OLS_results = OLS_model.fit(maxiter=10000)
-    
     print(OLS_results.summary())
     
     return OLS_results
@@ -1894,7 +1891,8 @@ def create_all_pickles(city, year, holidays=False, overwrite=False):
                 pickle.dump(union, file)
             print('Done')
             
-        data.pickle_daily_traffic(holidays=holidays, overwrite=overwrite)
+        data.pickle_daily_traffic(holidays=holidays, overwrite=overwrite, return_std=False)
+        data.pickle_daily_traffic(holidays=holidays, overwrite=overwrite, return_std=True)
         
         for month in bs.get_valid_months(city, year):
             print(f"Pickling month = {month}")
@@ -1955,13 +1953,13 @@ if __name__ == "__main__":
     
     # create_all_pickles('boston', 2019, overwrite=True)
     
-    pickle_asdf2()
+    # asdf = pickle_asdf2('madrid', n_cpus=1)
     
     data = bs.Data('madrid', 2019)
 
     overwrite = True
     pre = time.time()
-    traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=overwrite)
+    traffic_matrix = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=overwrite)
     station_df, land_use, census_df = make_station_df(data, holidays=False, 
                                                       return_land_use=True, return_census=True, 
                                                       overwrite=True)
