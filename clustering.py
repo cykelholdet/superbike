@@ -224,6 +224,7 @@ def get_clusters(traffic_matrix_full, station_df, day_type, min_trips,
     # elif day_type == 'weekend':
     # traf_mat = traffic_matrix_full[:,:24] - traffic_matrix_full[:,24:]
     
+    #station_df['dist_to_center'] = dist_to_center
     # for i in range(k):
     #     dist_to_center[np.where(labels == i)] = np.linalg.norm(
     #         traf_mat[np.where(labels==i)] - centers[i], axis=1)

@@ -612,11 +612,17 @@ def plot_centroid_callback(index, plot_traf_or_diff, plot_all_clusters,
                            clustering, k, min_trips, day_type, city, month, 
                            user_type): 
     return bike_params.plot_centroid(index)
-    
+
+
+gif_pane = pn.pane.GIF('Loading_Key.gif')
 
 @pn.depends(pn.state.param.busy)
 def indicator(busy):
-    return gif_pane if busy else ""
+    if busy:
+        gif_pane = pn.pane.GIF('Loading_Key.gif')
+    else:
+        gif_pane = ""
+    return gif_pane
 
 
 @pn.depends(clustering=bike_params.param.clustering, watch=True)
@@ -767,8 +773,6 @@ rev_month_dict = {v:k for k,v in month_dict.items()}
 
 activity_dict = {'departures': 'start', 'arrivals': 'end', 'd': 'start', 'a': 'end', 'start': 'start', 'end': 'end'}
 day_type_dict = {'weekend': 'w', 'business_days': 'b'}
-
-gif_pane = pn.pane.GIF('Loading_Key.gif')
 
 city_list = ['boston', 'chicago', 'minneapolis', 'nyc', 'washdc', 'edinburgh', 'helsinki', 'london', 'madrid', 'oslo']
 
