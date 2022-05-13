@@ -6,9 +6,7 @@ Created on Thu Sep 30 11:36:11 2021
 @author: dbvd
 """
 
-# TODO: Remove panel buttons which do nothing
-#       Change pop_density to a log scale when plotting census tracts
-#       Change defaults in LR
+# TODO: Remove dist_to_center functionality
 import numpy as np
 import pandas as pd
 from matplotlib import cm
@@ -109,8 +107,7 @@ def plot_center(traffic_matrix, labels, cluster_j, c_center, plot_traf_or_diff,
     return cc_plot
 
 
-def plot_dta_with_std(traf_mats, std_mats, index, day_type, 
-                      plot_traf_or_diff, user_type='all'):
+def plot_dta_with_std(traf_mat, std_mat, index, plot_traf_or_diff, user_type='all'):
     """
     Plot daily traffic average of station including standard deviation bounds.
 
@@ -127,10 +124,6 @@ def plot_dta_with_std(traf_mats, std_mats, index, day_type,
         a plot.
 
     """
-    if day_type == 'business_days':
-        d_i = 0
-    else:
-        d_i = 1
     
     if plot_traf_or_diff == 'Traffic':
         
@@ -139,10 +132,10 @@ def plot_dta_with_std(traf_mats, std_mats, index, day_type,
        
 
         means, stds = pd.DataFrame(), pd.DataFrame()
-        means['departures']= traf_mats[d_i][index][:24]
-        means['arrivals']  = traf_mats[d_i][index][24:]
-        stds['departures']  = std_mats[d_i][index][:24]
-        stds['arrivals']    = std_mats[d_i][index][24:]
+        means['departures']= traf_mat[index][:24]
+        means['arrivals']  = traf_mat[index][24:]
+        stds['departures']  = std_mat[index][:24]
+        stds['arrivals']    = std_mat[index][24:]
         
         # a = data.daily_traffic_average(index, period=day_type_dict[day_type], 
         #                                return_std=True, user_type=user_type)
@@ -171,7 +164,7 @@ def plot_dta_with_std(traf_mats, std_mats, index, day_type,
 
     else:    
         print(f"{index=}. Plotting difference...", end='')
-        diff = pd.Series(traf_mats[d_i][index][:24]-traf_mats[d_i][index][24:],
+        diff = pd.Series(traf_mat[index][:24]-traf_mat[index][24:],
                          name='Relative difference')
         
         # a = data.daily_traffic_average(index, period=day_type_dict[day_type], 
@@ -247,8 +240,8 @@ class BikeDash(param.Parameterized):
         self.index = index
         self.data = bs.Data(self.city, YEAR, self.month)
         self.station_df, self.land_use, self.census_df = ipu.make_station_df(self.data, holidays=False, return_land_use=True, return_census=True)
-        self.traffic_matrices, self.std_matrices = self.data.pickle_daily_traffic(
-            holidays=False, return_std=True)
+        self.traffic_matrix, self.std_matrix = self.data.pickle_daily_traffic(
+            holidays=False, return_std=True, day_type=self.day_type)
         
         self.service_area_modified = False
         
@@ -260,13 +253,14 @@ class BikeDash(param.Parameterized):
         print("Make logi")
         self.make_logistic_regression()
         
-    @param.depends('month', 'city', 'sdf_or_asdf', watch=True)
+    @param.depends('month', 'city', 'sdf_or_asdf', 'day_type', watch=True)
     def get_data(self):
         print(f'getting {self.month}')
         self.data = bs.Data(self.city, YEAR, self.month)
         self.station_df, self.land_use, self.census_df = ipu.make_station_df(self.data, holidays=False, return_land_use=True, return_census=True)
-        self.traffic_matrices, self.std_matrices = self.data.pickle_daily_traffic(
-            holidays=False, user_type=self.user_type, return_std=True)
+        self.traffic_matrix, self.std_matrix = self.data.pickle_daily_traffic(
+            holidays=False, user_type=self.user_type, day_type=self.day_type,
+            return_std=True)
         
         if self.sdf_or_asdf == 'Averaged station DF':
             if self.month is None:
@@ -286,11 +280,8 @@ class BikeDash(param.Parameterized):
             self.station_df = self.station_df.reset_index(drop=True)
     
             try:
-                self.traffic_matrices = (self.traffic_matrices[0][mask], 
-                                         self.traffic_matrices[1])
-                
-                self.std_matrices = (self.std_matrices[0][mask], 
-                                         self.std_matrices[1])
+                self.traffic_matrix = self.traffic_matrix[mask]
+                self.std_matrix = self.std_matrices[mask]
                 
             except IndexError:
                 pass
@@ -314,7 +305,7 @@ class BikeDash(param.Parameterized):
     def plot_clusters_full(self):
         print("Plotting Clusters")
         self.station_df, self.clusters, self.labels = get_clusters(
-            self.traffic_matrices, self.station_df, self.day_type, 
+            self.traffic_matrix, self.station_df, self.day_type, 
             self.min_trips, self.clustering, self.k, self.random_state)
         # print(self.station_df.label.iloc[0])
         
@@ -380,7 +371,7 @@ class BikeDash(param.Parameterized):
             return "No clustering"
         elif self.clustering == 'h_clustering':
             if self.plot_all_clusters == 'True':
-                traffic_matrix = mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
+                traffic_matrix = mask_traffic_matrix(self.traffic_matrix, self.station_df, self.day_type, self.min_trips, holidays=False)
                 cc_plot_list = list()
                 for j in range(self.k):
                     #mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
@@ -393,7 +384,7 @@ class BikeDash(param.Parameterized):
                 return "Select a station to get cluster info"
             else:
                 i = index[0]
-                traffic_matrix = mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
+                traffic_matrix = mask_traffic_matrix(self.traffic_matrix, self.station_df, self.day_type, self.min_trips, holidays=False)
                 if ~np.isnan(self.station_df['label'][i]):
                     j = int(self.station_df['label'][i])
                     mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
@@ -404,7 +395,7 @@ class BikeDash(param.Parameterized):
                     return f"Station index {i} is not in a cluster due to min_trips."
 
         elif self.clustering == 'gaussian_mixture':
-            traffic_matrix = mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
+            traffic_matrix = mask_traffic_matrix(self.traffic_matrix, self.station_df, self.day_type, self.min_trips, holidays=False)
             if self.plot_all_clusters == 'True':
                 cc_plot_list = list()
                 for j in range(self.k):
@@ -428,7 +419,7 @@ class BikeDash(param.Parameterized):
                     return f"Station index {i} does not belong to a cluster duto to min_trips"
 
         else: # k-means or k-medoids
-            traffic_matrix = mask_traffic_matrix(self.traffic_matrices, self.station_df, self.day_type, self.min_trips, holidays=False)
+            traffic_matrix = mask_traffic_matrix(self.traffic_matrix, self.station_df, self.day_type, self.min_trips, holidays=False)
             if self.plot_all_clusters == 'True':
                 # if self.clusters == None:
                 #     return "Please select Clustering"
@@ -518,7 +509,7 @@ class BikeDash(param.Parameterized):
     
     @param.depends('user_type', watch=True)
     def get_traffic_matrix(self):
-        self.traffic_matrices, self.std_matrices = self.data.pickle_daily_traffic(
+        self.traffic_matrix, self.std_matrix = self.data.pickle_daily_traffic(
             holidays=False, user_type=self.user_type, return_std=True)
         self.plot_clusters_full()
         self.make_service_areas()
@@ -576,7 +567,7 @@ def plot_daily_traffic(index, day_type, city, month, user_type, plot_traf_or_dif
     else:
         i = index[0]
     
-    plot = plot_dta_with_std(bike_params.traffic_matrices, bike_params.std_matrices,
+    plot = plot_dta_with_std(bike_params.traffic_matrix, bike_params.std_matrices,
                              i, day_type, plot_traf_or_diff, user_type)
     
     if user_type == 'all':

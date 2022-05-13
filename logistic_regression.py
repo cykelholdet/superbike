@@ -685,7 +685,8 @@ def make_model_and_plot_heatmaps(
         data = bs.Data(tr_city, year, month)
     
         # station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
-        traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
+        traffic_matrix = data.pickle_daily_traffic(holidays=False, user_type='Subscriber', 
+                                                   day_type=day_type)
         # station_df, clusters, labels = get_clusters(
         #     traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
         
@@ -702,7 +703,7 @@ def make_model_and_plot_heatmaps(
         # asdf = asdf.reset_index(drop=True)
         
         asdf, clusters, labels = get_clusters(
-            traffic_matrices, asdf, day_type, min_trips, clustering, k, seed, 
+            traffic_matrix, asdf, day_type, min_trips, clustering, k, seed, 
             use_dtw=True, city=tr_city)
         
         if tr_city in ['helsinki', 'oslo', 'madrid', 'london']:
@@ -814,11 +815,11 @@ def make_model_and_plot_heatmaps(
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=FutureWarning)
 
-    CITY = 'chicago'
+    CITY = 'nyc'
     YEAR = 2019
     MONTH = None
     
-    cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
+    cols = ['percent_residential', 'percent_commercial', 'percent_recreational', 'percent_industrial'
             'pop_density', 'nearest_subway_dist', 'nearest_railway_dist']
     triptype = 'b_trips'  # Only relevant for OLS
     resolution = 200  # Grid size in m
