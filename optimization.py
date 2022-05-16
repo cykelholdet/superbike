@@ -709,6 +709,47 @@ if __name__ == "__main__":
     selection_so = np.zeros(n)
     selection_so[selection_idx] = 1
     
+    
+    #%% Expansion subdivision
+    
+    # First step: Determine how many stations to place in each subpolygon.
+    
+    data = bs.Data('nyc', 2019, 9)
+    
+    station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)   
+    sub_polygons = gpd.read_file('data/nyc/nyc_expansion_subdivision.geojson')
+    
+    pops = []
+    for polygon in sub_polygons['geometry']:
+        intersections = census_df.intersection(polygon)
+        selection = ~intersections.is_empty
+        census_intersect = census_df.loc[selection, 'pop_density']
+        # Area in km²
+        areas = intersections[selection].to_crs(data.laea_crs).area/1000000
+        population = np.sum(areas * census_intersect)
+        pops.append(population)
+    
+    sub_polygons['population'] = pops
+    
+    # Number of stations per person
+    station_density = len(station_df) / station_df['population'].sum()
+    
+    proportional_n_stations = sub_polygons['population'] * station_density
+    
+    # Scale up and round to add up to 60
+    n_stations = np.floor(proportional_n_stations*3.15)
+    
+    sub_polygons['n_stations'] = n_stations
+    
+    for i, polygon in sub_polygons.iterrows():
+        int_exp = get_intersections(polygon['geometry'], data=data)
+        point_info = get_point_info(data, int_exp, land_use, census_df)
+        
+        months = [1,2,3,4,5,6,7,8,9]
+        asdf = asdf_months(data, months)
+        
+        int_proj = int_exp.to_crs(data.laea_crs)
+    
     #%%
     
     bk = plot_intersections(int_exp[selection_so == 1], websocket_origin=('130.225.39.60'))

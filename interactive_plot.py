@@ -5,6 +5,7 @@ Created on Thu Sep 30 11:36:11 2021
 
 @author: dbvd
 """
+import pickle
 
 # TODO: Remove dist_to_center functionality
 import numpy as np
@@ -281,7 +282,7 @@ class BikeDash(param.Parameterized):
     
             try:
                 self.traffic_matrix = self.traffic_matrix[mask]
-                self.std_matrix = self.std_matrices[mask]
+                self.std_matrix = self.std_matrix[mask]
                 
             except IndexError:
                 pass
@@ -371,7 +372,7 @@ class BikeDash(param.Parameterized):
             return "No clustering"
         elif self.clustering == 'h_clustering':
             if self.plot_all_clusters == 'True':
-                traffic_matrix = mask_traffic_matrix(self.traffic_matrix, self.station_df, self.day_type, self.min_trips, holidays=False)
+                traffic_matrix = mask_traffic_matrix(self.traffic_matrix, self.station_df, self.day_type, self.min_trips)
                 cc_plot_list = list()
                 for j in range(self.k):
                     #mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
@@ -384,7 +385,7 @@ class BikeDash(param.Parameterized):
                 return "Select a station to get cluster info"
             else:
                 i = index[0]
-                traffic_matrix = mask_traffic_matrix(self.traffic_matrix, self.station_df, self.day_type, self.min_trips, holidays=False)
+                traffic_matrix = mask_traffic_matrix(self.traffic_matrix, self.station_df, self.day_type, self.min_trips)
                 if ~np.isnan(self.station_df['label'][i]):
                     j = int(self.station_df['label'][i])
                     mean_vector = np.mean(traffic_matrix[np.where(self.labels == j)], axis=0)
@@ -395,7 +396,7 @@ class BikeDash(param.Parameterized):
                     return f"Station index {i} is not in a cluster due to min_trips."
 
         elif self.clustering == 'gaussian_mixture':
-            traffic_matrix = mask_traffic_matrix(self.traffic_matrix, self.station_df, self.day_type, self.min_trips, holidays=False)
+            traffic_matrix = mask_traffic_matrix(self.traffic_matrix, self.station_df, self.day_type, self.min_trips)
             if self.plot_all_clusters == 'True':
                 cc_plot_list = list()
                 for j in range(self.k):
@@ -419,7 +420,7 @@ class BikeDash(param.Parameterized):
                     return f"Station index {i} does not belong to a cluster duto to min_trips"
 
         else: # k-means or k-medoids
-            traffic_matrix = mask_traffic_matrix(self.traffic_matrix, self.station_df, self.day_type, self.min_trips, holidays=False)
+            traffic_matrix = mask_traffic_matrix(self.traffic_matrix, self.station_df, self.day_type, self.min_trips)
             if self.plot_all_clusters == 'True':
                 # if self.clusters == None:
                 #     return "Please select Clustering"
@@ -567,10 +568,10 @@ def plot_daily_traffic(index, day_type, city, month, user_type, plot_traf_or_dif
     else:
         i = index[0]
     
-    plot = plot_dta_with_std(bike_params.traffic_matrix, bike_params.std_matrices,
-                             i, day_type, plot_traf_or_diff, user_type)
+    plot = plot_dta_with_std(bike_params.traffic_matrix, bike_params.std_matrix,
+                             i, plot_traf_or_diff, user_type)
     
-    if user_type == 'all':
+    if (user_type == 'all') or (city not in ['boston', 'chic', 'nyc', 'washdc', 'madrid']):
         tripstring = ''
     elif user_type == 'Subscriber':
         tripstring = 'sub_'

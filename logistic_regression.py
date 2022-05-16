@@ -7,6 +7,7 @@ Created on Tue Jan 18 09:30:43 2022
 from functools import partial
 import warnings
 import pickle
+import multiprocessing as mp
 
 import numpy as np
 import pandas as pd
@@ -581,7 +582,7 @@ def heatmap_grid(data, land_use, census_df, bounds, resolution):
             grid_points.append(Point((round(lat,4), round(lon,4))))
     
     
-    grid_points = gpd.GeoDataFrame(geometry=grid_points, crs='epsg:3857')
+    grid_points = gpd.GeoDataFrame(geometry=grid_points, crs=data.laea_crs)
     
     grid_points['coords'] = grid_points['geometry'].to_crs(epsg=4326)
             
@@ -601,6 +602,9 @@ def heatmap_grid(data, land_use, census_df, bounds, resolution):
 
     point_info = pd.DataFrame(index=percentages.index)
     point_info['const'] = 1.0
+    if data.city == 'madrid':
+        percentages['percent_industrial'] = 0
+
     point_info[['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational']] = percentages[['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational']]
     point_info['pop_density'] = pop_density
     point_info['nearest_subway_dist'] = nearest_subway['nearest_subway_dist']
@@ -676,9 +680,9 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
 
 
 def make_model_and_plot_heatmaps(
-        city, year, month, cols, modeltype='OLS', triptype='b_departures',
-        resolution=250, day_type='business_days', min_trips=8,
-        clustering='k_means', k=3, seed=42, train_cities=None, use_dtw=False):
+        city, year=2019, month=None, cols=None, modeltype='OLS', triptype='b_departures',
+        resolution=200, day_type='business_days', min_trips=8,
+        clustering='k_means', k=5, seed=42, train_cities=None, use_dtw=False):
     
     if train_cities == None:
         train_cities = [city]
@@ -830,7 +834,7 @@ def make_model_and_plot_heatmaps(
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=FutureWarning)
 
-    CITY = 'boston'
+    CITY = 'madrid'
     YEAR = 2019
     MONTH = None
     
@@ -838,10 +842,22 @@ if __name__ == "__main__":
             'pop_density', 'nearest_subway_dist', 'nearest_railway_dist', 'center_dist']
     triptype = 'b_trips'  # Only relevant for OLS
     resolution = 200  # Grid size in m
-    modeltype = 'LR'  # LR or OLS
+    modeltype = 'OLS'  # LR or OLS
     k = 5
     min_trips = 8
 
+    cities = ['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'madrid', 'london', 'oslo']
+    
+
+   #  heat_partial = partial(make_model_and_plot_heatmaps, (), {'year': YEAR, 'month': None, 'cols':cols, 'modeltype': modeltype, 'triptype': triptype, 'resolution': resolution, 'k':k, 'train_cities': cities, 'min_trips': min_trips})
+    
+   # # heat_partial = lambda city: make_model_and_plot_heatmaps( city, YEAR, MONTH, cols, modeltype=modeltype, triptype=triptype, resolution=resolution, k=k, train_cities=['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'madrid', 'london', 'oslo'], min_trips=min_trips)
+
+   #  with mp.Pool(mp.cpu_count()) as pool:
+   #      results = pool.map(heat_partial, cities)        
+
+    
+    
     grid_points, point_info = make_model_and_plot_heatmaps(
         CITY, YEAR, MONTH, cols, modeltype=modeltype, triptype=triptype,
         resolution=resolution, k=k, train_cities=['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'madrid', 'london', 'oslo'],
