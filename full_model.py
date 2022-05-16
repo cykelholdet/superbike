@@ -191,7 +191,7 @@ def load_city(city, year=2019, month=None, day=None):
     if month is None:
         filestr = f'./python_variables/{city}{year}_avg_stat_df.pickle'
     else:
-        filestr = f'./python_variables/{city}{year}{Mmonth:02d}_avg_stat_df.pickle'
+        filestr = f'./python_variables/{city}{year}{month:02d}_avg_stat_df.pickle'
         
     with open(filestr, 'rb') as file:
         asdf = pickle.load(file)
@@ -234,11 +234,13 @@ data, asdf, traf_mat = load_city(CITY)
 
 #%% residual plots
 
+plt.style.use('seaborn-darkgrid')
 big_fig, big_ax = plt.subplots(figsize=(8,12), nrows=4, ncols=2)
 
 count=0
 for row in range(4):
     for col in range(2):
+        city = cities[count]
         data, asdf, traf_mat = load_city(cities[count])
         errors = trips_predict_test(asdf, traf_mat, variables_list, error='residual', 
                                     by_cluster=False, show_id=False)
@@ -250,7 +252,7 @@ for row in range(4):
         if col == 0:
             big_ax[row,col].set_ylabel('Residual')
         
-        ax[row,col].set_title(f'{bs.name_dict[city]}')
+        big_ax[row,col].set_title(f'{bs.name_dict[city]}')
         
         count+=1
 
