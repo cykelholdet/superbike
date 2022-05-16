@@ -1725,7 +1725,7 @@ def linear_regression(df, cols, triptype):
     
     y = df[triptype][~X.isna().any(axis=1)]
     
-    y = np.log(y)
+    # y = np.log(np.log(y))
     
     X = X[~X.isna().any(axis=1)]
 
@@ -1742,11 +1742,16 @@ def linear_regression(df, cols, triptype):
     
     X = add_constant(X)
     
-    OLS_model = sm.OLS(y, X)
-    OLS_results = OLS_model.fit(maxiter=10000)
-    print(OLS_results.summary())
+    # OLS_model = sm.OLS(y, X)
+    # results = OLS_model.fit(maxiter=10000)
     
-    return OLS_results
+    link = sm.genmod.families.links.log()
+    glm = sm.GLM(y, X, family=sm.families.Gaussian(link))
+    results= glm.fit(maxiter=10000)
+    
+    print(results.summary())
+    
+    return results
 
 
 proj_wgs84 = pyproj.Proj('+proj=longlat +datum=WGS84')
