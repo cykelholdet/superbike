@@ -184,58 +184,81 @@ def trips_predict_test(stat_df, traf_mat, variables, by_cluster=False,
     
         return error_df
 
+def load_city(city, year=2019, month=None, day=None):
+    
+    # Read asdf
+    
+    if month is None:
+        filestr = f'./python_variables/{city}{year}_avg_stat_df.pickle'
+    else:
+        filestr = f'./python_variables/{city}{year}{Mmonth:02d}_avg_stat_df.pickle'
+        
+    with open(filestr, 'rb') as file:
+        asdf = pickle.load(file)
+    
+    # Make Data object and traffic matrix
+    
+    data = bs.Data(city, year, month)
+    traf_mat = data.pickle_daily_traffic(holidays=False, 
+                                          user_type='Subscriber',
+                                          day_type='business_days',
+                                          overwrite=False)
+            
+    mask = ~asdf['n_trips'].isna()
+    
+    asdf = asdf[mask]
+    asdf = asdf.reset_index(drop=True)
+    
+    try:
+        traf_mat = traf_mat[mask]
+    except IndexError:
+        pass
 
-
-
+    return data, asdf, traf_mat
 
 #%% Do data
 
-CITY = 'chicago'
+CITY = 'nyc'
 YEAR = 2019
 MONTH = None
+
+cities = ['nyc', 'chicago', 'washdc', 'boston', 
+          'london', 'helsinki', 'oslo', 'madrid']
 
 variables_list = ['percent_residential', 'percent_commercial',
                   'percent_recreational', 
                   'pop_density', 'nearest_subway_dist',
                   'nearest_railway_dist', 'center_dist']
 
-# Read asdf
+data, asdf, traf_mat = load_city(CITY)
 
-if MONTH is None:
-    filestr = f'./python_variables/{CITY}{YEAR}_avg_stat_df.pickle'
-else:
-    filestr = f'./python_variables/{CITY}{YEAR}{MONTH:02d}_avg_stat_df.pickle'
-    
-with open(filestr, 'rb') as file:
-    asdf = pickle.load(file)
+#%% residual plots
 
-# Make Data object and traffic matrix
+big_fig, big_ax = plt.subplots(figsize=(8,12), nrows=4, ncols=2)
 
-data = bs.Data(CITY, YEAR, MONTH)
-traf_mat = data.pickle_daily_traffic(holidays=False, 
-                                      user_type='Subscriber',
-                                      day_type='business_days',
-                                      overwrite=False)
+count=0
+for row in range(4):
+    for col in range(2):
+        data, asdf, traf_mat = load_city(cities[count])
+        errors = trips_predict_test(asdf, traf_mat, variables_list, error='residual', 
+                                    by_cluster=False, show_id=False)
+        big_ax[row,col].scatter(errors['predicted'], errors['error'])
         
-mask = ~asdf['n_trips'].isna()
+        if row == 3:
+            big_ax[row,col].set_xlabel('Predicted # trips')
+        
+        if col == 0:
+            big_ax[row,col].set_ylabel('Residual')
+        
+        ax[row,col].set_title(f'{bs.name_dict[city]}')
+        
+        count+=1
 
-asdf = asdf[mask]
-asdf = asdf.reset_index(drop=True)
-
-try:
-    traf_mat = traf_mat[mask]
-except IndexError:
-    pass
-
-#%%
+plt.tight_layout()
 
 
+# model = FullModel(variables_list)
 
-# errors = trips_predict_test(asdf, traf_mat, variables_list, error='residual', 
-#                             by_cluster=False, show_id=False)
-
-model = FullModel(variables_list)
-
-model.fit(asdf, traf_mat)
+# model.fit(asdf, traf_mat)
 # model.predict(asdf.iloc[907])
 
