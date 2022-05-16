@@ -1010,12 +1010,12 @@ if __name__ == "__main__":
     
     chaining_effect_fig()
     
-    fig, ax = daily_traffic_figure(3, 'boston', 2019, normalise=True, 
-                                    traffic_type='traffic', std=True,
-                                    return_fig=True)
+    # fig, ax = daily_traffic_figure(3, 'boston', 2019, normalise=True, 
+    #                                 traffic_type='traffic', std=True,
+    #                                 return_fig=True)
     
     # sum_stat_table=make_summary_statistics_table()
-    # LR_table=make_LR_table(2019, k=5, const=True, method='OLS')
+    LR_table=make_LR_table(2019, k=5, const=True, method='LR')
     
     # sr = city_tests(k=5, test_seed=6)
     
