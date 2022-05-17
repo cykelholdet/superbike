@@ -245,7 +245,7 @@ def load_city(city, year=2019, month=None, day=None, normalise=True):
     if month is None:
         filestr = f'./python_variables/{city}{year}_avg_stat_df.pickle'
     else:
-        filestr = f'./python_variables/{city}{year}{Mmonth:02d}_avg_stat_df.pickle'
+        filestr = f'./python_variables/{city}{year}{month:02d}_avg_stat_df.pickle'
         
     with open(filestr, 'rb') as file:
         asdf = pickle.load(file)
@@ -292,6 +292,7 @@ model.fit(asdf, traf_mat)
 
 #%% residual plots
 
+plt.style.use('seaborn-darkgrid')
 big_fig, big_ax = plt.subplots(figsize=(8,12), nrows=4, ncols=2)
 
 count=0
