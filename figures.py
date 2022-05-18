@@ -428,7 +428,9 @@ def make_LR_table(year=2019, k=5, const=True, method = 'LR'):
     
     month_dict = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 
           7:'Jul',8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec', None:'None'}
-
+    
+    if method not in (method_list := ['LR', 'OLS']):
+        raise ValueError(f'Please provide a method from {method_list}')
     
     table = pd.DataFrame([])
     
@@ -503,6 +505,7 @@ def make_LR_table(year=2019, k=5, const=True, method = 'LR'):
     
             table = pd.concat([table, lr_coefs], axis=1)        
         
+            
 
         elif method == 'OLS':
             lr_results = ipu.linear_regression(asdf, [*zone_columns, *other_columns], 'b_trips')
@@ -524,43 +527,73 @@ def make_LR_table(year=2019, k=5, const=True, method = 'LR'):
             lr_coefs = pd.concat({data.city: coefs}, names="", axis=1)
     
             table = pd.concat([table, lr_coefs], axis=1)        
-    
-    
-    signif_table = table.xs('pvalues', level=1, axis=1) < 0.05
-    
-    coeftable = table.xs('coef', level=1, axis=1)
-    
-    tuple_table = pd.concat([coeftable,signif_table]).stack(dropna=False).groupby(level=[0,1,2]).apply(tuple).unstack()
-    
-    index_list = list(variables_dict.keys())
-    
-    index_renamer = variables_dict
-    column_renamer = dict(zip(cities, [bs.name_dict[city] for city in cities]))
-    
-    if const:
-        index_list.insert(0, 'const')
-    
-    #index_list = set(index_list).intersection(set(table.index.get_level_values(1)))
-    
-    index_list = [x for x in index_list if x in table.index.get_level_values(1)]
-    
-    tables = dict()
-    for i in range(1, k):
-        tables[i] = tuple_table.loc[i].loc[index_list] # Reorder according to index_dict
-    
-    
-    tuple_table = pd.concat(tables, names=['Cluster', 'Coef. name'])
-    tuple_table = tuple_table.reindex(columns=cities)
-    tuple_table = tuple_table.rename(index=index_renamer, columns=column_renamer)
-    
-    if k == 3:
-        tuple_table = tuple_table.rename(index={1: 'Morning Sink', 
-                                                2: 'Morning Source'})
-    
-    latex_table = tuple_table.to_latex(column_format='@{}ll'+('r'*len(tuple_table.columns)) + '@{}', multirow=True, formatters = [tuple_formatter]*len(tuple_table.columns), escape=False)
-    print(latex_table)
         
-    return tuple_table
+    # Make table nice
+    
+    if method == 'LR':
+        
+        signif_table = table.xs('pvalues', level=1, axis=1) < 0.05
+        
+        coeftable = table.xs('coef', level=1, axis=1)
+        
+        tuple_table = pd.concat([coeftable,signif_table]).stack(dropna=False).groupby(level=[0,1,2]).apply(tuple).unstack()
+
+        index_list = list(variables_dict.keys())
+        
+        index_renamer = variables_dict
+        column_renamer = dict(zip(cities, [bs.name_dict[city] for city in cities]))
+        
+        if const:
+            index_list.insert(0, 'Const.')
+        
+        index_list = [x for x in index_list if x in table.index.get_level_values(1)]
+        
+        tables = dict()
+        for i in range(1, k):
+            tables[i] = tuple_table.loc[i].loc[index_list] # Reorder according to index_dict
+        
+        
+        tuple_table = pd.concat(tables, names=['Cluster', 'Coef. name'])
+        tuple_table = tuple_table.reindex(columns=cities)
+        tuple_table = tuple_table.rename(index=index_renamer, columns=column_renamer)
+        
+        if k == 3:
+            tuple_table = tuple_table.rename(index={1: 'Morning Sink', 
+                                                    2: 'Morning Source'})
+        
+        latex_table = tuple_table.to_latex(column_format='@{}ll'+('r'*len(tuple_table.columns)) + '@{}', multirow=True, formatters = [tuple_formatter]*len(tuple_table.columns), escape=False)
+        print(latex_table)
+            
+        return tuple_table
+    
+    elif method == 'OLS':
+        
+        signif_table = table.xs('pvalues', level=1, axis=1) < 0.05
+        
+        coeftable = table.xs('coef', level=1, axis=1)
+
+        tuple_table = pd.concat([coeftable,signif_table]).stack(dropna=False).groupby(level=[0,1]).apply(tuple).unstack()
+
+        index_list = list(variables_dict.keys())
+        
+        index_renamer = variables_dict
+        column_renamer = dict(zip(cities, [bs.name_dict[city] for city in cities]))
+
+        if const:
+            index_list.insert(0, 'Const.')
+
+        index_list = [x for x in index_list if x in table.index.get_level_values(0)]
+        
+        tuple_table = tuple_table.loc[index_list]
+    
+        tuple_table = tuple_table.reindex(columns=cities)
+        tuple_table = tuple_table.rename(index=index_renamer, columns=column_renamer)
+        tuple_table.index = tuple_table.index.rename('Coef. name')
+        
+        latex_table = tuple_table.to_latex(column_format='@{}l'+('r'*len(tuple_table.columns)) + '@{}', formatters = [tuple_formatter]*len(tuple_table.columns), escape=False)
+        print(latex_table)
+        
+        return tuple_table
 
 
 def formatter(x):
@@ -589,6 +622,7 @@ def tuple_formatter(tup):
             out = f"${x:.3f}$"
     
     return out
+    
 
 def city_tests(year=2019, cities=None, k=5, test_ratio=0.2, test_seed=42,
                res='success_rates'):
@@ -982,7 +1016,7 @@ def chaining_effect_fig():
     # plt.axis('off')
 
 variables_list = ['percent_residential', 'percent_commercial',
-                  'percent_recreational', 
+                  'percent_recreational',
                   'pop_density', 'nearest_subway_dist',
                   'nearest_railway_dist', 'center_dist']
 
@@ -1008,7 +1042,7 @@ if __name__ == "__main__":
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
               'london', 'helsinki', 'oslo', 'madrid']
     
-    chaining_effect_fig()
+    # chaining_effect_fig()
     
     # fig, ax = daily_traffic_figure(3, 'boston', 2019, normalise=True, 
     #                                 traffic_type='traffic', std=True,

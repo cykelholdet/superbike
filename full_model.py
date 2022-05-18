@@ -79,6 +79,7 @@ class FullModel:
                                                       x_trips)
         self.fitted = True
         
+        return stat_df
     
     def predict(self, stat, verbose=True):
         # give row from stat_df and predict traffic pattern and number of trips
@@ -288,7 +289,7 @@ variables_list = ['percent_residential', 'percent_commercial',
 data, asdf, traf_mat = load_city(CITY)
 
 model = FullModel(variables_list)
-model.fit(asdf, traf_mat)
+asdf=model.fit(asdf, traf_mat)
 
 #%% residual plots
 
@@ -346,63 +347,99 @@ plt.tight_layout()
 #%% Predict daily traffic
 
 model = FullModel(variables_list)
-model.fit(asdf, traf_mat)
+asdf=model.fit(asdf, traf_mat)
 
 traffic_est = model.predict_daily_traffic(asdf.iloc[5])
 
 
 #%% Test daily traffic prediction
 
-model = FullModel(variables_list)
-model.fit(asdf, traf_mat)
+dep_or_arr = 'departures'
 
-#%%
+cluster_name_dict = {0 : 'Reference',
+                     1 : 'High morning sink',
+                     2 : 'Low morning sink',
+                     3 : 'Low morning source',
+                     4 : 'High morning source',
+                     5 : 'Cluster 5',
+                     6 : 'Cluster 6',
+                     7 : 'Cluster 7',
+                     8 : 'Cluster 8',
+                     9 : 'Cluster 9',
+                     10 : 'Cluster 10',}
 
+plt.style.use('seaborn-darkgrid')
+bigfig, bigax = plt.subplots(nrows=4, ncols=2, figsize=(10,10))
 
-
-
-labels = asdf['label']
-
-data, asdf_new, traf_mat_unnormed = load_city('nyc', normalise=False)
-asdf_new['label'] = labels
-
-errors_mean = []
-errors_std = []
-for l in [3]:
-    
-    cluster = asdf_new['label'] == l
-    
-    cluster_stats = asdf[cluster]
-    cluster_traf_mat = traf_mat_unnormed[cluster]
-    
-    cluster_errors = np.zeros(shape=(len(cluster_stats), 48))
-    for i in range(len(cluster_stats)):
-        traffic_est = model.predict_daily_traffic(cluster_stats.iloc[i],
-                                                  predict_cluster=False,
-                                                  plotfig=False,
-                                                  verbose=False)
-        traffic_true = cluster_traf_mat[i]
+count=0
+for row in range(4):
+    for col in range(2):
         
-        cluster_errors[i,:] = traffic_true
+        city = cities[count]
         
-    errors_mean.append(np.mean(cluster_errors, axis=0))
-    errors_std.append(np.std(cluster_errors, axis=0))
+        data, asdf, traf_mat = load_city(city, normalise=True)
+        
+        model = FullModel(variables_list)
+        asdf=model.fit(asdf, traf_mat)
+        
+        labels = asdf.copy()['label']
+        
+        data, asdf_new, traf_mat_unnormed = load_city(city, normalise=False)
+        asdf_new['label'] = labels
+        
+        errors_mean = []
+        errors_std = []
+        for l in range(model.k):
+            
+            cluster = asdf_new['label'] == l
+            
+            cluster_stats = asdf[cluster]
+            cluster_traf_mat = traf_mat_unnormed[cluster]
+            
+            cluster_errors = np.zeros(shape=(len(cluster_stats), 24))
+            for i in range(len(cluster_stats)):
+                traffic_est = model.predict_daily_traffic(cluster_stats.iloc[i],
+                                                          predict_cluster=False,
+                                                          plotfig=False,
+                                                          verbose=False)
+                traffic_true = cluster_traf_mat[i]
+                
+                if dep_or_arr == 'departures':
+                    cluster_errors[i,:] = (traffic_est-traffic_true)[:24]
+                else:
+                    cluster_errors[i,:] = (traffic_est-traffic_true)[24:] 
+                
+            errors_mean.append(np.mean(cluster_errors, axis=0))
+            errors_std.append(np.std(cluster_errors, axis=0))
+        
+        for l in range(model.k):
+            bigax[row,col].plot(range(24), errors_mean[l], 
+                                label=cluster_name_dict[l])
+        
+        bigax[row,col].set_xticks(range(24))
+        
+        bigax[row,col].set_ylim(-4,4)
+        bigax[row,col].set_yticks(np.linspace(-4,4,9))
+        
+        if col==0:
+            bigax[row,col].set_ylabel('Mean error')
+        
+        if row==3:
+            bigax[row,col].set_xlabel('Hour')
+        
+        bigax[row,col].set_title(bs.name_dict[city])
+        count+=1
+        
+plt.tight_layout(h_pad=4)
+bigax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.2), ncol=len(bigax[3,0].get_lines()))
 
 
-# fig, ax = plt.subplots(figsize=(10,4))
-
-# for l in range(model.k):
-#     ax.plot(errors_mean[l], label=f'cluster {l}')
-
-# ax.set_ylabel('Error')
-# ax.legend()
-
-#%%
+#%% Plot predictions of all station vs. their true traffic
 
 model = FullModel(variables_list)
-model.fit(asdf, traf_mat)
+asdf=model.fit(asdf, traf_mat)
 
-labels = asdf['label']
+labels = asdf.copy()['label']
 
 data, asdf_new, traf_mat_unnormed = load_city('nyc', normalise=False)
 asdf_new['label'] = labels
@@ -415,7 +452,7 @@ traf_mat_clustered = traf_mat_unnormed[clustered]
 for i in range(len(stat_clustered)):
     
     traffic_est = model.predict_daily_traffic(stat_clustered.iloc[i],
-                                              predict_cluster=False,
+                                              predict_cluster=True,
                                               plotfig=False,
                                               verbose=False)
     traffic_true = traf_mat_clustered[i]
