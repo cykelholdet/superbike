@@ -170,7 +170,7 @@ def asdf_months(data, months, variables=None):
     return avg_stat_df_year
     
 
-def plot_intersections(nodes, nodes2=None, websocket_origin=None):
+def plot_intersections(nodes, nodes2=None, websocket_origin=None, polygons=None):
 
     tiles = gv.tile_sources.StamenTerrainRetina()
     tiles.opts(height=800, width=1600, active_tools=['wheel_zoom'])
@@ -190,8 +190,13 @@ def plot_intersections(nodes, nodes2=None, websocket_origin=None):
         plot2.opts(fill_color='blue', line_color='black', size=8)
 
         panelplot = pn.Column(tiles*plot, tiles*plot2)
+    elif polygons is not None:
+        plot2 = gv.Polygons(polygons['geometry'])
+        plot2.opts(alpha=0.7)
+        panelplot = pn.Column(tiles*plot2*plot)
     else:
         panelplot = pn.Column(tiles*plot)
+    
 
     tooltips = [
         ('highway', '@highway'),
@@ -768,7 +773,7 @@ if __name__ == "__main__":
     model_results = ipu.linear_regression(asdf, df_cols, triptype)
     
     minima = []
-    n_per = 100000000
+    n_per = 50000000
     
     rng = np.random.default_rng(42)
     
@@ -819,7 +824,7 @@ if __name__ == "__main__":
         
         n_permutations = np.floor(np.min((n_per, n_combinations*100))).astype(int)
         
-        population = rng.permuted(np.tile(x0, n_permutations).reshape(n_per, x0.size), axis=1)
+        population = rng.permuted(np.tile(x0, n_permutations).reshape(n_permutations, x0.size), axis=1)
         
         score = parallel_apply_along_axis(obj_fun, 1, population)
         if n_select > 1:
@@ -827,7 +832,13 @@ if __name__ == "__main__":
         else:
             cond = np.sum(population, axis=1)*200
         mask = np.where(cond > 100)
-        
+        if len(score[mask]) == 0:
+            print('mask condition not fulfilled, changing to 200')
+            mask = np.where(cond > 200)
+            if len(score[mask]) == 0:
+                print('mask condition not fulfilled, changing to 100')
+                mask = np.where(cond > 100)
+
         print(f"min: {population[np.argmin(score[mask])]}, score: {np.min(score[mask])}, condition = {cond[mask]}")
         
         
@@ -835,11 +846,39 @@ if __name__ == "__main__":
         # print(minimum.message)
         # minima.append(minimum)
         # selection_idx = np.argpartition(minimum.x, -n_select)[-n_select:]
-        minima.append([score, cond, population[np.argmin(score[mask])]])
+        # minima.append([np.min(score[mask]), population[np.argmin(score[mask])]])
+    
+    #%% Results
+    
+    results = [
+        [0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,],
+        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0,],
+        [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        ]
+    
+    results = [np.array(res) for res in results]
+    
+    selected_intersections = []
+    
+    for i, polygon in sub_polygons.iterrows():
+        int_exp = get_intersections(polygon['geometry'], data=data)
+        selected_intersections.append(int_exp[results[i] == 1])
+        
+    selected_intersections = pd.concat(selected_intersections)
     
     #%%
-    
-    bk = plot_intersections(int_exp[selection_so == 1], websocket_origin=('130.225.39.60'))
+    # int_exp[selection_so == 1]
+    bk = plot_intersections(selected_intersections, websocket_origin=('130.225.39.60'), polygons=sub_polygons)
     '''
     bk.stop()
     '''
