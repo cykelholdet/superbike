@@ -6,6 +6,8 @@ Created on Tue Apr 19 07:35:21 2022
 @author: ubuntu
 """
 
+import itertools
+
 import osmnx
 import numpy as np
 import pandas as pd
@@ -14,6 +16,8 @@ import geoviews as gv
 import panel as pn
 from bokeh.models import HoverTool
 import scipy.optimize as so
+from scipy.special import binom
+import matplotlib.pyplot as plt
 
 import interactive_plot_utils as ipu
 import bikeshare as bs
@@ -166,7 +170,7 @@ def asdf_months(data, months, variables=None):
     return avg_stat_df_year
     
 
-def plot_intersections(nodes, nodes2=None, websocket_origin=None):
+def plot_intersections(nodes, nodes2=None, websocket_origin=None, polygons=None):
 
     tiles = gv.tile_sources.StamenTerrainRetina()
     tiles.opts(height=800, width=1600, active_tools=['wheel_zoom'])
@@ -186,8 +190,13 @@ def plot_intersections(nodes, nodes2=None, websocket_origin=None):
         plot2.opts(fill_color='blue', line_color='black', size=8)
 
         panelplot = pn.Column(tiles*plot, tiles*plot2)
+    elif polygons is not None:
+        plot2 = gv.Polygons(polygons['geometry'])
+        plot2.opts(alpha=0.7)
+        panelplot = pn.Column(tiles*plot2*plot)
     else:
         panelplot = pn.Column(tiles*plot)
+    
 
     tooltips = [
         ('highway', '@highway'),
@@ -717,7 +726,10 @@ if __name__ == "__main__":
     data = bs.Data('nyc', 2019, 9)
     
     station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)   
-    sub_polygons = gpd.read_file('data/nyc/nyc_expansion_subdivision.geojson')
+    sub_polygons = gpd.read_file('data/nyc/nyc_expansion_subdivision_2.geojson')
+    
+    months = [1,2,3,4,5,6,7,8,9]
+    asdf = asdf_months(data, months)
     
     pops = []
     for polygon in sub_polygons['geometry']:
@@ -741,18 +753,132 @@ if __name__ == "__main__":
     
     sub_polygons['n_stations'] = n_stations
     
+    traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
+    cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
+            'pop_density', 'nearest_subway_dist', 'nearest_railway_dist']
+    day_type = 'business_days'
+    min_trips = 8
+    clustering = 'k_means'
+    k = 5
+    seed = 42
+    triptype = 'b_trips'
+    asdf, clusters, labels = get_clusters(
+        traffic_matrices, asdf, day_type, min_trips, clustering, k, seed)
+
+    if data.city in ['helsinki', 'oslo', 'madrid', 'london']:
+        df_cols = [col for col in cols if col != 'percent_industrial']
+    else:
+        df_cols = cols
+
+    model_results = ipu.linear_regression(asdf, df_cols, triptype)
+    
+    minima = []
+    n_per = 50000000
+    
+    rng = np.random.default_rng(42)
+    
     for i, polygon in sub_polygons.iterrows():
         int_exp = get_intersections(polygon['geometry'], data=data)
         point_info = get_point_info(data, int_exp, land_use, census_df)
         
         months = [1,2,3,4,5,6,7,8,9]
-        asdf = asdf_months(data, months)
+        # asdf = asdf_months(data, months)
         
         int_proj = int_exp.to_crs(data.laea_crs)
+        
+        n_stations = polygon['n_stations']
+        
+        n_combinations = binom(len(int_exp), n_stations)
+        fig, ax = plt.subplots()
+        gpd.GeoSeries(polygon['geometry']).plot(ax=ax)
+        int_exp.plot(ax=ax, color='red')
+        ax.set_title(f"{n_stations} stations : {n_combinations} combinations")
+        print(n_combinations)
+        
+        n = len(point_info)
+        
+        n_select = int(n_stations)
+        
+        distances = np.zeros((n, n))
+        for i in range(n):
+            distances[i] = int_proj.distance(int_proj.geometry.loc[i])
+            
+        
+        pred = model_results.predict(point_info[['const', *df_cols]])
+        
+        def obj_fun(x):
+            return -np.sum(x*pred)
+        
+        def condition(x):
+            xb = x.astype(bool)
+            return np.min(distances[xb][:,xb][distances[xb][:,xb] != 0])
+        
+        sum_constraint = so.LinearConstraint(np.array([[1]*n]), n_select, n_select)
+        sum_constraint = so.NonlinearConstraint(condition, 200, n_select)
+        bounds = so.Bounds([0]*n, [1]*n)
+        
+        x0 = np.zeros(n)
+        x0[:n_select] = 1
+        np.random.seed(42)
+        x0 = np.random.permutation(x0)
+        
+        n_permutations = np.floor(np.min((n_per, n_combinations*100))).astype(int)
+        
+        population = rng.permuted(np.tile(x0, n_permutations).reshape(n_permutations, x0.size), axis=1)
+        
+        score = parallel_apply_along_axis(obj_fun, 1, population)
+        if n_select > 1:
+            cond = parallel_apply_along_axis(condition, 1, population)
+        else:
+            cond = np.sum(population, axis=1)*200
+        mask = np.where(cond > 100)
+        if len(score[mask]) == 0:
+            print('mask condition not fulfilled, changing to 200')
+            mask = np.where(cond > 200)
+            if len(score[mask]) == 0:
+                print('mask condition not fulfilled, changing to 100')
+                mask = np.where(cond > 100)
+
+        print(f"min: {population[np.argmin(score[mask])]}, score: {np.min(score[mask])}, condition = {cond[mask]}")
+        
+        
+        # minimum = so.minimize(obj_fun, x0=x0, constraints=(sum_constraint), bounds=bounds, method='SLSQP', options={'maxiter': 10})
+        # print(minimum.message)
+        # minima.append(minimum)
+        # selection_idx = np.argpartition(minimum.x, -n_select)[-n_select:]
+        # minima.append([np.min(score[mask]), population[np.argmin(score[mask])]])
+    
+    #%% Results
+    
+    results = [
+        [0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,],
+        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0,],
+        [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        ]
+    
+    results = [np.array(res) for res in results]
+    
+    selected_intersections = []
+    
+    for i, polygon in sub_polygons.iterrows():
+        int_exp = get_intersections(polygon['geometry'], data=data)
+        selected_intersections.append(int_exp[results[i] == 1])
+        
+    selected_intersections = pd.concat(selected_intersections)
     
     #%%
-    
-    bk = plot_intersections(int_exp[selection_so == 1], websocket_origin=('130.225.39.60'))
+    # int_exp[selection_so == 1]
+    bk = plot_intersections(selected_intersections, websocket_origin=('130.225.39.60'), polygons=sub_polygons)
     '''
     bk.stop()
     '''
