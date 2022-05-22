@@ -1022,8 +1022,8 @@ def make_station_df(data, holidays=True, return_land_use=False,
     
     land_use['color'] = land_use['zone_type'].map(color_dict).fillna("pink")
     
+    # Get distance from city center in km
     df['center_dist'] = geodesic_distance(df, bs.city_center_dict[data.city])
-    
     
     if data.day is None:
         with open(f'./python_variables/station_df_{data.city}{data.year:d}{postfix}.pickle', 'wb') as file:
@@ -1298,8 +1298,7 @@ def pickle_asdf2(cities=None, variables=None, year=2019, month=None, n_cpus=mp.c
             pickle.dump(avg_stat_df_year, file)
         
         if [city] == cities:
-            return asdfs, var_df, avg_stat_df_year
-            
+            return avg_stat_df_year, var_df
 
 def nearest_transit(city, station_df):
     try:
@@ -1320,15 +1319,15 @@ def nearest_transit(city, station_df):
     
     nearest_subway = nearest_neighbor(df, subways[['geometry']])
     df['nearest_subway'] = nearest_subway['geometry']
-    df['nearest_subway_dist'] = nearest_subway['distance']
+    df['nearest_subway_dist'] = nearest_subway['distance']/1000  # m to km
     
     nearest_railway = nearest_neighbor(df, railways[['geometry']])
     df['nearest_railway'] = nearest_railway['geometry']
-    df['nearest_railway_dist'] = nearest_railway['distance']
+    df['nearest_railway_dist'] = nearest_railway['distance']/1000
     
     nearest_transit = nearest_neighbor(df, subways_df[['geometry']])
     df['nearest_transit'] = nearest_transit['geometry']
-    df['nearest_transit_dist'] = nearest_transit['distance']
+    df['nearest_transit_dist'] = nearest_transit['distance']/1000
     
     return df
 
@@ -1544,8 +1543,8 @@ def pop_density_in_service_area(station_df, census_df):
 
     Returns
     -------
-    pop_ds : list
-        weighted average population density for each station.
+    pop_ds : np array
+        weighted average population density per 100 m² for each station.
 
     """
     pop_ds = []
@@ -1556,7 +1555,7 @@ def pop_density_in_service_area(station_df, census_df):
         mask = (intersection != Polygon())
         sec_masked = intersection.loc[mask]
         pop_ds.append((cens_df.loc[mask, 'pop_density'] * sec_masked.area).sum() / station.area)
-    return pop_ds
+    return np.array(pop_ds)/10000  # Convert to population per 100 m²
 
 
 def stations_logistic_regression(station_df, zone_columns, other_columns, 
@@ -1575,7 +1574,7 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
     p_columns = [column for column in X.columns 
                   if 'percent_' in column]
     
-    nop_columns = [col[8:] for col in p_columns]
+    nop_columns = [col[8:] for col in p_columns]  # Remove 'percent_' prefix
     
     if use_points_or_percents == 'points':
         
@@ -1623,23 +1622,6 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
 
     X = X[~X.isna().any(axis=1)]
     
-    X_scaled = X.copy()
-    if 'n_trips' in X_scaled.columns:
-        X_scaled['n_trips'] = X_scaled['n_trips']/X_scaled['n_trips'].sum() # percentage of total trips
-    if 'b_trips' in X_scaled.columns:
-        X_scaled['b_trips'] = X_scaled['b_trips']/X_scaled['b_trips'].sum() # percentage of business trips
-    if 'w_trips' in X_scaled.columns:
-        X_scaled['w_trips'] = X_scaled['w_trips']/X_scaled['w_trips'].sum() # percentage of weekend trips
-    if 'nearest_subway_dist' in X_scaled.columns:
-        X_scaled['nearest_subway_dist'] = X_scaled['nearest_subway_dist']/1000 # Convert to km
-    if 'nearest_railway_dist' in X_scaled.columns:
-        X_scaled['nearest_railway_dist'] = X_scaled['nearest_railway_dist']/1000 # Convert to km
-    if 'nearest_transit_dist' in X_scaled.columns:
-        X_scaled['nearest_transit_dist'] = X_scaled['nearest_transit_dist']/1000 # Convert to km
-    
-    if 'pop_density' in X_scaled.columns:
-        X_scaled['pop_density'] = X_scaled['pop_density']/10000 # population per 100 m²
-    
     param_names = {'percent_industrial' : '% industrial',
                    'percent_commercial' : '% commercial',
                    'percent_residential' : '% residential',
@@ -1648,7 +1630,7 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
                    'pop_density' : 'pop density',
                    'nearest_subway_dist' : 'nearest subway dist'}
     
-    X_scaled = X_scaled.rename(param_names)
+    X = X.rename(param_names)
     
     if test_model:
         
@@ -1662,12 +1644,12 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
             else:
                 raise ValueError("test_seed must be an integer")
         
-        mask = np.random.rand(len(X_scaled)) < test_ratio
+        mask = np.random.rand(len(X)) < test_ratio
         
-        X_test = X_scaled[mask]
+        X_test = X[mask]
         y_test = y[mask]
         
-        X_train = X_scaled[~mask]
+        X_train = X[~mask]
         y_train = y[~mask]
         
         success_rate, cm, predictions = logistic_regression_test(X_train, y_train, 
@@ -1675,7 +1657,7 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
                                                     plot_cm=plot_cm,
                                                     normalise_cm=normalise_cm)
     
-    LR_model = MNLogit(y, X_scaled.rename(param_names))
+    LR_model = MNLogit(y, X.rename(param_names))
     
     try:
         LR_results = LR_model.fit_regularized(maxiter=10000)
@@ -1683,9 +1665,6 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
     except np.linalg.LinAlgError:
         print("Singular matrix")
         LR_results = None
-    
-    if return_scaled:
-        X = X_scaled
         
     if test_model:
         return LR_results, X, y, predictions
@@ -1746,19 +1725,10 @@ def linear_regression(df, cols, triptype):
     
     y = df[triptype][~X.isna().any(axis=1)]
     
-    y = np.log(y)
+    # y = np.log(np.log(y))
     
     X = X[~X.isna().any(axis=1)]
-    
-    X_scaled = X.copy()
-    if triptype in X_scaled.columns:
-        X_scaled[triptype] = X_scaled[triptype]/X_scaled[triptype].sum()
-    if 'nearest_subway_dist' in X_scaled.columns:
-        X_scaled['nearest_subway_dist'] = X_scaled['nearest_subway_dist']/1000
-    if 'pop_density' in X_scaled.columns:
-        X_scaled['pop_density'] = X_scaled['pop_density']/10000
-    
-        
+
     
     param_names = {'percent_industrial' : '% industrial',
                    'percent_commercial' : '% commercial',
@@ -1768,17 +1738,20 @@ def linear_regression(df, cols, triptype):
                    'pop_density' : 'pop density',
                    'nearest_subway_dist' : 'nearest subway dist'}
     
-    X_scaled = X_scaled.rename(param_names)
+    X = X.rename(param_names)
     
-    X_scaled = add_constant(X_scaled)
+    X = add_constant(X)
     
-    OLS_model = sm.OLS(y, X_scaled)
+    # OLS_model = sm.OLS(y, X)
+    # results = OLS_model.fit(maxiter=10000)
     
-    OLS_results = OLS_model.fit(maxiter=10000)
+    link = sm.genmod.families.links.log()
+    glm = sm.GLM(y, X, family=sm.families.Gaussian(link))
+    results= glm.fit(maxiter=10000)
     
-    print(OLS_results.summary())
+    print(results.summary())
     
-    return OLS_results
+    return results
 
 
 proj_wgs84 = pyproj.Proj('+proj=longlat +datum=WGS84')
@@ -1900,7 +1873,7 @@ def geodesic_distance(station_df, point):
     
     distances = coords.apply(dist)
     
-    return distances
+    return distances/1000  #Convert m to km
 
 
 def create_all_pickles(city, year, holidays=False, overwrite=False):
@@ -1923,7 +1896,8 @@ def create_all_pickles(city, year, holidays=False, overwrite=False):
                 pickle.dump(union, file)
             print('Done')
             
-        data.pickle_daily_traffic(holidays=holidays, overwrite=overwrite)
+        data.pickle_daily_traffic(holidays=holidays, overwrite=overwrite, return_std=False)
+        data.pickle_daily_traffic(holidays=holidays, overwrite=overwrite, return_std=True)
         
         for month in bs.get_valid_months(city, year):
             print(f"Pickling month = {month}")
@@ -1990,7 +1964,7 @@ if __name__ == "__main__":
 
     overwrite = True
     pre = time.time()
-    traffic_matrices = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=overwrite)
+    traffic_matrix = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=overwrite)
     station_df, land_use, census_df = make_station_df(data, holidays=False, 
                                                       return_land_use=True, return_census=True, 
                                                       overwrite=True)

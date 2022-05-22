@@ -7,6 +7,7 @@ Created on Tue Jan 18 09:30:43 2022
 from functools import partial
 import warnings
 import pickle
+import multiprocessing as mp
 
 import numpy as np
 import pandas as pd
@@ -581,7 +582,7 @@ def heatmap_grid(data, land_use, census_df, bounds, resolution):
             grid_points.append(Point((round(lat,4), round(lon,4))))
     
     
-    grid_points = gpd.GeoDataFrame(geometry=grid_points, crs='epsg:3857')
+    grid_points = gpd.GeoDataFrame(geometry=grid_points, crs=data.laea_crs)
     
     grid_points['coords'] = grid_points['geometry'].to_crs(epsg=4326)
             
@@ -601,10 +602,14 @@ def heatmap_grid(data, land_use, census_df, bounds, resolution):
 
     point_info = pd.DataFrame(index=percentages.index)
     point_info['const'] = 1.0
+    if data.city == 'madrid':
+        percentages['percent_industrial'] = 0
+
     point_info[['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational']] = percentages[['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational']]
-    point_info['pop_density'] = np.array(pop_density)/10000
-    point_info['nearest_subway_dist'] = nearest_subway['nearest_subway_dist']/1000
-    point_info['nearest_railway_dist'] = nearest_subway['nearest_railway_dist']/1000
+    point_info['pop_density'] = pop_density
+    point_info['nearest_subway_dist'] = nearest_subway['nearest_subway_dist']
+    point_info['nearest_railway_dist'] = nearest_subway['nearest_railway_dist']
+    point_info['center_dist'] = ipu.geodesic_distance(grid_points, bs.city_center_dict[data.city])
     
     return grid_points, point_info
 
@@ -633,7 +638,7 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
     else:
         npred = 1
     
-    nvars = 7
+    nvars = 8
     
     ntotal = nvars + npred
     nrows = int(np.ceil(ntotal / ncols))
@@ -663,6 +668,8 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
     plot_heatmap('nearest_subway_dist', grid_points, point_info, zlabel='Nearest subway dist. (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
     n += 1
     plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway dist. (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
+    n += 1
+    plot_heatmap('center_dist', grid_points, point_info, zlabel='Dist. to center (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
     
     if data.city in w_adjust.keys():
         plt.subplots_adjust(wspace=w_adjust[data.city])
@@ -673,9 +680,9 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
 
 
 def make_model_and_plot_heatmaps(
-        city, year, month, cols, modeltype='OLS', triptype='b_departures',
-        resolution=250, day_type='business_days', min_trips=8,
-        clustering='k_means', k=3, seed=42, train_cities=None):
+        city, year=2019, month=None, cols=None, modeltype='OLS', triptype='b_departures',
+        resolution=200, day_type='business_days', min_trips=8,
+        clustering='k_means', k=5, seed=42, train_cities=None, use_dtw=False):
     
     if train_cities == None:
         train_cities = [city]
@@ -685,7 +692,8 @@ def make_model_and_plot_heatmaps(
         data = bs.Data(tr_city, year, month)
     
         # station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
-        traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
+        traffic_matrix = data.pickle_daily_traffic(holidays=False, user_type='Subscriber', 
+                                                   day_type=day_type)
         # station_df, clusters, labels = get_clusters(
         #     traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
         
@@ -702,8 +710,8 @@ def make_model_and_plot_heatmaps(
         # asdf = asdf.reset_index(drop=True)
         
         asdf, clusters, labels = get_clusters(
-            traffic_matrices, asdf, day_type, min_trips, clustering, k, seed, 
-            use_dtw=True, city=tr_city)
+            traffic_matrix, asdf, day_type, min_trips, clustering, k, seed, 
+            use_dtw=use_dtw, city=tr_city)
         
         if tr_city in ['helsinki', 'oslo', 'madrid', 'london']:
             df_cols = [col for col in cols if col != 'percent_industrial']
@@ -733,15 +741,27 @@ def make_model_and_plot_heatmaps(
     station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
     title_test_prefix = f"{modeltype}_test_{city}"
 
+    # polygon = Polygon(
+    #     [(station_df['easting'].min()-1000, station_df['northing'].min()-1000),
+    #      (station_df['easting'].min()-1000, station_df['northing'].max()+1000),
+    #      (station_df['easting'].max()+1000, station_df['northing'].max()+1000),
+    #      (station_df['easting'].max()+1000, station_df['northing'].min()-1000)])
     polygon = Polygon(
-        [(station_df['easting'].min()-1000, station_df['northing'].min()-1000),
-         (station_df['easting'].min()-1000, station_df['northing'].max()+1000),
-         (station_df['easting'].max()+1000, station_df['northing'].max()+1000),
-         (station_df['easting'].max()+1000, station_df['northing'].min()-1000)])
+        [(station_df['long'].min(), station_df['lat'].min()),
+         (station_df['long'].min(), station_df['lat'].max()),
+         (station_df['long'].max(), station_df['lat'].max()),
+         (station_df['long'].max(), station_df['lat'].min())])
     
     latmin, lonmin, latmax, lonmax = polygon.bounds
     
-    grid_points, point_info = heatmap_grid(data, land_use, census_df, polygon.bounds, resolution)
+    polygon = gpd.GeoSeries(polygon, crs='epsg:4326').to_crs(data.laea_crs)
+    
+    bounds = (polygon.bounds['miny'][0]-1000,
+              polygon.bounds['minx'][0]-1000,
+              polygon.bounds['maxy'][0]+1000,
+              polygon.bounds['maxy'][0]+1000)
+    
+    grid_points, point_info = heatmap_grid(data, land_use, census_df, bounds, resolution)
     
     for model_results, tr_city in zip(models, train_cities):
         
@@ -814,20 +834,32 @@ def make_model_and_plot_heatmaps(
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=FutureWarning)
 
-    CITY = 'chicago'
+    CITY = 'madrid'
     YEAR = 2019
     MONTH = None
     
-    cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
-            'pop_density', 'nearest_subway_dist', 'nearest_railway_dist']
+    cols = ['percent_residential', 'percent_commercial', 'percent_recreational',
+            'pop_density', 'nearest_subway_dist', 'nearest_railway_dist', 'center_dist']
     triptype = 'b_trips'  # Only relevant for OLS
     resolution = 200  # Grid size in m
     modeltype = 'OLS'  # LR or OLS
     k = 5
     min_trips = 8
 
+    cities = ['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'madrid', 'london', 'oslo']
+    
+
+   #  heat_partial = partial(make_model_and_plot_heatmaps, (), {'year': YEAR, 'month': None, 'cols':cols, 'modeltype': modeltype, 'triptype': triptype, 'resolution': resolution, 'k':k, 'train_cities': cities, 'min_trips': min_trips})
+    
+   # # heat_partial = lambda city: make_model_and_plot_heatmaps( city, YEAR, MONTH, cols, modeltype=modeltype, triptype=triptype, resolution=resolution, k=k, train_cities=['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'madrid', 'london', 'oslo'], min_trips=min_trips)
+
+   #  with mp.Pool(mp.cpu_count()) as pool:
+   #      results = pool.map(heat_partial, cities)        
+
+    
+    
     grid_points, point_info = make_model_and_plot_heatmaps(
         CITY, YEAR, MONTH, cols, modeltype=modeltype, triptype=triptype,
-        resolution=resolution, k=k, train_cities=['nyc'],#['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'madrid', 'london', 'oslo'],
+        resolution=resolution, k=k, train_cities=['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'madrid', 'london', 'oslo'],
         min_trips=min_trips)
 

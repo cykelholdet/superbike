@@ -19,7 +19,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import rarfile
 import pyproj
-# import requests_cache
 
 from workalendar.europe import CommunityofMadrid, Finland, UnitedKingdom, \
     Norway, Edinburgh
@@ -29,8 +28,6 @@ from workalendar.asia import Taiwan
 from workalendar.america import Mexico, Argentina, Quebec
 
 import dataframe_key
-
-# requests_cache.install_cache(cache_name='elevation', backend='sqlite', expire_after=3600)
 
 
 
@@ -307,8 +304,8 @@ def get_data_month(city, year, month, blocklist=None, overwrite=False):
 
             df = df.rename(columns=dataframe_key.get_key(city))
 
-            df = df[~df['start_stat_id'].isin([382, 383, 223, 230, 164, 158])] # Filter out virtual stations
-            df = df[~df['end_stat_id'].isin([382, 383, 223, 230,  164, 158])]
+            df = df[~df['start_stat_id'].isin([382, 383, 308, 223, 230, 164, 158])] # Filter out virtual stations
+            df = df[~df['end_stat_id'].isin([382, 383, 308, 223, 230,  164, 158])]
 
             # Merge stations which have the same coordinates and harmonise names.
             merge_id_dict = {241: 336, 242: 337, 254: 348, 256: 349, 263: 353}
@@ -2644,7 +2641,8 @@ class Data:
 
 
     def pickle_daily_traffic(self, normalise=True, plot=False, overwrite=False, 
-                             holidays=True, user_type='all', return_std=False):
+                             holidays=True, user_type='all', day_type='business_days',
+                             return_std=False):
         """
         Pickles matrices containing the average number of departures and
         arrivals to and from each station for every hour. One matrix
@@ -2677,7 +2675,14 @@ class Data:
                 try:
                     with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}_std.pickle', 'rb') as file:
                         matrix_b, matrix_w, matrix_b_std, matrix_w_std = pickle.load(file)
-                    return (matrix_b, matrix_w), (matrix_b_std, matrix_w_std)
+                    
+                    if day_type == 'business_days':
+                        return matrix_b, matrix_b_std
+                    elif day_type == 'weekend':
+                        return matrix_w, matrix_w_std                
+                    else:
+                        raise ValueError("Please provide either 'business_days' or 'weekend' as day_type")
+                    
                 except FileNotFoundError:
                     print("Daily traffic pickle not found with stds")
             
@@ -2686,7 +2691,13 @@ class Data:
                 try:
                     with open(f'./python_variables/daily_traffic_{self.city}{self.year:d}{monstr}.pickle', 'rb') as file:
                         matrix_b, matrix_w = pickle.load(file)
-                    return matrix_b, matrix_w
+                    if day_type == 'business_days':
+                        return matrix_b
+                    elif day_type == 'weekend':
+                        return matrix_w                
+                    else:
+                        raise ValueError("Please provide either 'business_days' or 'weekend' as day_type")
+                    
                 except FileNotFoundError:
                     print("Daily traffic pickle not found")
         
@@ -2778,10 +2789,22 @@ class Data:
         print(f'Pickling daily traffic done. Time taken: {(time.time()-pre):.1f} s')
         
         if return_std:
-            return (matrix_b, matrix_w), (matrix_b_std, matrix_w_std)
+            
+            if day_type == 'business_days':
+                return matrix_b, matrix_b_std
+            elif day_type == 'weekend':
+                return matrix_w, matrix_w_std                
+            else:
+                raise ValueError("Please provide either 'business_days' or 'weekend' as day_type")
+            
         else:
-            return matrix_b, matrix_w
-
+            if day_type == 'business_days':
+                return matrix_b
+            elif day_type == 'weekend':
+                return matrix_w                
+            else:
+                raise ValueError("Please provide either 'business_days' or 'weekend' as day_type")
+            
 
     def df_subset(self, days='all', hours='all', minutes='all', activity_type='all'):
         """

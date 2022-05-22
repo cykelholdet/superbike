@@ -6,6 +6,8 @@ Created on Tue Apr 19 07:35:21 2022
 @author: ubuntu
 """
 
+import itertools
+
 import osmnx
 import numpy as np
 import pandas as pd
@@ -13,16 +15,38 @@ import geopandas as gpd
 import geoviews as gv
 import panel as pn
 from bokeh.models import HoverTool
+import scipy.optimize as so
+from scipy.special import binom
+import matplotlib.pyplot as plt
 
 import interactive_plot_utils as ipu
 import bikeshare as bs
+from clustering import get_clusters
 
 
-def get_intersections(data, station_df, merge_tolerance=20, custom_filter=None):
-    
-    extent = (station_df['lat'].max(), station_df['lat'].min(), 
-          station_df['long'].max(), station_df['long'].min())
-    
+def get_intersections(polygon=None, data=None, station_df=None, merge_tolerance=20, custom_filter=None):
+    """
+    Obtain intersections in polygon. If polygon is none, get intersections in
+    rectangular bounding box around stations in station_df.
+
+    Parameters
+    ----------
+    data : TYPE
+        DESCRIPTION.
+    station_df : TYPE
+        DESCRIPTION.
+    merge_tolerance : TYPE, optional
+        DESCRIPTION. The default is 20.
+    custom_filter : TYPE, optional
+        DESCRIPTION. The default is None.
+
+    Returns
+    -------
+    nodes_gdf : TYPE
+        DESCRIPTION.
+
+    """
+    # Tolerance for distance between points in m (defualt 10m)
     if custom_filter == None:
         custom_filter = (
             '["highway"]["area"!~"yes"]["access"!~"private"]'
@@ -30,11 +54,27 @@ def get_intersections(data, station_df, merge_tolerance=20, custom_filter=None):
             'motor|planned|platform|proposed|raceway|steps|service|motorway|motorway_link|track|path"]'
             '["bicycle"!~"no"]["service"!~"private"]'
             )
+        
     
-    gra = osmnx.graph.graph_from_bbox(
-        *extent, custom_filter=custom_filter, retain_all=True)
-    gra_projected = osmnx.projection.project_graph(gra)
-# Tolerance for distance between points in m (defualt 10m)
+    if polygon == None:
+        extent = (station_df['lat'].max(), station_df['lat'].min(), 
+              station_df['long'].max(), station_df['long'].min())
+        
+        gra = osmnx.graph.graph_from_bbox(
+            *extent, custom_filter=custom_filter, retain_all=True)
+    
+    else:
+        gra = osmnx.graph.graph_from_polygon(
+            polygon=polygon, custom_filter=custom_filter, retain_all=True)
+        
+    
+    if data != None:
+        crs = data.laea_crs
+    else:
+        crs = None
+    
+    gra_projected = osmnx.projection.project_graph(gra, to_crs=crs)
+    
     
     # gra_projected_simplified = osmnx.simplification.consolidate_intersections(gra_projected, tolerance=tol)
     # gra_simplified = osmnx.projection.project_graph(gra_projected_simplified, to_crs='epsg:4326')
@@ -53,7 +93,84 @@ def get_intersections(data, station_df, merge_tolerance=20, custom_filter=None):
     return nodes_gdf
 
 
-def plot_intersections(nodes, nodes2=None, websocket_origin=None):
+def get_point_info(data, nodes, land_use, census_df):
+    neighborhoods = ipu.point_neighborhoods(nodes['geometry'], land_use)
+
+    nodes = nodes.join(neighborhoods)
+
+    service_area, service_area_size = ipu.get_service_area(data, nodes, land_use, voronoi=False)
+    
+    nodes['service_area'] = service_area
+    
+    percentages = ipu.neighborhood_percentages(data, nodes, land_use)
+    pop_density = ipu.pop_density_in_service_area(nodes, census_df)
+    nearest_subway = ipu.nearest_transit(data.city, nodes)
+
+    point_info = pd.DataFrame(index=percentages.index)
+    point_info['const'] = 1.0
+    point_info[['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational']] = percentages[['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational']]
+    point_info['pop_density'] = np.array(pop_density)
+    point_info['nearest_subway_dist'] = nearest_subway['nearest_subway_dist']
+    point_info['nearest_railway_dist'] = nearest_subway['nearest_railway_dist']
+    
+    return point_info
+
+
+def asdf_months(data, months, variables=None):
+    
+    if variables is None:
+        variables = ['percent_residential', 'percent_commercial',
+                     'percent_recreational', 'percent_industrial',
+                     'percent_mixed', 'percent_transportation', 
+                     'percent_educational', 'percent_road', 'percent_UNKNOWN',
+                     'pop_density', 'nearest_subway_dist', 'nearest_railway_dist',
+                     'nearest_transit_dist', 'center_dist', 'n_trips', 'b_trips', 'w_trips']
+    
+    stat_ids = list(data.stat.id_index.keys())
+    
+    asdfs = dict()
+    counts = dict()
+    
+    avg_stat_df_year = pd.DataFrame()
+    avg_stat_df_year['stat_id'] = stat_ids
+    
+    # make/load asdfs for each month
+    for month in months:
+        asdfs[month], counts[month] = ipu.pickle_asdf_month(
+            data.city, data.year, month, variables=variables, 
+            return_counts=True, overwrite=False,)
+    
+    for var in variables:
+        
+        counts_df = pd.DataFrame()
+        counts_df['stat_id'] = stat_ids
+        
+        var_df = pd.DataFrame()
+        var_df['stat_id'] = stat_ids
+        
+        
+        for month in months:
+            asdf, count = asdfs[month], counts[month]
+            
+            if var in asdf.columns:
+                var_df = var_df.merge(asdf[['stat_id', var]], 
+                                      on='stat_id', how='outer')
+                var_df.rename({var: month}, axis=1, inplace=True)
+
+                counts_df = counts_df.merge(count[['stat_id', var]],
+                                            on='stat_id', how='outer')
+                counts_df.rename({var: month}, axis=1, inplace=True)
+
+        var_df = var_df.drop('stat_id', axis=1)
+        counts_df = counts_df.drop('stat_id', axis=1)
+        var_df = var_df.mul(counts_df)
+        
+        avg_stat_df_year[var] = var_df.sum(axis=1)/counts_df.sum(axis=1)
+    
+    return avg_stat_df_year
+    
+
+def plot_intersections(nodes, nodes2=None, websocket_origin=None, polygons=None):
 
     tiles = gv.tile_sources.StamenTerrainRetina()
     tiles.opts(height=800, width=1600, active_tools=['wheel_zoom'])
@@ -73,8 +190,13 @@ def plot_intersections(nodes, nodes2=None, websocket_origin=None):
         plot2.opts(fill_color='blue', line_color='black', size=8)
 
         panelplot = pn.Column(tiles*plot, tiles*plot2)
+    elif polygons is not None:
+        plot2 = gv.Polygons(polygons['geometry'])
+        plot2.opts(alpha=0.7)
+        panelplot = pn.Column(tiles*plot2*plot)
     else:
         panelplot = pn.Column(tiles*plot)
+    
 
     tooltips = [
         ('highway', '@highway'),
@@ -89,6 +211,8 @@ def plot_intersections(nodes, nodes2=None, websocket_origin=None):
     return bokeh_plot
 
 
+#%%
+
 if __name__ == "__main__":
     city = 'nyc'
     year = 2019
@@ -96,7 +220,7 @@ if __name__ == "__main__":
     data = bs.Data(city, year, None)
     station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
     
-    intersections = get_intersections(data, station_df)
+    intersections = get_intersections(data=data, station_df=station_df)
     
     
     
@@ -104,20 +228,20 @@ if __name__ == "__main__":
 
     intersections = intersections.join(neighborhoods)
 
-    service_area, service_area_size = ipu.get_service_area(data.city, intersections, land_use, voronoi=False)
+    service_area, service_area_size = ipu.get_service_area(data, intersections, land_use, voronoi=False)
     
     intersections['service_area'] = service_area
     
-    percentages = ipu.neighborhood_percentages(city, intersections, land_use)
+    percentages = ipu.neighborhood_percentages(data, intersections, land_use)
     pop_density = ipu.pop_density_in_service_area(intersections, census_df)
     nearest_subway = ipu.nearest_transit(city, intersections)
 
     point_info = pd.DataFrame(index=percentages.index)
     point_info['const'] = 1.0
     point_info[['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational']] = percentages[['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational']]
-    point_info['pop_density'] = np.array(pop_density)/10000
-    point_info['nearest_subway_dist'] = nearest_subway['nearest_subway_dist']/1000
-    point_info['nearest_railway_dist'] = nearest_subway['nearest_railway_dist']/1000
+    point_info['pop_density'] = np.array(pop_density)
+    point_info['nearest_subway_dist'] = nearest_subway['nearest_subway_dist']
+    point_info['nearest_railway_dist'] = nearest_subway['nearest_railway_dist']
     
     import scipy.optimize as so
     import cvxpy
@@ -170,10 +294,10 @@ if __name__ == "__main__":
 
     # station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
     traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
-    # station_df, clusters, labels = ipu.get_clusters(
+    # station_df, clusters, labels = get_clusters(
     #     traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
     
-    # asdf, clusters, labels = ipu.get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
+    # asdf, clusters, labels = get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
     try:
         with open(f'./python_variables/{data.city}{year}_avg_stat_df.pickle', 'rb') as file:
             asdf = pickle.load(file)
@@ -185,7 +309,7 @@ if __name__ == "__main__":
     # asdf = asdf[mask]
     # asdf = asdf.reset_index(drop=True)
     
-    asdf, clusters, labels = ipu.get_clusters(
+    asdf, clusters, labels = get_clusters(
         traffic_matrices, asdf, day_type, min_trips, clustering, k, seed)
     
     if city in ['helsinki', 'oslo', 'madrid', 'london']:
@@ -193,7 +317,7 @@ if __name__ == "__main__":
     else:
         df_cols = cols
     
-    model_results = logistic_regression.linear_regression(asdf, df_cols, triptype)
+    model_results = ipu.linear_regression(asdf, df_cols, triptype)
     
     pred = model_results.predict(point_info[['const', *df_cols]])
     
@@ -265,7 +389,7 @@ if __name__ == "__main__":
     np.random.seed(42)
     x0 = np.random.permutation(x0)
     
-    minimum = so.minimize(obj_fun, x0=x0, constraints=(sum_constraint), bounds=bounds, method='SLSQP', options={'maxiter': 1})
+    minimum = so.minimize(obj_fun, x0=x0, constraints=(sum_constraint), bounds=bounds, method='SLSQP', options={'maxiter': 2})
     
     selection_idx = np.argpartition(minimum.x, -n_select)[-n_select:]
     
@@ -522,9 +646,239 @@ if __name__ == "__main__":
     
     model.run()
     
-    #%%
     
-    bk = plot_intersections(intersections[selection_score == 1], websocket_origin=('130.225.39.60'))
+    #%% Expansion area.
+    
+    city = 'nyc'
+    
+    data = bs.Data(city, 2019, 9)
+    station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
+    expansion_area = gpd.read_file('data/nyc/expansion_2019_area.geojson')
+    int_exp = get_intersections(expansion_area.loc[0, 'geometry'], data=data)
+    point_info = get_point_info(data, int_exp, land_use, census_df)
+    
+    months = [1,2,3,4,5,6,7,8,9]
+    asdf = asdf_months(data, months)
+    
+    int_proj = int_exp.to_crs(data.laea_crs)
+    
+    n = len(int_proj)
+    
+    distances = np.zeros((n, n))
+    for i in range(n):
+        distances[i] = int_proj.distance(int_proj.geometry.loc[i])
+
+
+    traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
+    cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
+            'pop_density', 'nearest_subway_dist', 'nearest_railway_dist']
+    day_type = 'business_days'
+    min_trips = 8
+    clustering = 'k_means'
+    k = 5
+    seed = 42
+    triptype = 'b_trips'
+    asdf, clusters, labels = get_clusters(
+        traffic_matrices, asdf, day_type, min_trips, clustering, k, seed)
+
+    if city in ['helsinki', 'oslo', 'madrid', 'london']:
+        df_cols = [col for col in cols if col != 'percent_industrial']
+    else:
+        df_cols = cols
+
+    model_results = ipu.linear_regression(asdf, df_cols, triptype)
+
+    pred = model_results.predict(point_info[['const', *df_cols]])
+    
+    
+    n = len(point_info)
+    
+    n_select = 10
+    
+    def obj_fun(x):
+        return -np.sum(x*pred)
+    
+    def condition(x):
+        xb = x.astype(bool)
+        return np.min(distances[xb][:,xb][distances[xb][:,xb] != 0])
+    
+    sum_constraint = so.LinearConstraint(np.array([[1]*n]), n_select, n_select)
+    sum_constraint = so.NonlinearConstraint(condition, 200, n_select)
+    bounds = so.Bounds([0]*n, [1]*n)
+    
+    x0 = np.zeros(n)
+    x0[:n_select] = 1
+    np.random.seed(42)
+    x0 = np.random.permutation(x0)
+    
+    minimum = so.minimize(obj_fun, x0=x0, constraints=(sum_constraint), bounds=bounds, method='SLSQP', options={'maxiter': 10})
+    
+    selection_idx = np.argpartition(minimum.x, -n_select)[-n_select:]
+    
+    selection_so = np.zeros(n)
+    selection_so[selection_idx] = 1
+    
+    
+    #%% Expansion subdivision
+    
+    # First step: Determine how many stations to place in each subpolygon.
+    
+    data = bs.Data('nyc', 2019, 9)
+    
+    station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)   
+    sub_polygons = gpd.read_file('data/nyc/nyc_expansion_subdivision_2.geojson')
+    
+    months = [1,2,3,4,5,6,7,8,9]
+    asdf = asdf_months(data, months)
+    
+    pops = []
+    for polygon in sub_polygons['geometry']:
+        intersections = census_df.intersection(polygon)
+        selection = ~intersections.is_empty
+        census_intersect = census_df.loc[selection, 'pop_density']
+        # Area in km²
+        areas = intersections[selection].to_crs(data.laea_crs).area/1000000
+        population = np.sum(areas * census_intersect)
+        pops.append(population)
+    
+    sub_polygons['population'] = pops
+    
+    # Number of stations per person
+    station_density = len(station_df) / station_df['population'].sum()
+    
+    proportional_n_stations = sub_polygons['population'] * station_density
+    
+    # Scale up and round to add up to 60
+    n_stations = np.floor(proportional_n_stations*3.15)
+    
+    sub_polygons['n_stations'] = n_stations
+    
+    traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
+    cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
+            'pop_density', 'nearest_subway_dist', 'nearest_railway_dist']
+    day_type = 'business_days'
+    min_trips = 8
+    clustering = 'k_means'
+    k = 5
+    seed = 42
+    triptype = 'b_trips'
+    asdf, clusters, labels = get_clusters(
+        traffic_matrices, asdf, day_type, min_trips, clustering, k, seed)
+
+    if data.city in ['helsinki', 'oslo', 'madrid', 'london']:
+        df_cols = [col for col in cols if col != 'percent_industrial']
+    else:
+        df_cols = cols
+
+    model_results = ipu.linear_regression(asdf, df_cols, triptype)
+    
+    minima = []
+    n_per = 50000000
+    
+    rng = np.random.default_rng(42)
+    
+    for i, polygon in sub_polygons.iterrows():
+        int_exp = get_intersections(polygon['geometry'], data=data)
+        point_info = get_point_info(data, int_exp, land_use, census_df)
+        
+        months = [1,2,3,4,5,6,7,8,9]
+        # asdf = asdf_months(data, months)
+        
+        int_proj = int_exp.to_crs(data.laea_crs)
+        
+        n_stations = polygon['n_stations']
+        
+        n_combinations = binom(len(int_exp), n_stations)
+        fig, ax = plt.subplots()
+        gpd.GeoSeries(polygon['geometry']).plot(ax=ax)
+        int_exp.plot(ax=ax, color='red')
+        ax.set_title(f"{n_stations} stations : {n_combinations} combinations")
+        print(n_combinations)
+        
+        n = len(point_info)
+        
+        n_select = int(n_stations)
+        
+        distances = np.zeros((n, n))
+        for i in range(n):
+            distances[i] = int_proj.distance(int_proj.geometry.loc[i])
+            
+        
+        pred = model_results.predict(point_info[['const', *df_cols]])
+        
+        def obj_fun(x):
+            return -np.sum(x*pred)
+        
+        def condition(x):
+            xb = x.astype(bool)
+            return np.min(distances[xb][:,xb][distances[xb][:,xb] != 0])
+        
+        sum_constraint = so.LinearConstraint(np.array([[1]*n]), n_select, n_select)
+        sum_constraint = so.NonlinearConstraint(condition, 200, n_select)
+        bounds = so.Bounds([0]*n, [1]*n)
+        
+        x0 = np.zeros(n)
+        x0[:n_select] = 1
+        np.random.seed(42)
+        x0 = np.random.permutation(x0)
+        
+        n_permutations = np.floor(np.min((n_per, n_combinations*100))).astype(int)
+        
+        population = rng.permuted(np.tile(x0, n_permutations).reshape(n_permutations, x0.size), axis=1)
+        
+        score = parallel_apply_along_axis(obj_fun, 1, population)
+        if n_select > 1:
+            cond = parallel_apply_along_axis(condition, 1, population)
+        else:
+            cond = np.sum(population, axis=1)*200
+        mask = np.where(cond > 100)
+        if len(score[mask]) == 0:
+            print('mask condition not fulfilled, changing to 200')
+            mask = np.where(cond > 200)
+            if len(score[mask]) == 0:
+                print('mask condition not fulfilled, changing to 100')
+                mask = np.where(cond > 100)
+
+        print(f"min: {population[np.argmin(score[mask])]}, score: {np.min(score[mask])}, condition = {cond[mask]}")
+        
+        
+        # minimum = so.minimize(obj_fun, x0=x0, constraints=(sum_constraint), bounds=bounds, method='SLSQP', options={'maxiter': 10})
+        # print(minimum.message)
+        # minima.append(minimum)
+        # selection_idx = np.argpartition(minimum.x, -n_select)[-n_select:]
+        # minima.append([np.min(score[mask]), population[np.argmin(score[mask])]])
+    
+    #%% Results
+    
+    results = [
+        [0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,],
+        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0,],
+        [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+        ]
+    
+    results = [np.array(res) for res in results]
+    
+    selected_intersections = []
+    
+    for i, polygon in sub_polygons.iterrows():
+        int_exp = get_intersections(polygon['geometry'], data=data)
+        selected_intersections.append(int_exp[results[i] == 1])
+        
+    selected_intersections = pd.concat(selected_intersections)
+    
+    #%%
+    # int_exp[selection_so == 1]
+    bk = plot_intersections(selected_intersections, websocket_origin=('130.225.39.60'), polygons=sub_polygons)
     '''
     bk.stop()
     '''
