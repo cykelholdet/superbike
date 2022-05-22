@@ -969,7 +969,7 @@ if __name__ == "__main__":
     
     # set polygon
     
-    batch_size = 100000
+    batch_size = 1000000
     n_iters = 100
     elite_percentage = 0.2
     random_percentage = 0.2
@@ -978,7 +978,7 @@ if __name__ == "__main__":
     
     mutation_bits = 1
     
-    n_iters = 4
+    n_iters = 100
     
     n_elite = int(batch_size*elite_percentage)
     n_random = int(batch_size*random_percentage)
