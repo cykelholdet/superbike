@@ -221,112 +221,112 @@ def plot_intersections(nodes, nodes2=None, websocket_origin=None, polygons=None,
 # #%%
 
 if __name__ == "__main__":
-    city = 'nyc'
-    year = 2019
+#     city = 'nyc'
+#     year = 2019
     
-    data = bs.Data(city, year, None)
-    station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
+#     data = bs.Data(city, year, None)
+#     station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
     
-    intersections = get_intersections(data=data, station_df=station_df)
+#     intersections = get_intersections(data=data, station_df=station_df)
     
     
     
-    neighborhoods = ipu.point_neighborhoods(intersections['geometry'], land_use)
+#     neighborhoods = ipu.point_neighborhoods(intersections['geometry'], land_use)
 
-    intersections = intersections.join(neighborhoods)
+#     intersections = intersections.join(neighborhoods)
 
-    service_area, service_area_size = ipu.get_service_area(data, intersections, land_use, voronoi=False)
+#     service_area, service_area_size = ipu.get_service_area(data, intersections, land_use, voronoi=False)
     
-    intersections['service_area'] = service_area
+#     intersections['service_area'] = service_area
     
-    percentages = ipu.neighborhood_percentages(data, intersections, land_use)
-    pop_density = ipu.pop_density_in_service_area(intersections, census_df)
-    nearest_subway = ipu.nearest_transit(city, intersections)
+#     percentages = ipu.neighborhood_percentages(data, intersections, land_use)
+#     pop_density = ipu.pop_density_in_service_area(intersections, census_df)
+#     nearest_subway = ipu.nearest_transit(city, intersections)
 
-    point_info = pd.DataFrame(index=percentages.index)
-    point_info['const'] = 1.0
-    point_info[['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational']] = percentages[['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational']]
-    point_info['pop_density'] = np.array(pop_density)
-    point_info['nearest_subway_dist'] = nearest_subway['nearest_subway_dist']
-    point_info['nearest_railway_dist'] = nearest_subway['nearest_railway_dist']
+#     point_info = pd.DataFrame(index=percentages.index)
+#     point_info['const'] = 1.0
+#     point_info[['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational']] = percentages[['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational']]
+#     point_info['pop_density'] = np.array(pop_density)
+#     point_info['nearest_subway_dist'] = nearest_subway['nearest_subway_dist']
+#     point_info['nearest_railway_dist'] = nearest_subway['nearest_railway_dist']
     
-#     import scipy.optimize as so
-#     import cvxpy
+# #     import scipy.optimize as so
+# #     import cvxpy
     
-#     def obj_fun(C):
-#         d = np.array([0.5, 0.6, 0.8, 0.9])
-#         return -np.sum(C*d)
+# #     def obj_fun(C):
+# #         d = np.array([0.5, 0.6, 0.8, 0.9])
+# #         return -np.sum(C*d)
     
-#     def con_fun(C):
-#         return np.sum(C)
+# #     def con_fun(C):
+# #         return np.sum(C)
     
-#     def con_val(C):
-#         return ((C == [1,1,1,1]) + (C == [0,0,0,0])).astype(int)
+# #     def con_val(C):
+# #         return ((C == [1,1,1,1]) + (C == [0,0,0,0])).astype(int)
     
-#     sum_constraint = so.LinearConstraint(np.array([1,1,1,1]), 2, 2)
+# #     sum_constraint = so.LinearConstraint(np.array([1,1,1,1]), 2, 2)
     
-#     sum_constraint = so.NonlinearConstraint(con_fun, 2, 2)
+# #     sum_constraint = so.NonlinearConstraint(con_fun, 2, 2)
     
-#     val_constraint = so.Bounds([0, 0, 0, 0], [1, 1, 1, 1])
+# #     val_constraint = so.Bounds([0, 0, 0, 0], [1, 1, 1, 1])
     
-#     so.minimize(obj_fun, x0=np.array([0, 1, 0, 1]), constraints=(sum_constraint), bounds=val_constraint)
+# #     so.minimize(obj_fun, x0=np.array([0, 1, 0, 1]), constraints=(sum_constraint), bounds=val_constraint)
     
     
-#     data = np.array([0.5, 0.6, 0.8, 0.9])
+# #     data = np.array([0.5, 0.6, 0.8, 0.9])
     
-#     selection = cvxpy.Variable(shape=4, boolean=True)
+# #     selection = cvxpy.Variable(shape=4, boolean=True)
     
-#     constraint = cvxpy.sum(selection) == 2
+# #     constraint = cvxpy.sum(selection) == 2
 
-#     cost = cvxpy.sum(cvxpy.multiply(selection, data))
+# #     cost = cvxpy.sum(cvxpy.multiply(selection, data))
     
-#     problem = cvxpy.Problem(cvxpy.Maximize(cost), constraints=[constraint])
+# #     problem = cvxpy.Problem(cvxpy.Maximize(cost), constraints=[constraint])
     
-#     score = problem.solve(solver=cvxpy.GLPK_MI)
+# #     score = problem.solve(solver=cvxpy.GLPK_MI)
     
-    import pickle
-    import logistic_regression
-    import shapely
+#     import pickle
+#     import logistic_regression
+#     import shapely
     
-    cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
-            'pop_density', 'nearest_subway_dist', 'nearest_railway_dist']
-    day_type = 'business_days'
-    min_trips = 8
-    clustering = 'k_means'
-    k = 5
-    seed = 42
-    triptype = 'b_trips'
+#     cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
+#             'pop_density', 'nearest_subway_dist', 'nearest_railway_dist']
+#     day_type = 'business_days'
+#     min_trips = 8
+#     clustering = 'k_means'
+#     k = 5
+#     seed = 42
+#     triptype = 'b_trips'
     
-    data = bs.Data(city, year, None)
+#     data = bs.Data(city, year, None)
 
-    # station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
-    traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
-    # station_df, clusters, labels = get_clusters(
-    #     traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
+#     # station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
+#     traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
+#     # station_df, clusters, labels = get_clusters(
+#     #     traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
     
-    # asdf, clusters, labels = get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
-    try:
-        with open(f'./python_variables/{data.city}{year}_avg_stat_df.pickle', 'rb') as file:
-            asdf = pickle.load(file)
-    except FileNotFoundError:
-        raise FileNotFoundError(f'The average station DataFrame for {data.city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
+#     # asdf, clusters, labels = get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
+#     try:
+#         with open(f'./python_variables/{data.city}{year}_avg_stat_df.pickle', 'rb') as file:
+#             asdf = pickle.load(file)
+#     except FileNotFoundError:
+#         raise FileNotFoundError(f'The average station DataFrame for {data.city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
         
-    # mask = ~asdf['n_trips'].isna()
+#     # mask = ~asdf['n_trips'].isna()
     
-    # asdf = asdf[mask]
-    # asdf = asdf.reset_index(drop=True)
+#     # asdf = asdf[mask]
+#     # asdf = asdf.reset_index(drop=True)
     
-    asdf, clusters, labels = get_clusters(
-        traffic_matrices, asdf, day_type, min_trips, clustering, k, seed)
+#     asdf, clusters, labels = get_clusters(
+#         traffic_matrices, asdf, day_type, min_trips, clustering, k, seed)
     
-    if city in ['helsinki', 'oslo', 'madrid', 'london']:
-        df_cols = [col for col in cols if col != 'percent_industrial']
-    else:
-        df_cols = cols
+#     if city in ['helsinki', 'oslo', 'madrid', 'london']:
+#         df_cols = [col for col in cols if col != 'percent_industrial']
+#     else:
+#         df_cols = cols
     
-    model_results = ipu.linear_regression(asdf, df_cols, triptype)
+#     model_results = ipu.linear_regression(asdf, df_cols, triptype)
     
-    pred = model_results.predict(point_info[['const', *df_cols]])
+#     pred = model_results.predict(point_info[['const', *df_cols]])
     
 #     #%%
     
@@ -963,13 +963,13 @@ if __name__ == "__main__":
     model_results = ipu.linear_regression(asdf, df_cols, triptype)
     
     minima = []
-    n_per = 100000
+    # n_per = 100000
     
     rng = np.random.default_rng(42)
     
     # set polygon
     
-    batch_size = 100000
+    batch_size = 1000000
     n_iters = 100
     elite_percentage = 0.2
     random_percentage = 0.2
@@ -977,8 +977,6 @@ if __name__ == "__main__":
     mutated_percentage = 0.6
     
     mutation_bits = 1
-    
-    n_iters = 4
     
     n_elite = int(batch_size*elite_percentage)
     n_random = int(batch_size*random_percentage)
