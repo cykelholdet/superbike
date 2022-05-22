@@ -211,7 +211,7 @@ def plot_intersections(nodes, nodes2=None, websocket_origin=None, polygons=None)
     return bokeh_plot
 
 
-#%%
+# #%%
 
 if __name__ == "__main__":
     city = 'nyc'
@@ -243,39 +243,39 @@ if __name__ == "__main__":
     point_info['nearest_subway_dist'] = nearest_subway['nearest_subway_dist']
     point_info['nearest_railway_dist'] = nearest_subway['nearest_railway_dist']
     
-    import scipy.optimize as so
-    import cvxpy
+#     import scipy.optimize as so
+#     import cvxpy
     
-    def obj_fun(C):
-        d = np.array([0.5, 0.6, 0.8, 0.9])
-        return -np.sum(C*d)
+#     def obj_fun(C):
+#         d = np.array([0.5, 0.6, 0.8, 0.9])
+#         return -np.sum(C*d)
     
-    def con_fun(C):
-        return np.sum(C)
+#     def con_fun(C):
+#         return np.sum(C)
     
-    def con_val(C):
-        return ((C == [1,1,1,1]) + (C == [0,0,0,0])).astype(int)
+#     def con_val(C):
+#         return ((C == [1,1,1,1]) + (C == [0,0,0,0])).astype(int)
     
-    sum_constraint = so.LinearConstraint(np.array([1,1,1,1]), 2, 2)
+#     sum_constraint = so.LinearConstraint(np.array([1,1,1,1]), 2, 2)
     
-    sum_constraint = so.NonlinearConstraint(con_fun, 2, 2)
+#     sum_constraint = so.NonlinearConstraint(con_fun, 2, 2)
     
-    val_constraint = so.Bounds([0, 0, 0, 0], [1, 1, 1, 1])
+#     val_constraint = so.Bounds([0, 0, 0, 0], [1, 1, 1, 1])
     
-    so.minimize(obj_fun, x0=np.array([0, 1, 0, 1]), constraints=(sum_constraint), bounds=val_constraint)
+#     so.minimize(obj_fun, x0=np.array([0, 1, 0, 1]), constraints=(sum_constraint), bounds=val_constraint)
     
     
-    data = np.array([0.5, 0.6, 0.8, 0.9])
+#     data = np.array([0.5, 0.6, 0.8, 0.9])
     
-    selection = cvxpy.Variable(shape=4, boolean=True)
+#     selection = cvxpy.Variable(shape=4, boolean=True)
     
-    constraint = cvxpy.sum(selection) == 2
+#     constraint = cvxpy.sum(selection) == 2
 
-    cost = cvxpy.sum(cvxpy.multiply(selection, data))
+#     cost = cvxpy.sum(cvxpy.multiply(selection, data))
     
-    problem = cvxpy.Problem(cvxpy.Maximize(cost), constraints=[constraint])
+#     problem = cvxpy.Problem(cvxpy.Maximize(cost), constraints=[constraint])
     
-    score = problem.solve(solver=cvxpy.GLPK_MI)
+#     score = problem.solve(solver=cvxpy.GLPK_MI)
     
     import pickle
     import logistic_regression
@@ -321,146 +321,146 @@ if __name__ == "__main__":
     
     pred = model_results.predict(point_info[['const', *df_cols]])
     
-    #%%
+#     #%%
     
-    n = len(point_info)
+#     n = len(point_info)
     
-    n_selected = 100
+#     n_selected = 100
     
-    data = pred
+#     data = pred
     
-    int_proj = intersections.to_crs(epsg=3857)
+#     int_proj = intersections.to_crs(epsg=3857)
     
-    distances = np.zeros((n, n))
+#     distances = np.zeros((n, n))
     
-    for i in range(n):
-        distances[i] = int_proj.distance(int_proj.geometry.loc[i])
+#     for i in range(n):
+#         distances[i] = int_proj.distance(int_proj.geometry.loc[i])
     
-    for i in range(n):
-        distances[i, i] = 0
+#     for i in range(n):
+#         distances[i, i] = 0
         
-    # distances[np.where(distances < 500)] = 1000000
+#     # distances[np.where(distances < 500)] = 1000000
     
-    dist_matrix = cvxpy.Constant(distances)
+#     dist_matrix = cvxpy.Constant(distances)
     
-    sa = intersections['service_area'].to_crs(epsg=3857)
-    shapely.ops.unary_union(sa).area
+#     sa = intersections['service_area'].to_crs(epsg=3857)
+#     shapely.ops.unary_union(sa).area
     
-    saa = sa.area
+#     saa = sa.area
 
-    selection = cvxpy.Variable(shape=n, boolean=True)
+#     selection = cvxpy.Variable(shape=n, boolean=True)
     
-    constraint = cvxpy.sum(selection) == n_selected
+#     constraint = cvxpy.sum(selection) == n_selected
     
-    # distance_constraint = cvxpy.min(distances[selection == 1][:, selection == 1]) >= 500
-    disto = cvxpy.max(dist_matrix @ selection)
-    disto = cvxpy.diag(selection) @ dist_matrix @ cvxpy.diag(selection)
-    disto = cvxpy.sum(cvxpy.diag(selection) @ dist_matrix)
+#     # distance_constraint = cvxpy.min(distances[selection == 1][:, selection == 1]) >= 500
+#     disto = cvxpy.max(dist_matrix @ selection)
+#     disto = cvxpy.diag(selection) @ dist_matrix @ cvxpy.diag(selection)
+#     disto = cvxpy.sum(cvxpy.diag(selection) @ dist_matrix)
         
-    distance_constraint = disto <= 100000000
+#     distance_constraint = disto <= 100000000
     
-    cost = cvxpy.sum(cvxpy.multiply(selection, pred))
+#     cost = cvxpy.sum(cvxpy.multiply(selection, pred))
     
-    problem = cvxpy.Problem(cvxpy.Maximize(cost), constraints=[constraint])
+#     problem = cvxpy.Problem(cvxpy.Maximize(cost), constraints=[constraint])
     
-    score = problem.solve(solver=cvxpy.GLPK_MI)
+#     score = problem.solve(solver=cvxpy.GLPK_MI)
     
-    print(selection.value)
+#     print(selection.value)
     
     
-    #%% SO opti. Too slow. 2 iterations takes many hours with SLSQP solver
-    n = len(point_info)
+#     #%% SO opti. Too slow. 2 iterations takes many hours with SLSQP solver
+#     n = len(point_info)
     
-    # pred = pred[:1000]
+#     # pred = pred[:1000]
     
-    # n = 1000
+#     # n = 1000
     
-    n_select = 100
+#     n_select = 100
     
-    def obj_fun(x):
-        return -np.sum(x*pred)
+#     def obj_fun(x):
+#         return -np.sum(x*pred)
     
-    sum_constraint = so.LinearConstraint(np.array([[1]*n]), n_select, n_select)
-    sum_constraint = so.NonlinearConstraint(np.sum, 0, n_select)
-    bounds = so.Bounds([0]*n, [1]*n)
+#     sum_constraint = so.LinearConstraint(np.array([[1]*n]), n_select, n_select)
+#     sum_constraint = so.NonlinearConstraint(np.sum, 0, n_select)
+#     bounds = so.Bounds([0]*n, [1]*n)
     
-    x0 = np.zeros(n)
-    x0[:n_select] = 1
-    np.random.seed(42)
-    x0 = np.random.permutation(x0)
+#     x0 = np.zeros(n)
+#     x0[:n_select] = 1
+#     np.random.seed(42)
+#     x0 = np.random.permutation(x0)
     
-    minimum = so.minimize(obj_fun, x0=x0, constraints=(sum_constraint), bounds=bounds, method='SLSQP', options={'maxiter': 2})
+#     minimum = so.minimize(obj_fun, x0=x0, constraints=(sum_constraint), bounds=bounds, method='SLSQP', options={'maxiter': 2})
     
-    selection_idx = np.argpartition(minimum.x, -n_select)[-n_select:]
+#     selection_idx = np.argpartition(minimum.x, -n_select)[-n_select:]
     
-    selection_so = np.zeros(n)
-    selection_so[selection_idx] = 1
+#     selection_so = np.zeros(n)
+#     selection_so[selection_idx] = 1
 
     
-    #%% linprog works and within a reasonable time but can only use linear constraints
-    A_eq = np.array([[1]*n])
+#     #%% linprog works and within a reasonable time but can only use linear constraints
+#     A_eq = np.array([[1]*n])
     
-    lim = so.linprog(-pred, A_eq=A_eq, b_eq=n_select, bounds=(0,1), options={'maxiter': 10})
+#     lim = so.linprog(-pred, A_eq=A_eq, b_eq=n_select, bounds=(0,1), options={'maxiter': 10})
     
-    selection_idx = np.argpartition(lim.x, -n_select)[-n_select:]
+#     selection_idx = np.argpartition(lim.x, -n_select)[-n_select:]
     
-    selection_so = np.zeros(n)
-    selection_so[selection_idx] = 1
+#     selection_so = np.zeros(n)
+#     selection_so[selection_idx] = 1
     
-    #%% gekko
+#     #%% gekko
     
-    n = len(point_info)
+#     n = len(point_info)
 
-    n_select = 100
+#     n_select = 100
     
-    import time
+#     import time
     
-    from gekko import GEKKO
+#     from gekko import GEKKO
     
-    t_pre = time.time()
-    m = GEKKO()
+#     t_pre = time.time()
+#     m = GEKKO()
     
-    # help(m)
+#     # help(m)
     
     
     
-    c = [m.Const(pred_i) for pred_i in pred]
+#     c = [m.Const(pred_i) for pred_i in pred]
         
-    # x = [m.Var(lb=0, ub=1) for i in range(n)]
-    x = m.Array(m.Var, n, lb=0, ub=1, integer=True)
+#     # x = [m.Var(lb=0, ub=1) for i in range(n)]
+#     x = m.Array(m.Var, n, lb=0, ub=1, integer=True)
     
-    m.Equation(m.sum(x) == 100)
+#     m.Equation(m.sum(x) == 100)
     
-    # m.Equation(x @ distances @ x  > 100)
+#     # m.Equation(x @ distances @ x  > 100)
 
-    m.Maximize(m.sum([x_i*pred_i for x_i, pred_i in zip(x, pred)]))
+#     m.Maximize(m.sum([x_i*pred_i for x_i, pred_i in zip(x, pred)]))
     
-    m.solve()    
+#     m.solve()    
     
-    solution_gekko = np.array([x_i.value for x_i in x]).reshape(-1)
+#     solution_gekko = np.array([x_i.value for x_i in x]).reshape(-1)
 
-    selection_idx = np.argpartition(solution_gekko, -n_select)[-n_select:]
+#     selection_idx = np.argpartition(solution_gekko, -n_select)[-n_select:]
     
-    selection_gekko = np.zeros(n)
-    selection_gekko[selection_idx] = 1
+#     selection_gekko = np.zeros(n)
+#     selection_gekko[selection_idx] = 1
     
-    print(f"time taken: {time.time() - t_pre}")
+#     print(f"time taken: {time.time() - t_pre}")
     
-    #%%
+#     #%%
     
-    def condition(x):
-        return np.min(distances[x][:,x][distances[x][:,x] != 0])
+#     def condition(x):
+#         return np.min(distances[x][:,x][distances[x][:,x] != 0])
     
-    x0 = np.zeros(n, dtype=bool)
-    x0[:n_select] = 1
-    np.random.seed(42)
-    x0 = np.random.permutation(x0)
+#     x0 = np.zeros(n, dtype=bool)
+#     x0[:n_select] = 1
+#     np.random.seed(42)
+#     x0 = np.random.permutation(x0)
     
-    rng = np.random.default_rng(42)
+#     rng = np.random.default_rng(42)
    
-    n_per = 2000000
+#     n_per = 2000000
     
-    perms = rng.permuted(np.tile(x0, n_per).reshape(n_per, x0.size), axis=1)
+#     perms = rng.permuted(np.tile(x0, n_per).reshape(n_per, x0.size), axis=1)
     
     #%% multi
     
@@ -636,15 +636,15 @@ if __name__ == "__main__":
     
     #%% GA
     
-    from geneticalgorithm import geneticalgorithm as ga
+    # from geneticalgorithm import geneticalgorithm as ga
     
-    def obj_fun(x):
-        return -np.sum(x*pred)
+    # def obj_fun(x):
+    #     return -np.sum(x*pred)
     
     
-    model=ga(function=obj_fun,dimension=n,variable_type='bool')
+    # model=ga(function=obj_fun,dimension=n,variable_type='bool')
     
-    model.run()
+    # model.run()
     
     
     #%% Expansion area.
@@ -773,7 +773,7 @@ if __name__ == "__main__":
     model_results = ipu.linear_regression(asdf, df_cols, triptype)
     
     minima = []
-    n_per = 50000000
+    n_per = 5000
     
     rng = np.random.default_rng(42)
     
