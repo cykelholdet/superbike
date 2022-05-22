@@ -638,7 +638,7 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
     else:
         npred = 1
     
-    nvars = 8
+    nvars = 7
     
     ntotal = nvars + npred
     nrows = int(np.ceil(ntotal / ncols))
@@ -663,13 +663,18 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
     n += 1
     plot_heatmap('percent_recreational', grid_points, point_info, zlabel='Share of recreational use', ax=ax[n//ncols,n%ncols], vdims=(0,1))
     n += 1
-    plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Share of industrial use', ax=ax[n//ncols,n%ncols], vdims=(0,1))
-    n += 1
+    # plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Share of industrial use', ax=ax[n//ncols,n%ncols], vdims=(0,1))
+    # n += 1
     plot_heatmap('nearest_subway_dist', grid_points, point_info, zlabel='Nearest subway dist. (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
     n += 1
     plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway dist. (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
     n += 1
     plot_heatmap('center_dist', grid_points, point_info, zlabel='Dist. to center (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
+    n += 1
+    
+    # Hide axis for remaining plot
+    if n//ncols < nrows:
+        ax[n//ncols, n%ncols].axis('off')
     
     if data.city in w_adjust.keys():
         plt.subplots_adjust(wspace=w_adjust[data.city])
@@ -834,7 +839,7 @@ def make_model_and_plot_heatmaps(
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=FutureWarning)
 
-    CITY = 'madrid'
+    CITY = 'london'
     YEAR = 2019
     MONTH = None
     
@@ -842,7 +847,7 @@ if __name__ == "__main__":
             'pop_density', 'nearest_subway_dist', 'nearest_railway_dist', 'center_dist']
     triptype = 'b_trips'  # Only relevant for OLS
     resolution = 200  # Grid size in m
-    modeltype = 'OLS'  # LR or OLS
+    modeltype = 'LR'  # LR or OLS
     k = 5
     min_trips = 8
 

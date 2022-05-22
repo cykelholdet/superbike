@@ -779,6 +779,20 @@ if __name__ == "__main__":
     
     for i, polygon in sub_polygons.iterrows():
         int_exp = get_intersections(polygon['geometry'], data=data)
+       
+        existing_stations = gpd.sjoin(station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
+       
+        existing_stations['lon'] = existing_stations['long']
+        existing_stations['geometry'] = existing_stations['coords']
+       
+        n_existing = len(existing_stations)
+       
+        print(f"{n_existing} existing, {polygon['n_stations']} total")
+       
+        int_exp = pd.concat((existing_stations[['lat', 'lon', 'coords', 'geometry']], int_exp))
+        int_exp = int_exp.reset_index()
+
+        
         point_info = get_point_info(data, int_exp, land_use, census_df)
         
         months = [1,2,3,4,5,6,7,8,9]
@@ -798,6 +812,8 @@ if __name__ == "__main__":
         n = len(point_info)
         
         n_select = int(n_stations)
+        
+        n_total = n_select + n_existing
         
         distances = np.zeros((n, n))
         for i in range(n):
@@ -830,8 +846,8 @@ if __name__ == "__main__":
         if n_select > 1:
             cond = parallel_apply_along_axis(condition, 1, population)
         else:
-            cond = np.sum(population, axis=1)*200
-        mask = np.where(cond > 100)
+            cond = np.sum(population, axis=1)*400
+        mask = np.where(cond > 300)
         if len(score[mask]) == 0:
             print('mask condition not fulfilled, changing to 200')
             mask = np.where(cond > 200)
@@ -847,7 +863,7 @@ if __name__ == "__main__":
         # minima.append(minimum)
         # selection_idx = np.argpartition(minimum.x, -n_select)[-n_select:]
         # minima.append([np.min(score[mask]), population[np.argmin(score[mask])]])
-    
+        minima.append(population[np.argmin(score[mask])]) 
     #%% Results
     
     results = [
@@ -867,11 +883,24 @@ if __name__ == "__main__":
         ]
     
     results = [np.array(res) for res in results]
-    
+    results = minima 
     selected_intersections = []
     
     for i, polygon in sub_polygons.iterrows():
         int_exp = get_intersections(polygon['geometry'], data=data)
+        
+        existing_stations = gpd.sjoin(station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
+
+        existing_stations['lon'] = existing_stations['long']
+        existing_stations['geometry'] = existing_stations['coords']
+
+        n_existing = len(existing_stations)
+
+        print(f"{n_existing} existing, {polygon['n_stations']} total")
+
+        int_exp = pd.concat((existing_stations[['lat', 'lon', 'coords', 'geometry']], int_exp))
+        int_exp = int_exp.reset_index()
+
         selected_intersections.append(int_exp[results[i] == 1])
         
     selected_intersections = pd.concat(selected_intersections)
