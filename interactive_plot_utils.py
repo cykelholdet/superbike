@@ -1667,7 +1667,7 @@ def stations_logistic_regression(station_df, zone_columns, other_columns,
         LR_results = None
         
     if test_model:
-        return LR_results, X, y, predictions
+        return LR_results, X, y, predictions, cm
     else:
         return LR_results, X, y
 

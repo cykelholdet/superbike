@@ -630,7 +630,7 @@ def plot_heatmap(z, grid_points, point_info, zlabel="Demand (Average daily busin
 
 
 def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title='heatmaps'):
-    w_adjust = {'nyc': -0.5}
+    w_adjust = {'nyc': 0}
     names = ['Reference', 'High morning sink', 'Low morning sink', 'Low morning source', 'High morning source']
     ncols = 3
     if pred.ndim > 1:
@@ -638,7 +638,7 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
     else:
         npred = 1
     
-    nvars = 8
+    nvars = 7
     
     ntotal = nvars + npred
     nrows = int(np.ceil(ntotal / ncols))
@@ -663,8 +663,8 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
     n += 1
     plot_heatmap('percent_recreational', grid_points, point_info, zlabel='Share of recreational use', ax=ax[n//ncols,n%ncols], vdims=(0,1))
     n += 1
-    plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Share of industrial use', ax=ax[n//ncols,n%ncols], vdims=(0,1))
-    n += 1
+    # plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Share of industrial use', ax=ax[n//ncols,n%ncols], vdims=(0,1))
+    # n += 1
     plot_heatmap('nearest_subway_dist', grid_points, point_info, zlabel='Nearest subway dist. (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
     n += 1
     plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway dist. (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
@@ -834,7 +834,7 @@ def make_model_and_plot_heatmaps(
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=FutureWarning)
 
-    CITY = 'madrid'
+    CITY = 'nyc'
     YEAR = 2019
     MONTH = None
     
