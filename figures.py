@@ -1084,9 +1084,9 @@ if __name__ == "__main__":
     
     # chaining_effect_fig()
     
-    fig, ax = daily_traffic_figure(519, 'nyc', 2019, normalise=True, 
-                                    traffic_type='traffic', std=False,
-                                    return_fig=True)
+    # fig, ax = daily_traffic_figure(519, 'nyc', 2019, normalise=True, 
+    #                                traffic_type='traffic', std=False,
+    #                                return_fig=True)
     
     # sum_stat_table=make_summary_statistics_table()
     # LR_table=make_LR_table(2019, k=5, const=True, method='LR')
@@ -1101,9 +1101,9 @@ if __name__ == "__main__":
     #     sr += city_tests(k=5, test_seed=seed)
     # sr_mean = sr/len(seed_range)
     
-    # for city_train in cities:
-    #     for city_test in cities:
-    #         cm_mean = cm_mean_fig(city_train, city_test)
+    for city_train in cities:
+        for city_test in cities:
+            cm_mean = cm_mean_fig(city_train, city_test)
     
     
     # pre_process_table = pre_processing_table()
