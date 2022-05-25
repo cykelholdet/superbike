@@ -706,20 +706,35 @@ def make_station_df(data, holidays=True, return_land_use=False,
         if data.city == 'madrid':
             # Lago de la Casa de Campo is clasisfied as mineral extraction and
             # dump site, as it is being dredged during the time of data recording. We classify it as a lake.
-            land_use.loc[land_use['identifier'] == "65147-ES001L3", 'code_2018'] = 50000       
+            land_use.loc[land_use['identifier'] == "65147-ES001L3", 'code_2018'] = 50000
+        
         
         land_use = land_use[['code_2018', 'class_2018', 'area', 'Pop2018', 'geometry']].to_crs('EPSG:4326')
+        
         print(".", end="")
-        df = gpd.tools.sjoin(df, land_use, op='within', how='left')
-        df.drop('index_right', axis=1, inplace=True)
-        df['Pop2018'].fillna(0, inplace=True)
+        
+        if data.city == 'london':
+            old_land_use = gpd.read_file(f'data/{data.city}/{data.city}_UA2012_revised_v021.gpkg', bbox=bbox)
+            census_df = old_land_use[['Pop2012', 'area', 'geometry']].to_crs(epsg=4326)
+            census_df.rename(columns={'Pop2012': 'population'}, inplace=True)
+            census_df['pop_density'] = (census_df['population'] / census_df['area'])*1000000
+            land_use.drop(columns=['Pop2018'], inplace=True)
+            df = gpd.tools.sjoin(df, land_use[['code_2018', 'class_2018', 'geometry']], op='within', how='left')
+            df.drop('index_right', axis=1, inplace=True)
+            df = gpd.tools.sjoin(df, census_df, op='within', how='left')
+            df.drop('index_right', axis=1, inplace=True)
+        else:
+            census_df = land_use[['Pop2018', 'area', 'geometry']]
+            census_df.rename(columns={'Pop2018': 'population'}, inplace=True)
+            census_df['pop_density'] = (census_df['population'] / census_df['area'])*1000000
+            df = gpd.tools.sjoin(df, land_use, op='within', how='left')
+            df.drop('index_right', axis=1, inplace=True)
+        
+        df['population'].fillna(0, inplace=True)
         df['area'].fillna(0.1, inplace=True)
         print(".", end="")
         df['zone_type'] = df['code_2018'].apply(lambda x: zone_code_transform(data.city, x))
         df.loc[df['zone_type'] == 'water', 'zone_type'] = "UNKNOWN"
-        print(".", end="")
-        census_df = land_use[['Pop2018', 'area', 'geometry']]
-        census_df['pop_density'] = (census_df['Pop2018'] / census_df['area'])*1000000
         print(".", end="")
         land_use.to_crs(epsg=3857, inplace=True)
         print(".", end="")
@@ -736,10 +751,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
         land_use = land_use[land_use['zone_type'] != 'water']
         print(".", end="")
         
-        df['pop_density'] = (df['Pop2018'] / df['area'])*1000000
-        
-        census_df = land_use[['Pop2018', 'area', 'geometry']]
-        census_df['pop_density'] = (census_df['Pop2018'] / census_df['area'])*1000000
+        df['pop_density'] = (df['population'] / df['area'])*1000000
         
         land_use = land_use[['zone_type', 'geometry']]
         
@@ -1958,13 +1970,13 @@ if __name__ == "__main__":
     
     # create_all_pickles('boston', 2019, overwrite=True)
     
-    # asdf = pickle_asdf2('madrid', n_cpus=1)
+    asdf = pickle_asdf2('london')
     
-    data = bs.Data('madrid', 2019)
+    data = bs.Data('london', 2019, 2)
 
     overwrite = True
     pre = time.time()
-    traffic_matrix = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=overwrite)
+    # traffic_matrix = data.pickle_daily_traffic(holidays=False, normalise=True, overwrite=overwrite)
     station_df, land_use, census_df = make_station_df(data, holidays=False, 
                                                       return_land_use=True, return_census=True, 
                                                       overwrite=True)
