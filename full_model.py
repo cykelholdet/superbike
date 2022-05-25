@@ -438,17 +438,25 @@ def load_city(city, year=2019, month=None, day=None, normalise=True):
                                          normalise=normalise,
                                          overwrite=False)
 
-    # mask = ~asdf['n_trips'].isna()
+    mask = ~asdf['n_trips'].isna()
     
-    # asdf = asdf[mask]
-    # asdf = asdf.reset_index(drop=True)
+    asdf = asdf[mask]
+    asdf = asdf.reset_index(drop=True)
     
-    # try:
-    #     traf_mat = traf_mat[mask]
-    # except IndexError:
-    #     pass
+    try:
+        traf_mat = traf_mat[mask]
+    except IndexError:
+        pass
 
     return data, asdf, traf_mat
+
+def table_formatter(x):
+    if x == np.inf:
+        return "inf"
+    elif np.abs(x) > 10000 or np.abs(x) < 0.001:
+        return f"$\\num{{{x:.2e}}}$"
+    else:
+        return f"${x:.4f}$"
 
 #%% Do data
 
@@ -469,7 +477,7 @@ data, asdf, traf_mat = load_city(CITY)
 model = FullModel(variables_list)
 asdf=model.fit(asdf, traf_mat)
 
-# test_model_stratisfied(asdf, traf_mat, variables_list)
+test_model_stratisfied(asdf, traf_mat, variables_list)
 
 #%% residual plots
 
@@ -744,7 +752,7 @@ for row in range(4):
         
         data, asdf, traf_mat = load_city(city)
         
-        low_err, mid_err, high_err = test_model_stratisfied(asdf, traf_mat, variables_list)
+        low_err, mid_err, high_err = test_model_stratisfied(asdf, traf_mat, variables_list, test_seed=42)
         
         if dep_or_arr == 'dep':
             bigax[row,col].plot(range(24), low_err[:24], label='Low traffic stations')
@@ -772,6 +780,103 @@ for row in range(4):
 
 plt.tight_layout(h_pad=4)
 bigax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.15), ncol=len(bigax[3,0].get_lines()))
+
+
+#%% Test demand model between cities
+
+cities = ['nyc', 'chicago', 'washdc', 'boston', 
+          'london', 'helsinki', 'oslo', 'madrid']
+
+variables_list = ['percent_residential', 'percent_commercial',
+                  'percent_recreational', 
+                  'pop_density', 'nearest_subway_dist',
+                  'nearest_railway_dist', 'center_dist']
+
+np.random.seed(42)
+
+error = 'MAE'
+
+seed_range = range(50,75)
+
+err_table = pd.DataFrame(index=cities, columns=cities)
+
+for city_train in cities:
+    
+    data, asdf, traf_mat = load_city(city_train)
+    
+    for city_test in cities:
+        
+        if city_train == city_test:
+            
+            err = 0
+            for split_seed in seed_range:
+                
+                np.random.seed(split_seed)
+                
+                # split data randomnly
+                
+                mask = np.random.rand(len(asdf)) < 0.2
+                
+                df_train = asdf[~mask]
+                tm_train = traf_mat[~mask]
+                
+                df_test = asdf[mask]
+                tm_test = traf_mat[mask]
+                
+                model = FullModel(variables_list)
+                model.fit(df_train, tm_train)
+                
+                demand_true = df_test['b_trips'].to_numpy()
+                demand_est = model.predict(df_test)[1]
+                
+                if error =='ME':
+                    err += np.mean(demand_est-demand_true)
+                
+                elif error == 'MAE':
+                    err += np.mean(np.abs(demand_est-demand_true))
+                
+                elif error == 'MSE':
+                    err += np.mean(np.abs(demand_est-demand_true)**2)
+                    
+            err_table.loc[city_train, city_test] = err/len(seed_range)
+                
+        else:
+            
+            # Get training and test sets
+            
+            data, df_train, tm_train = data, asdf, traf_mat
+            data, df_test, tm_test = load_city(city_test)
+                
+            # train model
+            
+            model = FullModel(variables_list)
+            model.fit(df_train, tm_train)
+            
+            # Predict demand
+            
+            demand_true = df_test['b_trips'].to_numpy()
+            demand_est = model.predict(df_test)[1]
+            
+            if error =='ME':
+                err = np.mean(demand_est-demand_true)
+            
+            elif error == 'MAE':
+                err = np.mean(np.abs(demand_est-demand_true))
+            
+            elif error == 'MSE':
+                err = np.mean(np.abs(demand_est-demand_true)**2)
+    
+            err_table.loc[city_train, city_test] = err
+    
+err_table = err_table.rename(index=bs.name_dict, columns=bs.name_dict)
+print(err_table.to_latex(column_format='@{}l'+('r'*len(err_table.columns)) + '@{}', formatters = [table_formatter]*len(err_table.columns), escape=False))
+
+
+
+
+
+
+
 
 
 
