@@ -18,6 +18,7 @@ import calendar
 import time
 import pickle
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from holoviews import opts
 
 from matplotlib.patches import Polygon
@@ -356,7 +357,7 @@ def make_summary_statistics_table(cities=None, variables=None, year=2019):
         # asdf['nearest_subway_dist']  =  asdf['nearest_subway_dist']/1000 # convert to km
         # asdf['nearest_railway_dist']  =  asdf['nearest_railway_dist']/1000 # convert to km
         
-        asdf['center_dist']  =  asdf['center_dist']/1000 # convert to km
+        # asdf['center_dist']  =  asdf['center_dist']/1000 # convert to km
         # avg_stat_df['n_trips'] = avg_stat_df['n_trips']/avg_stat_df['n_trips'].sum() # convert to percentage
         # avg_stat_df['b_trips'] = avg_stat_df['b_trips']/avg_stat_df['b_trips'].sum() # convert to percentage
         # avg_stat_df['w_trips'] = avg_stat_df['w_trips']/avg_stat_df['w_trips'].sum() # convert to percentage
@@ -474,7 +475,7 @@ def make_LR_table(year=2019, k=5, const=True, method = 'LR'):
                 other_columns.remove(column)
         
         if method == 'LR':
-            lr_results, X, y, _ = ipu.stations_logistic_regression(
+            lr_results, X, y, _, cm = ipu.stations_logistic_regression(
                 asdf, zone_columns, other_columns, 
                 use_points_or_percents='percents', 
                 make_points_by='station land use', const=const,
@@ -782,10 +783,10 @@ def city_tests(year=2019, cities=None, k=5, test_ratio=0.2, test_seed=42,
         for j in range(len(cities)):
             c = sr_mat[j,i]
                 
-            if res == 'confusion':
-                ax.text(i, j, f'{c:.2f}', va='center', ha='center', c='white')
-            else:
-                ax.text(i, j, f'{c:.2f}', va='center', ha='center')
+            # if res == 'confusion':
+            #     ax.text(i, j, f'{c:.2f}', va='center', ha='center', c='white')
+            # else:
+            ax.text(i, j, f'{c:.2f}', va='center', ha='center')
     
     city_names = [bs.name_dict[city] for city in cities]
     
@@ -809,7 +810,7 @@ def city_tests(year=2019, cities=None, k=5, test_ratio=0.2, test_seed=42,
     
     return sr_mat
 
-def train_test_cm(city_train, city_test, k=5, year=2019, const=True, savefig=True):
+def train_test_cm(city_train, city_test, k=5, year=2019, const=True, test_seed=42, savefig=True):
     
     omit_columns = {
         'boston': ['percent_educational', 'percent_UNKNOWN', 'percent_mixed', 'n_trips', 'b_trips'],
@@ -851,7 +852,7 @@ def train_test_cm(city_train, city_test, k=5, year=2019, const=True, savefig=Tru
         except IndexError:
             pass
         
-        asdf = get_clusters(traf_mat, asdf, 'business_days', 4, 'k_means', k, 0)[0]
+        asdf = get_clusters(traf_mat, asdf, 'business_days', 8, 'k_means', k, 0)[0]
         
         zone_columns = [var for var in variables_list if 'percent' in var]
         
@@ -865,13 +866,16 @@ def train_test_cm(city_train, city_test, k=5, year=2019, const=True, savefig=Tru
             if column in other_columns:
                 other_columns.remove(column)
         
-        lr_results, X, y, predictions = ipu.stations_logistic_regression(
+        lr_results, X, y, predictions, cm = ipu.stations_logistic_regression(
             asdf, zone_columns, other_columns, 
             use_points_or_percents='percents', 
             make_points_by='station land use', 
-            test_model=True, plot_cm=True, normalise_cm='true',
+            test_model=True, test_seed=test_seed, plot_cm=True, normalise_cm='true',
             const=const, return_scaled=True)
-    
+        
+        if savefig:
+            plt.savefig(f'./figures/paper_figures/cm_{year}_{city}_{city}.pdf')
+        
     else:
         
         X = dict()
@@ -928,7 +932,7 @@ def train_test_cm(city_train, city_test, k=5, year=2019, const=True, savefig=Tru
         if savefig:
             plt.savefig(f'./figures/paper_figures/cm_{year}_{city_train}_{city_test}.pdf')
         
-        return cm
+    return cm
 
 def pre_processing_table(cities=None, year=2019, month=None, min_trips=8):
     
@@ -1015,6 +1019,42 @@ def chaining_effect_fig():
     
     # plt.axis('off')
 
+def cm_mean_fig(city_train, city_test, plotfig=True, savefig=True):
+    
+    clusters = ['Reference', 'High morning sink', 'Low morning sink',
+                'Low morning source', 'High morning source']
+    
+    if city_train==city_test:
+        seed_range=range(50,75)
+        cm = np.zeros(shape=(5,5))
+        for seed in seed_range:
+            cm += train_test_cm(city_train, city_test, test_seed=seed)
+        cm_mean = cm/len(seed_range)
+    else:
+        cm_mean = train_test_cm(city_train, city_test)
+    
+    if plotfig:
+        plt.style.use('default')
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm_mean)
+        disp.plot()
+        
+        disp.ax_.set_xlabel('Predicted cluster')
+        disp.ax_.set_ylabel('True cluster')
+        
+        disp.ax_.set_xticklabels(clusters)
+        disp.ax_.set_yticklabels(clusters)
+        
+        disp.ax_.tick_params(axis="x", bottom=False, labelbottom=False, top=True, labeltop=True)
+        plt.setp([tick.label2 for tick in disp.ax_.xaxis.get_major_ticks()], rotation=45,
+             ha="left", va="center",rotation_mode="anchor")
+        
+        plt.tight_layout()
+        
+        if savefig:
+            plt.savefig(f'./figures/cm_plots/cm_mean_2019_{city_train}_{city_test}.png')
+        
+    return cm_mean
+
 variables_list = ['percent_residential', 'percent_commercial',
                   'percent_recreational',
                   'pop_density', 'nearest_subway_dist',
@@ -1044,24 +1084,27 @@ if __name__ == "__main__":
     
     # chaining_effect_fig()
     
-    # fig, ax = daily_traffic_figure(3, 'boston', 2019, normalise=True, 
-    #                                 traffic_type='traffic', std=True,
-    #                                 return_fig=True)
+    # fig, ax = daily_traffic_figure(519, 'nyc', 2019, normalise=True, 
+    #                                traffic_type='traffic', std=False,
+    #                                return_fig=True)
     
     # sum_stat_table=make_summary_statistics_table()
-    LR_table=make_LR_table(2019, k=5, const=True, method='LR')
+    # LR_table=make_LR_table(2019, k=5, const=True, method='LR')
     
     # sr = city_tests(k=5, test_seed=6)
     
     # fig, ax = service_area_figure('nyc', 2019, 9, 5, return_fig=True)
     
-    # seed_range = [69]#range(50,70)
+    # seed_range = range(50,75)
     # sr = np.zeros(shape=(8,8))
     # for seed in seed_range:
     #     sr += city_tests(k=5, test_seed=seed)
     # sr_mean = sr/len(seed_range)
-        
-    # cm = train_test_cm('nyc', 'nyc')
+    
+    for city_train in cities:
+        for city_test in cities:
+            cm_mean = cm_mean_fig(city_train, city_test)
+    
     
     # pre_process_table = pre_processing_table()
    
