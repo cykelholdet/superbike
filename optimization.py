@@ -6,6 +6,7 @@ Created on Tue Apr 19 07:35:21 2022
 @author: ubuntu
 """
 
+import multiprocessing
 import itertools
 
 import osmnx
@@ -18,6 +19,12 @@ from bokeh.models import HoverTool
 import scipy.optimize as so
 from scipy.special import binom
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+from matplotlib.offsetbox import AnchoredText, AnchoredOffsetbox
+import contextily as cx
+    
+from shapely.geometry import Polygon
 
 import interactive_plot_utils as ipu
 import bikeshare as bs
@@ -94,6 +101,26 @@ def get_intersections(polygon=None, data=None, station_df=None, merge_tolerance=
 
 
 def get_point_info(data, nodes, land_use, census_df):
+    """
+    Get info of points with column 'geometry' and 'coords' both in epsg 4326
+
+    Parameters
+    ----------
+    data : TYPE
+        DESCRIPTION.
+    nodes : TYPE
+        DESCRIPTION.
+    land_use : TYPE
+        DESCRIPTION.
+    census_df : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    point_info : TYPE
+        DESCRIPTION.
+
+    """
     neighborhoods = ipu.point_neighborhoods(nodes['geometry'], land_use)
 
     nodes = nodes.join(neighborhoods)
@@ -112,6 +139,7 @@ def get_point_info(data, nodes, land_use, census_df):
     point_info['pop_density'] = np.array(pop_density)
     point_info['nearest_subway_dist'] = nearest_subway['nearest_subway_dist']
     point_info['nearest_railway_dist'] = nearest_subway['nearest_railway_dist']
+    point_info['center_dist'] = ipu.geodesic_distance(nodes, bs.city_center_dict[data.city])
     
     return point_info
 
@@ -222,6 +250,44 @@ def plot_intersections(nodes, nodes2=None, websocket_origin=None, polygons=None,
         bokeh_plot = panelplot.show(port=3000, websocket_origin=websocket_origin)
     
     return bokeh_plot
+
+
+def parallel_apply_along_axis(func1d, axis, arr, *args, **kwargs):
+    """
+    Like numpy.apply_along_axis(), but takes advantage of multiple
+    cores.
+    """        
+    # Effective axis where apply_along_axis() will be applied by each
+    # worker (any non-zero axis number would work, so as to allow the use
+    # of `np.array_split()`, which is only done on axis 0):
+    effective_axis = 1 if axis == 0 else axis
+    if effective_axis != axis:
+        arr = arr.swapaxes(axis, effective_axis)
+
+    # Chunks for the mapping (only a few chunks):
+    chunks = [(func1d, effective_axis, sub_arr, args, kwargs)
+              for sub_arr in np.array_split(arr, multiprocessing.cpu_count())]
+
+    pool = multiprocessing.Pool()
+    individual_results = pool.map(unpacking_apply_along_axis, chunks)
+    # Freeing the workers:
+    pool.close()
+    pool.join()
+
+    return np.concatenate(individual_results)
+
+def unpacking_apply_along_axis(all_args):
+    (func1d, axis, arr, args, kwargs) = all_args
+    """
+    Like numpy.apply_along_axis(), but with arguments in a tuple
+    instead.
+
+    This function is useful with multiprocessing.Pool().map(): (1)
+    map() only handles functions that take a single argument, and (2)
+    this function can generally be imported from a module, as required
+    by map().
+    """
+    return np.apply_along_axis(func1d, axis, arr, *args, **kwargs)
 
 
 # #%%
@@ -477,50 +543,13 @@ if __name__ == "__main__":
     
     #%% multi
     
-    import multiprocessing
-    
-    def parallel_apply_along_axis(func1d, axis, arr, *args, **kwargs):
-        """
-        Like numpy.apply_along_axis(), but takes advantage of multiple
-        cores.
-        """        
-        # Effective axis where apply_along_axis() will be applied by each
-        # worker (any non-zero axis number would work, so as to allow the use
-        # of `np.array_split()`, which is only done on axis 0):
-        effective_axis = 1 if axis == 0 else axis
-        if effective_axis != axis:
-            arr = arr.swapaxes(axis, effective_axis)
-    
-        # Chunks for the mapping (only a few chunks):
-        chunks = [(func1d, effective_axis, sub_arr, args, kwargs)
-                  for sub_arr in np.array_split(arr, multiprocessing.cpu_count())]
-    
-        pool = multiprocessing.Pool()
-        individual_results = pool.map(unpacking_apply_along_axis, chunks)
-        # Freeing the workers:
-        pool.close()
-        pool.join()
-    
-        return np.concatenate(individual_results)
-    
-    def unpacking_apply_along_axis(all_args):
-        (func1d, axis, arr, args, kwargs) = all_args
-        """
-        Like numpy.apply_along_axis(), but with arguments in a tuple
-        instead.
-    
-        This function is useful with multiprocessing.Pool().map(): (1)
-        map() only handles functions that take a single argument, and (2)
-        this function can generally be imported from a module, as required
-        by map().
-        """
-        return np.apply_along_axis(func1d, axis, arr, *args, **kwargs)
-    
-    # result = parallel_apply_along_axis(condition, 1, perms)
-    
-    # spaced_idx = np.where(result > 100)[0]
-    # spaced_candidates = perms[spaced_idx]
-    
+
+
+# result = parallel_apply_along_axis(condition, 1, perms)
+
+# spaced_idx = np.where(result > 100)[0]
+# spaced_candidates = perms[spaced_idx]
+
     def obj_fun(x):
         return -np.sum(x*pred)
     
@@ -804,7 +833,8 @@ if __name__ == "__main__":
        
         int_exp = pd.concat((existing_stations[['lat', 'lon', 'coords', 'geometry']], int_exp))
         int_exp = int_exp.reset_index()
-
+        
+        print(f"There are {len(int_exp)} Intersections")
         
         point_info = get_point_info(data, int_exp, land_use, census_df)
         
@@ -1236,5 +1266,241 @@ if __name__ == "__main__":
     '''
     bk.stop()
     '''
+    #%% Figure existing and new stations
+    
+    extend = (existing_stations['lat'].min(), existing_stations['long'].min(), 
+              existing_stations['lat'].max(), existing_stations['long'].max())
+    
+    ex_pro = existing_stations.to_crs(data.laea_crs)
+    
+    pol_pro = expansion_area.to_crs(data.laea_crs)
+    
+    old = ex_pro[ex_pro['existing'] == True]
+    new = ex_pro[ex_pro['existing'] == False]
     
     
+    fig, ax = plt.subplots(figsize=(4.5, 10))
+    
+    pol_pro.plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="tab:orange")
+    old.plot(label='Existing stations',ax=ax, color="tab:blue")
+    new.plot(label='New stations', ax=ax, color="tab:red")
+    
+    legend = ax.legend()
+    ax.axis('off')
+    patch = mpatches.Patch(color='tab:orange', label='Expansion Area', alpha=0.6)
+    
+    handles, labels = ax.get_legend_handles_labels()
+    # handles is a list, so append manual patch
+    handles.append(patch) 
+    
+    # plot the legend
+    plt.legend(handles=handles)
+    
+    scalebar = AnchoredSizeBar(ax.transData, 1000, 
+                                f'{1} km', 'lower left', 
+                                pad=1, color='black', frameon=False, 
+                                size_vertical=5)
+    ax.add_artist(scalebar)
+    
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
+    plt.savefig("figures/nyc existing and new expansion.png", bbox_inches='tight', dpi=100)
+    
+    #%% Figure expansion area in whole city
+
+    
+    
+    
+    corner_points = Polygon(
+            [(station_df['long'].min(), station_df['lat'].min()),
+             (station_df['long'].min(), station_df['lat'].max()),
+             (station_df['long'].max(), station_df['lat'].max()),
+             (station_df['long'].max(), station_df['lat'].min())])
+    
+    cpoints = gpd.GeoDataFrame(geometry=[corner_points], crs="epsg:4326").to_crs(data.laea_crs)
+    
+    data = bs.Data('nyc', 2019, 9)
+    
+    station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)   
+    
+    fig, ax = plt.subplots(figsize=(7, 10))
+    
+    cpoints.plot(alpha=0, ax=ax)
+    pol_pro.plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="tab:orange")
+    station_df.to_crs(data.laea_crs).plot(ax=ax, label='Existing stations Sept. 2019', markersize=15)
+    # old.plot(label='Existing stations',ax=ax, color="tab:orange")
+    # new.plot(label='New stations', ax=ax, color="tab:brown")
+    
+    ax.legend()
+    ax.axis('off')
+    patch = mpatches.Patch(color='tab:orange', label='Expansion Area', alpha=0.6)
+    
+    handles, labels = ax.get_legend_handles_labels()
+    # handles is a list, so append manual patch
+    handles.append(patch) 
+    
+    # plot the legend
+    plt.legend(handles=handles)
+    
+    scalebar = AnchoredSizeBar(ax.transData, 1000, 
+                                f'{1} km', 'lower left', 
+                                pad=1, color='black', frameon=False, 
+                                size_vertical=5)
+    ax.add_artist(scalebar)
+    
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
+    plt.savefig("figures/nyc_expansion_area.png", bbox_inches='tight', dpi=150)
+    
+    #%% Figure intersections
+    
+    extend = (existing_stations['lat'].min(), existing_stations['long'].min(), 
+              existing_stations['lat'].max(), existing_stations['long'].max())
+    
+    ex_pro = existing_stations.to_crs(data.laea_crs)
+    
+    pol_pro = expansion_area.to_crs(data.laea_crs)
+    
+    old = ex_pro[ex_pro['existing'] == True]
+    
+    expansion_area = gpd.read_file('data/nyc/expansion_2019_area.geojson')
+    int_exp = get_intersections(expansion_area.loc[0, 'geometry'], data=data)
+    
+
+    
+    fig, ax = plt.subplots(figsize=(4.5, 10))
+    
+    sub_polygons.to_crs(data.laea_crs).plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="black", linewidth=2)
+    # pol_pro.plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="tab:orange")
+    old.plot(label='Existing stations',ax=ax, color="tab:blue", alpha=1, zorder=1.5)
+    int_exp.to_crs(data.laea_crs).plot(label='Intersections', ax=ax, color="tab:red", alpha=1, markersize=10)
+
+    legend = ax.legend()
+    ax.axis('off')
+    patch = mpatches.Patch(color='tab:orange', label='Expansion Area', alpha=0.6)
+    
+    handles, labels = ax.get_legend_handles_labels()
+    # handles is a list, so append manual patch
+    handles.append(patch) 
+    
+    # plot the legend
+    plt.legend(handles=handles)
+    
+    scalebar = AnchoredSizeBar(ax.transData, 1000, 
+                                f'{1} km', 'lower left', 
+                                pad=1, color='black', frameon=False, 
+                                size_vertical=5)
+    ax.add_artist(scalebar)
+
+    
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
+    plt.savefig("figures/nyc_exp_intersections.png", bbox_inches='tight', dpi=100)
+    
+    #%% Figure subdivision (run again with better settings)
+    
+    extend = (existing_stations['lat'].min(), existing_stations['long'].min(), 
+              existing_stations['lat'].max(), existing_stations['long'].max())
+    
+    ex_pro = existing_stations.to_crs(data.laea_crs)
+    
+    pol_pro = expansion_area.to_crs(data.laea_crs)
+    
+    old = ex_pro[ex_pro['existing'] == True]
+    
+ 
+    
+    fig, ax = plt.subplots(figsize=(4.5, 10))
+    
+    sub_polygons.to_crs(data.laea_crs).plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="black")
+    old.plot(label='Existing stations',ax=ax, color="tab:blue", alpha=1, zorder=1.5)
+    selected_intersections.to_crs(data.laea_crs).plot(label='Selected intersections', ax=ax, color="tab:red", alpha=1, markersize=30)
+
+    legend = ax.legend()
+    ax.axis('off')
+    patch = mpatches.Patch(color='tab:orange', label='Expansion Area', alpha=0.6)
+    
+    handles, labels = ax.get_legend_handles_labels()
+    # handles is a list, so append manual patch
+    handles.append(patch) 
+    
+    # plot the legend
+    plt.legend(handles=handles)
+    
+    scalebar = AnchoredSizeBar(ax.transData, 1000, 
+                                f'{1} km', 'lower left', 
+                                pad=1, color='black', frameon=False, 
+                                size_vertical=5)
+    ax.add_artist(scalebar)
+
+    
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
+    plt.savefig("figures/nyc_exp_selected_intersections.png", bbox_inches='tight', dpi=100)
+    
+    #%% Figure subdivision (run again with better settings)
+    
+    extend = (existing_stations['lat'].min(), existing_stations['long'].min(), 
+              existing_stations['lat'].max(), existing_stations['long'].max())
+    
+    ex_pro = existing_stations.to_crs(data.laea_crs)
+    
+    pol_pro = expansion_area.to_crs(data.laea_crs)
+    
+    old = ex_pro[ex_pro['existing'] == True]
+    new = ex_pro[ex_pro['existing'] == False]
+ 
+    
+    fig, ax = plt.subplots(figsize=(4.5, 10))
+    
+    sub_polygons.to_crs(data.laea_crs).plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="black")
+    old.plot(label='Existing stations',ax=ax, color="tab:blue", alpha=1, zorder=1.5)
+    # selected_intersections.to_crs(data.laea_crs).plot(label='Selected intersections', ax=ax, color="tab:red", alpha=1, markersize=30)
+    new.plot(label='Real new stations',ax=ax, color="tab:red", alpha=1, zorder=1.5)
+    legend = ax.legend()
+    ax.axis('off')
+    patch = mpatches.Patch(color='tab:orange', label='Expansion Area', alpha=0.6)
+    
+    handles, labels = ax.get_legend_handles_labels()
+    # handles is a list, so append manual patch
+    handles.append(patch) 
+    
+    # plot the legend
+    plt.legend(handles=handles)
+    
+    scalebar = AnchoredSizeBar(ax.transData, 1000, 
+                                f'{1} km', 'lower left', 
+                                pad=1, color='black', frameon=False, 
+                                size_vertical=5)
+    ax.add_artist(scalebar)
+
+    
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
+    plt.savefig("figures/nyc_exp_selected_real.png", bbox_inches='tight', dpi=100)
+    
+    #%% Full model predictions of placed station traffic
+    
+    import full_model
+    
+    selected_intersections = selected_intersections.reset_index()
+    
+    data = bs.Data('nyc', 2019, 9)
+    
+    station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)   
+    selected_point_info = get_point_info(data, selected_intersections[['geometry', 'coords']], land_use, census_df)
+    
+    
+    variables_list = ['percent_residential', 'percent_commercial',
+                      'percent_recreational', 
+                      'pop_density', 'nearest_subway_dist',
+                      'nearest_railway_dist', 'center_dist']
+    
+    months = [1,2,3,4,5,6,7,8,9]
+    asdf = asdf_months(data, months)
+    
+    traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
+    
+    asdf, b, c = get_clusters(traffic_matrices, asdf, day_type='business_days', min_trips=8, clustering='k_means', k=5)
+    
+    
+    
+    # data, asdf, traf_mat = full_model.load_city('nyc')
+
+    model = full_model.FullModel(variables_list)
+    asdf2 = model.fit(asdf, traffic_matrices)

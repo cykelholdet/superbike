@@ -458,425 +458,428 @@ def table_formatter(x):
     else:
         return f"${x:.4f}$"
 
-#%% Do data
+#%%
+if __name__ == '__main__':    
 
-CITY = 'london'
-YEAR = 2019
-MONTH = None
-
-cities = ['nyc', 'chicago', 'washdc', 'boston', 
-          'london', 'helsinki', 'oslo', 'madrid']
-
-variables_list = ['percent_residential', 'percent_commercial',
-                  'percent_recreational', 
-                  'pop_density', 'nearest_subway_dist',
-                  'nearest_railway_dist', 'center_dist']
-
-data, asdf, traf_mat = load_city(CITY)
-
-model = FullModel(variables_list)
-asdf=model.fit(asdf, traf_mat)
-
-test_model_stratisfied(asdf, traf_mat, variables_list)
-
-#%% residual plots
-
-plt.style.use('seaborn-darkgrid')
-big_fig, big_ax = plt.subplots(figsize=(8,12), nrows=4, ncols=2)
-
-count=0
-for row in range(4):
-    for col in range(2):
-        city = cities[count]
-        data, asdf, traf_mat = load_city(city)
-        errors = trips_predict_error_plot(asdf, traf_mat, variables_list, error='residual', 
-                                          by_cluster=False, show_id=True)
-        big_ax[row,col].scatter(errors['predicted'], errors['error'])
-        # big_ax[row,col].scatter(errors['predicted'], errors['error'], 
-        #                         c=np.log(errors.true), cmap='viridis')
-        
-        line_stop = max(big_ax[row,col].get_xlim()[1], big_ax[row,col].get_ylim()[1])
-        
-        
-        if row == 3:
-            big_ax[row,col].set_xlabel('Predicted # trips')
-        
-        if col == 0:
-            big_ax[row,col].set_ylabel('Residual')
-        
-        big_ax[row,col].set_title(f'{bs.name_dict[city]}')
-        
-        count+=1
-
-big_fig.tight_layout(w_pad=-10)
-
-#%% Relative error plots
-
-plt.style.use('seaborn-darkgrid')
-big_fig, big_ax = plt.subplots(figsize=(8,12), nrows=4, ncols=2)
-
-count=0
-for row in range(4):
-    for col in range(2):
-        city = cities[count]
-        data, asdf, traf_mat = load_city(city)
-        errors = trips_predict_error_plot(asdf, traf_mat, variables_list, error='relative', 
-                                          by_cluster=False, show_id=False, plotfig=False)
-        big_ax[row,col].scatter(errors['true'], errors['error']), 
-                                # c=np.log(errors['true']), cmap='viridis')
-        
-        if row == 3:
-            big_ax[row,col].set_xlabel('True # trips')
-        
-        if col == 0:
-            # big_ax[row,col].set_ylabel('Absolute error')
-            big_ax[row,col].set_ylabel('Relative error')
-        
-        big_ax[row,col].set_title(f'{bs.name_dict[city]}')
-        
-        count+=1
-
-plt.tight_layout()
-
-#%% True # trips vs. predicted # trips
-
-plt.style.use('seaborn-darkgrid')
-big_fig, big_ax = plt.subplots(figsize=(8,12), nrows=4, ncols=2)
-
-count=0
-for row in range(4):
-    for col in range(2):
-        city = cities[count]
-        data, asdf, traf_mat = load_city(city)
-        errors = trips_predict_error_plot(asdf, traf_mat, variables_list, error='residual', 
-                                          by_cluster=False, show_id=True)
-        big_ax[row,col].scatter(errors['true'], errors['predicted'])
-        # big_ax[row,col].scatter(errors['predicted'], errors['error'], 
-        #                         c=np.log(errors.true), cmap='viridis')
-        
-        line_stop = max(big_ax[row,col].get_xlim()[1], big_ax[row,col].get_ylim()[1])
-        big_ax[row,col].plot([0,line_stop], [0,line_stop], linestyle='--', c='k')
-        
-        big_ax[row,col].set_box_aspect(1)
-        
-        if row == 3:
-            big_ax[row,col].set_xlabel('True # trips')
-        
-        if col == 0:
-            big_ax[row,col].set_ylabel('Predicted # trips')
-        
-        big_ax[row,col].set_title(f'{bs.name_dict[city]}')
-        
-        count+=1
-
-big_fig.tight_layout(w_pad=-10)
-
-
-#%% Predict daily traffic
-
-model = FullModel(variables_list)
-asdf=model.fit(asdf, traf_mat)
-
-traf_mat_true = load_city(CITY, normalise=False)[2]
-
-stat_id = 520
-
-traffic_est = model.predict_daily_traffic(asdf[asdf.stat_id==stat_id],
-                                          predict_cluster=True,
-                                          plotfig=False)
-
-# Compare prediction to actual traffic
-
-traffic_true = traf_mat_true[data.stat.id_index[stat_id]]
-
-plt.style.use('seaborn-darkgrid')
-fig_dep, ax_dep = plt.subplots(figsize=(10,5))
-
-ax_dep.plot(traffic_true[:24], label='True traffic')
-ax_dep.plot(traffic_est[:24], label='Estimated traffic')
-
-ax_dep.set_xlabel('Hour')
-ax_dep.set_ylabel('# Trips')
-ax_dep.set_title(f'Predicted number of departures each hour for {data.stat.names[data.stat.id_index[stat_id]]} (ID: {stat_id})')
-
-ax_dep.legend()
-
-fig_arr, ax_arr = plt.subplots(figsize=(10,5))
-
-ax_arr.plot(traffic_true[24:], label='True traffic')
-ax_arr.plot(traffic_est[24:], label='Estimated traffic')
-
-ax_arr.set_xlabel('Hour')
-ax_arr.set_ylabel('# Trips')
-ax_arr.set_title(f'Predicted number of arrivals each hour for {data.stat.names[data.stat.id_index[stat_id]]} (ID: {stat_id})')
-
-ax_arr.legend()
-
-
-
-
-#%% Test daily traffic prediction by cluster
-
-dep_or_arr = 'arrivals'
-
-cluster_name_dict = {0 : 'Reference',
-                     1 : 'High morning sink',
-                     2 : 'Low morning sink',
-                     3 : 'Low morning source',
-                     4 : 'High morning source',
-                     5 : 'Cluster 5',
-                     6 : 'Cluster 6',
-                     7 : 'Cluster 7',
-                     8 : 'Cluster 8',
-                     9 : 'Cluster 9',
-                     10 : 'Cluster 10',}
-
-plt.style.use('seaborn-darkgrid')
-bigfig, bigax = plt.subplots(nrows=4, ncols=2, figsize=(10,10))
-
-count=0
-for row in range(4):
-    for col in range(2):
-        
-        city = cities[count]
-        
-        data, asdf, traf_mat = load_city(city, normalise=True)
-        
-        model = FullModel(variables_list)
-        asdf=model.fit(asdf, traf_mat)
-        
-        labels = asdf.copy()['label']
-        
-        data, asdf_new, traf_mat_unnormed = load_city(city, normalise=False)
-        asdf_new['label'] = labels
-        
-        errors_mean = []
-        errors_std = []
-        for l in range(model.k):
-            
-            cluster = asdf_new['label'] == l
-            
-            cluster_stats = asdf[cluster]
-            cluster_traf_mat = traf_mat_unnormed[cluster]
-            
-            cluster_errors = np.zeros(shape=(len(cluster_stats), 24))
-            for i in range(len(cluster_stats)):
-                traffic_est = model.predict_daily_traffic(cluster_stats.iloc[i],
-                                                          predict_cluster=True,
-                                                          plotfig=False,
-                                                          verbose=False)
-                traffic_true = cluster_traf_mat[i]
-                
-                if dep_or_arr == 'departures':
-                    cluster_errors[i,:] = (traffic_est-traffic_true)[:24]
-                else:
-                    cluster_errors[i,:] = (traffic_est-traffic_true)[24:] 
-                
-            errors_mean.append(np.mean(cluster_errors, axis=0))
-            errors_std.append(np.std(cluster_errors, axis=0))
-        
-        for l in range(model.k):
-            bigax[row,col].plot(range(24), errors_mean[l], 
-                                label=cluster_name_dict[l])
-        
-        bigax[row,col].set_xticks(range(24))
-        
-        bigax[row,col].set_ylim(-4,4)
-        bigax[row,col].set_yticks(np.linspace(-4,4,9))
-        
-        if col==0:
-            bigax[row,col].set_ylabel('Mean error')
-        
-        if row==3:
-            bigax[row,col].set_xlabel('Hour')
-        
-        bigax[row,col].set_title(bs.name_dict[city])
-        count+=1
-        
-plt.tight_layout(h_pad=4)
-bigax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.15), ncol=len(bigax[3,0].get_lines()))
-
-
-#%% Plot predictions of all station vs. their true traffic
-
-model = FullModel(variables_list)
-asdf=model.fit(asdf, traf_mat)
-
-labels = asdf.copy()['label']
-
-data, asdf_new, traf_mat_unnormed = load_city(CITY, normalise=False)
-asdf_new['label'] = labels
-
-clustered = ~asdf['label'].isna()
-
-stat_clustered = asdf_new[clustered]
-traf_mat_clustered = traf_mat_unnormed[clustered]
-
-for i in range(len(stat_clustered)):
+    #%% Do data
     
-    traffic_est = model.predict_daily_traffic(stat_clustered.iloc[i],
+    CITY = 'london'
+    YEAR = 2019
+    MONTH = None
+    
+    cities = ['nyc', 'chicago', 'washdc', 'boston', 
+              'london', 'helsinki', 'oslo', 'madrid']
+    
+    variables_list = ['percent_residential', 'percent_commercial',
+                      'percent_recreational', 
+                      'pop_density', 'nearest_subway_dist',
+                      'nearest_railway_dist', 'center_dist']
+    
+    data, asdf, traf_mat = load_city(CITY)
+    
+    model = FullModel(variables_list)
+    asdf=model.fit(asdf, traf_mat)
+    
+    test_model_stratisfied(asdf, traf_mat, variables_list)
+    
+    #%% residual plots
+    
+    plt.style.use('seaborn-darkgrid')
+    big_fig, big_ax = plt.subplots(figsize=(8,12), nrows=4, ncols=2)
+    
+    count=0
+    for row in range(4):
+        for col in range(2):
+            city = cities[count]
+            data, asdf, traf_mat = load_city(city)
+            errors = trips_predict_error_plot(asdf, traf_mat, variables_list, error='residual', 
+                                              by_cluster=False, show_id=True)
+            big_ax[row,col].scatter(errors['predicted'], errors['error'])
+            # big_ax[row,col].scatter(errors['predicted'], errors['error'], 
+            #                         c=np.log(errors.true), cmap='viridis')
+            
+            line_stop = max(big_ax[row,col].get_xlim()[1], big_ax[row,col].get_ylim()[1])
+            
+            
+            if row == 3:
+                big_ax[row,col].set_xlabel('Predicted # trips')
+            
+            if col == 0:
+                big_ax[row,col].set_ylabel('Residual')
+            
+            big_ax[row,col].set_title(f'{bs.name_dict[city]}')
+            
+            count+=1
+    
+    big_fig.tight_layout(w_pad=-10)
+    
+    #%% Relative error plots
+    
+    plt.style.use('seaborn-darkgrid')
+    big_fig, big_ax = plt.subplots(figsize=(8,12), nrows=4, ncols=2)
+    
+    count=0
+    for row in range(4):
+        for col in range(2):
+            city = cities[count]
+            data, asdf, traf_mat = load_city(city)
+            errors = trips_predict_error_plot(asdf, traf_mat, variables_list, error='relative', 
+                                              by_cluster=False, show_id=False, plotfig=False)
+            big_ax[row,col].scatter(errors['true'], errors['error']), 
+                                    # c=np.log(errors['true']), cmap='viridis')
+            
+            if row == 3:
+                big_ax[row,col].set_xlabel('True # trips')
+            
+            if col == 0:
+                # big_ax[row,col].set_ylabel('Absolute error')
+                big_ax[row,col].set_ylabel('Relative error')
+            
+            big_ax[row,col].set_title(f'{bs.name_dict[city]}')
+            
+            count+=1
+    
+    plt.tight_layout()
+    
+    #%% True # trips vs. predicted # trips
+    
+    plt.style.use('seaborn-darkgrid')
+    big_fig, big_ax = plt.subplots(figsize=(8,12), nrows=4, ncols=2)
+    
+    count=0
+    for row in range(4):
+        for col in range(2):
+            city = cities[count]
+            data, asdf, traf_mat = load_city(city)
+            errors = trips_predict_error_plot(asdf, traf_mat, variables_list, error='residual', 
+                                              by_cluster=False, show_id=True)
+            big_ax[row,col].scatter(errors['true'], errors['predicted'])
+            # big_ax[row,col].scatter(errors['predicted'], errors['error'], 
+            #                         c=np.log(errors.true), cmap='viridis')
+            
+            line_stop = max(big_ax[row,col].get_xlim()[1], big_ax[row,col].get_ylim()[1])
+            big_ax[row,col].plot([0,line_stop], [0,line_stop], linestyle='--', c='k')
+            
+            big_ax[row,col].set_box_aspect(1)
+            
+            if row == 3:
+                big_ax[row,col].set_xlabel('True # trips')
+            
+            if col == 0:
+                big_ax[row,col].set_ylabel('Predicted # trips')
+            
+            big_ax[row,col].set_title(f'{bs.name_dict[city]}')
+            
+            count+=1
+    
+    big_fig.tight_layout(w_pad=-10)
+    
+    
+    #%% Predict daily traffic
+    
+    model = FullModel(variables_list)
+    asdf=model.fit(asdf, traf_mat)
+    
+    traf_mat_true = load_city(CITY, normalise=False)[2]
+    
+    stat_id = 520
+    
+    traffic_est = model.predict_daily_traffic(asdf[asdf.stat_id==stat_id],
                                               predict_cluster=True,
-                                              plotfig=False,
-                                              verbose=False)
-    traffic_true = traf_mat_clustered[i]
-
+                                              plotfig=False)
     
-    fig, ax = plt.subplots(figsize=(10,4))
+    # Compare prediction to actual traffic
     
-    ax.plot(traffic_true, label='true')
-    ax.plot(traffic_est, label='predicted')
-    ax.set_ylabel('# trips')
-    ax.legend()
-
-#%% Stratified model test
-
-cities = ['nyc', 'chicago', 'washdc', 'boston', 
-          'london', 'helsinki', 'oslo', 'madrid']
-
-variables_list = ['percent_residential', 'percent_commercial',
-                  'percent_recreational', 
-                  'pop_density', 'nearest_subway_dist',
-                  'nearest_railway_dist', 'center_dist']
-
-dep_or_arr = 'dep'
-
-plt.style.use('seaborn-darkgrid')
-bigfig, bigax = plt.subplots(nrows=4, ncols=2, figsize=(10,10))
-
-count = 0
-for row in range(4):
-    for col in range(2):
-        
-        city = cities[count]
-        # city= 'london'
-        
-        data, asdf, traf_mat = load_city(city)
-        
-        low_err, mid_err, high_err = test_model_stratisfied(asdf, traf_mat, variables_list, test_seed=42)
-        
-        if dep_or_arr == 'dep':
-            bigax[row,col].plot(range(24), low_err[:24], label='Low traffic stations')
-            bigax[row,col].plot(range(24), mid_err[:24], label='Mid traffic stations')
-            bigax[row,col].plot(range(24), high_err[:24], label='High traffic stations')
-        
-        elif dep_or_arr == 'arr':
-            bigax[row,col].plot(low_err[24:], label='Low traffic stations')
-            bigax[row,col].plot(mid_err[24:], label='Mid traffic stations')
-            bigax[row,col].plot(high_err[24:], label='High traffic stations')
-        
-        bigax[row,col].set_xticks(range(24))
-        
-        # bigax[row,col].set_ylim(-4,4)
-        # bigax[row,col].set_yticks(np.linspace(-4,4,9))
-        
-        if col==0:
-            bigax[row,col].set_ylabel('Mean error')
-        
-        if row==3:
-            bigax[row,col].set_xlabel('Hour')
-        
-        bigax[row,col].set_title(bs.name_dict[city])
-        count+=1
-
-plt.tight_layout(h_pad=4)
-bigax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.15), ncol=len(bigax[3,0].get_lines()))
-
-
-#%% Test demand model between cities
-
-cities = ['nyc', 'chicago', 'washdc', 'boston', 
-          'london', 'helsinki', 'oslo', 'madrid']
-
-variables_list = ['percent_residential', 'percent_commercial',
-                  'percent_recreational', 
-                  'pop_density', 'nearest_subway_dist',
-                  'nearest_railway_dist', 'center_dist']
-
-np.random.seed(42)
-
-error = 'MAE'
-
-seed_range = range(50,75)
-
-err_table = pd.DataFrame(index=cities, columns=cities)
-
-for city_train in cities:
+    traffic_true = traf_mat_true[data.stat.id_index[stat_id]]
     
-    data, asdf, traf_mat = load_city(city_train)
+    plt.style.use('seaborn-darkgrid')
+    fig_dep, ax_dep = plt.subplots(figsize=(10,5))
     
-    for city_test in cities:
-        
-        if city_train == city_test:
+    ax_dep.plot(traffic_true[:24], label='True traffic')
+    ax_dep.plot(traffic_est[:24], label='Estimated traffic')
+    
+    ax_dep.set_xlabel('Hour')
+    ax_dep.set_ylabel('# Trips')
+    ax_dep.set_title(f'Predicted number of departures each hour for {data.stat.names[data.stat.id_index[stat_id]]} (ID: {stat_id})')
+    
+    ax_dep.legend()
+    
+    fig_arr, ax_arr = plt.subplots(figsize=(10,5))
+    
+    ax_arr.plot(traffic_true[24:], label='True traffic')
+    ax_arr.plot(traffic_est[24:], label='Estimated traffic')
+    
+    ax_arr.set_xlabel('Hour')
+    ax_arr.set_ylabel('# Trips')
+    ax_arr.set_title(f'Predicted number of arrivals each hour for {data.stat.names[data.stat.id_index[stat_id]]} (ID: {stat_id})')
+    
+    ax_arr.legend()
+    
+    
+    
+    
+    #%% Test daily traffic prediction by cluster
+    
+    dep_or_arr = 'arrivals'
+    
+    cluster_name_dict = {0 : 'Reference',
+                         1 : 'High morning sink',
+                         2 : 'Low morning sink',
+                         3 : 'Low morning source',
+                         4 : 'High morning source',
+                         5 : 'Cluster 5',
+                         6 : 'Cluster 6',
+                         7 : 'Cluster 7',
+                         8 : 'Cluster 8',
+                         9 : 'Cluster 9',
+                         10 : 'Cluster 10',}
+    
+    plt.style.use('seaborn-darkgrid')
+    bigfig, bigax = plt.subplots(nrows=4, ncols=2, figsize=(10,10))
+    
+    count=0
+    for row in range(4):
+        for col in range(2):
             
-            err = 0
-            for split_seed in seed_range:
+            city = cities[count]
+            
+            data, asdf, traf_mat = load_city(city, normalise=True)
+            
+            model = FullModel(variables_list)
+            asdf=model.fit(asdf, traf_mat)
+            
+            labels = asdf.copy()['label']
+            
+            data, asdf_new, traf_mat_unnormed = load_city(city, normalise=False)
+            asdf_new['label'] = labels
+            
+            errors_mean = []
+            errors_std = []
+            for l in range(model.k):
                 
-                np.random.seed(split_seed)
+                cluster = asdf_new['label'] == l
                 
-                # split data randomnly
+                cluster_stats = asdf[cluster]
+                cluster_traf_mat = traf_mat_unnormed[cluster]
                 
-                mask = np.random.rand(len(asdf)) < 0.2
+                cluster_errors = np.zeros(shape=(len(cluster_stats), 24))
+                for i in range(len(cluster_stats)):
+                    traffic_est = model.predict_daily_traffic(cluster_stats.iloc[i],
+                                                              predict_cluster=True,
+                                                              plotfig=False,
+                                                              verbose=False)
+                    traffic_true = cluster_traf_mat[i]
+                    
+                    if dep_or_arr == 'departures':
+                        cluster_errors[i,:] = (traffic_est-traffic_true)[:24]
+                    else:
+                        cluster_errors[i,:] = (traffic_est-traffic_true)[24:] 
+                    
+                errors_mean.append(np.mean(cluster_errors, axis=0))
+                errors_std.append(np.std(cluster_errors, axis=0))
+            
+            for l in range(model.k):
+                bigax[row,col].plot(range(24), errors_mean[l], 
+                                    label=cluster_name_dict[l])
+            
+            bigax[row,col].set_xticks(range(24))
+            
+            bigax[row,col].set_ylim(-4,4)
+            bigax[row,col].set_yticks(np.linspace(-4,4,9))
+            
+            if col==0:
+                bigax[row,col].set_ylabel('Mean error')
+            
+            if row==3:
+                bigax[row,col].set_xlabel('Hour')
+            
+            bigax[row,col].set_title(bs.name_dict[city])
+            count+=1
+            
+    plt.tight_layout(h_pad=4)
+    bigax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.15), ncol=len(bigax[3,0].get_lines()))
+    
+    
+    #%% Plot predictions of all station vs. their true traffic
+    
+    model = FullModel(variables_list)
+    asdf=model.fit(asdf, traf_mat)
+    
+    labels = asdf.copy()['label']
+    
+    data, asdf_new, traf_mat_unnormed = load_city(CITY, normalise=False)
+    asdf_new['label'] = labels
+    
+    clustered = ~asdf['label'].isna()
+    
+    stat_clustered = asdf_new[clustered]
+    traf_mat_clustered = traf_mat_unnormed[clustered]
+    
+    for i in range(len(stat_clustered)):
+        
+        traffic_est = model.predict_daily_traffic(stat_clustered.iloc[i],
+                                                  predict_cluster=True,
+                                                  plotfig=False,
+                                                  verbose=False)
+        traffic_true = traf_mat_clustered[i]
+    
+        
+        fig, ax = plt.subplots(figsize=(10,4))
+        
+        ax.plot(traffic_true, label='true')
+        ax.plot(traffic_est, label='predicted')
+        ax.set_ylabel('# trips')
+        ax.legend()
+    
+    #%% Stratified model test
+    
+    cities = ['nyc', 'chicago', 'washdc', 'boston', 
+              'london', 'helsinki', 'oslo', 'madrid']
+    
+    variables_list = ['percent_residential', 'percent_commercial',
+                      'percent_recreational', 
+                      'pop_density', 'nearest_subway_dist',
+                      'nearest_railway_dist', 'center_dist']
+    
+    dep_or_arr = 'dep'
+    
+    plt.style.use('seaborn-darkgrid')
+    bigfig, bigax = plt.subplots(nrows=4, ncols=2, figsize=(10,10))
+    
+    count = 0
+    for row in range(4):
+        for col in range(2):
+            
+            city = cities[count]
+            # city= 'london'
+            
+            data, asdf, traf_mat = load_city(city)
+            
+            low_err, mid_err, high_err = test_model_stratisfied(asdf, traf_mat, variables_list, test_seed=42)
+            
+            if dep_or_arr == 'dep':
+                bigax[row,col].plot(range(24), low_err[:24], label='Low traffic stations')
+                bigax[row,col].plot(range(24), mid_err[:24], label='Mid traffic stations')
+                bigax[row,col].plot(range(24), high_err[:24], label='High traffic stations')
+            
+            elif dep_or_arr == 'arr':
+                bigax[row,col].plot(low_err[24:], label='Low traffic stations')
+                bigax[row,col].plot(mid_err[24:], label='Mid traffic stations')
+                bigax[row,col].plot(high_err[24:], label='High traffic stations')
+            
+            bigax[row,col].set_xticks(range(24))
+            
+            # bigax[row,col].set_ylim(-4,4)
+            # bigax[row,col].set_yticks(np.linspace(-4,4,9))
+            
+            if col==0:
+                bigax[row,col].set_ylabel('Mean error')
+            
+            if row==3:
+                bigax[row,col].set_xlabel('Hour')
+            
+            bigax[row,col].set_title(bs.name_dict[city])
+            count+=1
+    
+    plt.tight_layout(h_pad=4)
+    bigax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.15), ncol=len(bigax[3,0].get_lines()))
+    
+    
+    #%% Test demand model between cities
+    
+    cities = ['nyc', 'chicago', 'washdc', 'boston', 
+              'london', 'helsinki', 'oslo', 'madrid']
+    
+    variables_list = ['percent_residential', 'percent_commercial',
+                      'percent_recreational', 
+                      'pop_density', 'nearest_subway_dist',
+                      'nearest_railway_dist', 'center_dist']
+    
+    np.random.seed(42)
+    
+    error = 'MAE'
+    
+    seed_range = range(50,75)
+    
+    err_table = pd.DataFrame(index=cities, columns=cities)
+    
+    for city_train in cities:
+        
+        data, asdf, traf_mat = load_city(city_train)
+        
+        for city_test in cities:
+            
+            if city_train == city_test:
                 
-                df_train = asdf[~mask]
-                tm_train = traf_mat[~mask]
+                err = 0
+                for split_seed in seed_range:
+                    
+                    np.random.seed(split_seed)
+                    
+                    # split data randomnly
+                    
+                    mask = np.random.rand(len(asdf)) < 0.2
+                    
+                    df_train = asdf[~mask]
+                    tm_train = traf_mat[~mask]
+                    
+                    df_test = asdf[mask]
+                    tm_test = traf_mat[mask]
+                    
+                    model = FullModel(variables_list)
+                    model.fit(df_train, tm_train)
+                    
+                    demand_true = df_test['b_trips'].to_numpy()
+                    demand_est = model.predict(df_test)[1]
+                    
+                    if error =='ME':
+                        err += np.mean(demand_est-demand_true)
+                    
+                    elif error == 'MAE':
+                        err += np.mean(np.abs(demand_est-demand_true))
+                    
+                    elif error == 'MSE':
+                        err += np.mean(np.abs(demand_est-demand_true)**2)
+                        
+                err_table.loc[city_train, city_test] = err/len(seed_range)
+                    
+            else:
                 
-                df_test = asdf[mask]
-                tm_test = traf_mat[mask]
+                # Get training and test sets
+                
+                data, df_train, tm_train = data, asdf, traf_mat
+                data, df_test, tm_test = load_city(city_test)
+                    
+                # train model
                 
                 model = FullModel(variables_list)
                 model.fit(df_train, tm_train)
+                
+                # Predict demand
                 
                 demand_true = df_test['b_trips'].to_numpy()
                 demand_est = model.predict(df_test)[1]
                 
                 if error =='ME':
-                    err += np.mean(demand_est-demand_true)
+                    err = np.mean(demand_est-demand_true)
                 
                 elif error == 'MAE':
-                    err += np.mean(np.abs(demand_est-demand_true))
+                    err = np.mean(np.abs(demand_est-demand_true))
                 
                 elif error == 'MSE':
-                    err += np.mean(np.abs(demand_est-demand_true)**2)
-                    
-            err_table.loc[city_train, city_test] = err/len(seed_range)
-                
-        else:
-            
-            # Get training and test sets
-            
-            data, df_train, tm_train = data, asdf, traf_mat
-            data, df_test, tm_test = load_city(city_test)
-                
-            # train model
-            
-            model = FullModel(variables_list)
-            model.fit(df_train, tm_train)
-            
-            # Predict demand
-            
-            demand_true = df_test['b_trips'].to_numpy()
-            demand_est = model.predict(df_test)[1]
-            
-            if error =='ME':
-                err = np.mean(demand_est-demand_true)
-            
-            elif error == 'MAE':
-                err = np.mean(np.abs(demand_est-demand_true))
-            
-            elif error == 'MSE':
-                err = np.mean(np.abs(demand_est-demand_true)**2)
+                    err = np.mean(np.abs(demand_est-demand_true)**2)
+        
+                err_table.loc[city_train, city_test] = err
+        
+    err_table = err_table.rename(index=bs.name_dict, columns=bs.name_dict)
+    print(err_table.to_latex(column_format='@{}l'+('r'*len(err_table.columns)) + '@{}', formatters = [table_formatter]*len(err_table.columns), escape=False))
     
-            err_table.loc[city_train, city_test] = err
     
-err_table = err_table.rename(index=bs.name_dict, columns=bs.name_dict)
-print(err_table.to_latex(column_format='@{}l'+('r'*len(err_table.columns)) + '@{}', formatters = [table_formatter]*len(err_table.columns), escape=False))
-
-
-
-
-
-
-
+    
+    
+    
+    
+    
 
 
 
