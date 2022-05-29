@@ -23,6 +23,9 @@ import matplotlib.patches as mpatches
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 from matplotlib.offsetbox import AnchoredText, AnchoredOffsetbox
 import contextily as cx
+from more_itertools import distinct_permutations
+
+from sympy.utilities.iterables import multiset_permutations
     
 from shapely.geometry import Polygon
 
@@ -288,6 +291,16 @@ def unpacking_apply_along_axis(all_args):
     by map().
     """
     return np.apply_along_axis(func1d, axis, arr, *args, **kwargs)
+
+
+def grouper(iterable, n, fillvalue=None):
+    """
+    Collect data into fixed-length chunks or blocks
+    From https://docs.python.org/3.9/library/itertools.html#itertools-recipes
+    """
+    # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"
+    args = [iter(iterable)] * n
+    return itertools.zip_longest(*args, fillvalue=fillvalue)
 
 
 # #%%
@@ -814,8 +827,10 @@ if __name__ == "__main__":
 
     model_results = ipu.linear_regression(asdf, df_cols, triptype)
     
-    minima = []
-    n_per = 50000
+    minima = {}
+    # scores = [[]]*len(sub_polygons)
+    
+    n_per = 1000000
     
     rng = np.random.default_rng(42)
     
@@ -845,7 +860,7 @@ if __name__ == "__main__":
         
         n_stations = polygon['n_stations']
         
-        n_combinations = binom(len(int_exp), n_stations)
+        n_combinations = binom(len(int_exp) - n_existing, n_stations)
         fig, ax = plt.subplots()
         gpd.GeoSeries(polygon['geometry']).plot(ax=ax)
         int_exp.plot(ax=ax, color='red')
@@ -859,8 +874,8 @@ if __name__ == "__main__":
         n_total = n_select + n_existing
         
         distances = np.zeros((n, n))
-        for i in range(n):
-            distances[i] = int_proj.distance(int_proj.geometry.loc[i])
+        for j in range(n):
+            distances[j] = int_proj.distance(int_proj.geometry.loc[j])
             
         
         pred = model_results.predict(point_info[['const', *df_cols]])
@@ -878,42 +893,67 @@ if __name__ == "__main__":
         
         x0 = np.zeros(n-n_existing)
         x0[:n_select] = 1
-        np.random.seed(42)
-        x0 = np.random.permutation(x0)
+        # np.random.seed(42)
+        # x0 = np.random.permutation(x0)
         
-        n_permutations = np.floor(np.min((n_per, n_combinations*100))).astype(int)
+        # n_permutations = np.floor(np.min((n_per, n_combinations*100))).astype(int)
         
-        population = rng.permuted(np.tile(x0, n_permutations).reshape(n_permutations, x0.size), axis=1)
+        perm_generator = distinct_permutations(x0)
+        grouped_perms = grouper(perm_generator, n_per, fillvalue=tuple(x0))
         
-        existing_population = np.ones((n_permutations, n_existing))
+        print(n_combinations/n_per)
         
-        population = np.hstack((existing_population, population))
+        best_score = 0
         
-        score = parallel_apply_along_axis(obj_fun, 1, population)
-        if n_select > 1:
-            cond = parallel_apply_along_axis(condition, 1, population)
-        else:
-            cond = np.sum(population, axis=1)*400
-        mask = np.where(cond < 250)
-        if len(score[mask]) == len(score):
-            print('mask condition not fulfilled, changing to 200')
-            mask = np.where(cond < 200)
+        for population in grouped_perms:
+        
+            # population = rng.permuted(np.tile(x0, n_permutations).reshape(n_permutations, x0.size), axis=1)
+            
+            existing_population = np.ones((n_per, n_existing))
+            
+            population = np.hstack((existing_population, population))
+            
+            score = parallel_apply_along_axis(obj_fun, 1, population)
+            if n_select > 1:
+                cond = parallel_apply_along_axis(condition, 1, population)
+            else:
+                cond = np.sum(population, axis=1)*400
+            
+            spacing = 250
+            mask = np.where(cond < 250)
             if len(score[mask]) == len(score):
-                print('mask condition not fulfilled, changing to 100')
-                mask = np.where(cond < 100)
+                print('mask condition not fulfilled, changing to 200')
+                spacing = 200
+                mask = np.where(cond < 200)
+                if len(score[mask]) == len(score):
+                    print('mask condition not fulfilled, changing to 150')
+                    spacing = 150
+                    mask = np.where(cond < 150)
+                    if len(score[mask]) == len(score):
+                        print('mask condition not fulfilled, changing to 100')
+                        spacing = 100
+                        mask = np.where(cond < 100)
+                        if len(score[mask]) == len(score):
+                            print('mask condition not fulfilled, changing to 80')
+                            spacing = 80
+                            mask = np.where(cond < 80)
+            
+            score[mask] = 0
+            
+            best = population[np.argmin(score)]
+            min_score = np.min(score)
+            
+            print(f"min: {best}, score: {min_score}")
         
-        score[mask] = 0
         
-        print(f"min: {population[np.argmin(score)]}, score: {np.min(score)}, condition = {cond}")
-        
-        
-        # minimum = so.minimize(obj_fun, x0=x0, constraints=(sum_constraint), bounds=bounds, method='SLSQP', options={'maxiter': 10})
-        # print(minimum.message)
-        # minima.append(minimum)
-        # selection_idx = np.argpartition(minimum.x, -n_select)[-n_select:]
-        # minima.append([np.min(score[mask]), population[np.argmin(score[mask])]])
-        score[mask] = 0
-        minima.append(population[np.argmin(score)]) 
+            # minimum = so.minimize(obj_fun, x0=x0, constraints=(sum_constraint), bounds=bounds, method='SLSQP', options={'maxiter': 10})
+            # print(minimum.message)
+            # minima.append(minimum)
+            # selection_idx = np.argpartition(minimum.x, -n_select)[-n_select:]
+            # minima.append([np.min(score[mask]), population[np.argmin(score[mask])]])
+            if min_score < best_score:
+                minima[(i,spacing)] = (best, min_score)
+        print(minima)
     #%% Results
     
     results = [
