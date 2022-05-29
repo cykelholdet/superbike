@@ -8,6 +8,7 @@ Created on Tue Apr 19 07:35:21 2022
 
 import multiprocessing
 import itertools
+import time
 
 import osmnx
 import numpy as np
@@ -835,6 +836,7 @@ if __name__ == "__main__":
     rng = np.random.default_rng(42)
     
     for i, polygon in sub_polygons.iterrows():
+        t_start = time.time()
         int_exp = get_intersections(polygon['geometry'], data=data)
        
         existing_stations = gpd.sjoin(station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
@@ -954,6 +956,7 @@ if __name__ == "__main__":
             if min_score < best_score:
                 minima[(i,spacing)] = (best, min_score)
         print(minima)
+        print(f"time taken: {(time.time() - t_start)/60:.1f} min.")
     #%% Results
     
     results = [
