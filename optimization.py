@@ -9,6 +9,7 @@ Created on Tue Apr 19 07:35:21 2022
 import multiprocessing
 import itertools
 import time
+import pickle
 
 import osmnx
 import numpy as np
@@ -831,11 +832,13 @@ if __name__ == "__main__":
     minima = {}
     # scores = [[]]*len(sub_polygons)
     
-    n_per = 1000000
+    n_per = 10000000
     
-    rng = np.random.default_rng(42)
+    # rng = np.random.default_rng(42)
     
-    for i, polygon in sub_polygons.iterrows():
+    spacings = [100, 150, 200, 250, 300]
+    
+    for i, polygon in sub_polygons[::-1].iterrows():
         t_start = time.time()
         int_exp = get_intersections(polygon['geometry'], data=data)
        
@@ -905,7 +908,11 @@ if __name__ == "__main__":
         
         print(n_combinations/n_per)
         
-        best_score = 0
+        best_scores = {}
+        
+        for spacing in spacings:
+            minima[(i, spacing)] = (None,0)
+            
         
         for population in grouped_perms:
         
@@ -921,42 +928,57 @@ if __name__ == "__main__":
             else:
                 cond = np.sum(population, axis=1)*400
             
-            spacing = 250
-            mask = np.where(cond < 250)
-            if len(score[mask]) == len(score):
-                print('mask condition not fulfilled, changing to 200')
-                spacing = 200
-                mask = np.where(cond < 200)
-                if len(score[mask]) == len(score):
-                    print('mask condition not fulfilled, changing to 150')
-                    spacing = 150
-                    mask = np.where(cond < 150)
-                    if len(score[mask]) == len(score):
-                        print('mask condition not fulfilled, changing to 100')
-                        spacing = 100
-                        mask = np.where(cond < 100)
-                        if len(score[mask]) == len(score):
-                            print('mask condition not fulfilled, changing to 80')
-                            spacing = 80
-                            mask = np.where(cond < 80)
+            # spacing = 250
+            # mask = np.where(cond < 250)
+            # if len(score[mask]) == len(score):
+            #     print('mask condition not fulfilled, changing to 200')
+            #     spacing = 200
+            #     mask = np.where(cond < 200)
+            #     if len(score[mask]) == len(score):
+            #         print('mask condition not fulfilled, changing to 150')
+            #         spacing = 150
+            #         mask = np.where(cond < 150)
+            #         if len(score[mask]) == len(score):
+            #             print('mask condition not fulfilled, changing to 100')
+            #             spacing = 100
+            #             mask = np.where(cond < 100)
+            #             if len(score[mask]) == len(score):
+            #                 print('mask condition not fulfilled, changing to 80')
+            #                 spacing = 80
+            #                 mask = np.where(cond < 80)
             
-            score[mask] = 0
             
-            best = population[np.argmin(score)]
-            min_score = np.min(score)
             
-            print(f"min: {best}, score: {min_score}")
-        
-        
-            # minimum = so.minimize(obj_fun, x0=x0, constraints=(sum_constraint), bounds=bounds, method='SLSQP', options={'maxiter': 10})
-            # print(minimum.message)
-            # minima.append(minimum)
-            # selection_idx = np.argpartition(minimum.x, -n_select)[-n_select:]
-            # minima.append([np.min(score[mask]), population[np.argmin(score[mask])]])
-            if min_score < best_score:
-                minima[(i,spacing)] = (best, min_score)
+            for spacing in spacings:
+                mask = np.where(cond < spacing)
+                
+                score[mask] = 0
+                
+                best = population[np.argmin(score)]
+                min_score = np.min(score)
+                
+                if spacing == 250:
+                    print(f"min: {best}, score: {min_score}")
+            
+            
+                # minimum = so.minimize(obj_fun, x0=x0, constraints=(sum_constraint), bounds=bounds, method='SLSQP', options={'maxiter': 10})
+                # print(minimum.message)
+                # minima.append(minimum)
+                # selection_idx = np.argpartition(minimum.x, -n_select)[-n_select:]
+                # minima.append([np.min(score[mask]), population[np.argmin(score[mask])]])
+                
+                
+                
+                if min_score < minima[(i, spacing)][1]:
+                    minima[(i,spacing)] = (best, min_score)
+
         print(minima)
         print(f"time taken: {(time.time() - t_start)/60:.1f} min.")
+        
+        save_minima = [minima[(i, spacing)] for spacing in spacings]
+        save_minima = pd.DataFrame(save_minima, index=spacings, columns=('solution', 'score'))
+        with open(f'./python_variables/nyc_expansion_optimization_polygon_{i:02d}.pickle', 'wb') as file:
+            pickle.dump(save_minima, file)
     #%% Results
     
     results = [
