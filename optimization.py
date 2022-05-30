@@ -831,7 +831,7 @@ if __name__ == "__main__":
     minima = {}
     # scores = [[]]*len(sub_polygons)
     
-    n_per = 1000000
+    n_per = 10000000
     
     rng = np.random.default_rng(42)
     
