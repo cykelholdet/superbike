@@ -839,7 +839,7 @@ def make_model_and_plot_heatmaps(
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=FutureWarning)
 
-    CITY = 'nyc'
+    CITY = 'london'
     YEAR = 2019
     MONTH = None
     
@@ -847,7 +847,7 @@ if __name__ == "__main__":
             'pop_density', 'nearest_subway_dist', 'nearest_railway_dist', 'center_dist']
     triptype = 'b_trips'  # Only relevant for OLS
     resolution = 200  # Grid size in m
-    modeltype = 'LR'  # LR or OLS
+    modeltype = 'OLS'  # LR or OLS
     k = 5
     min_trips = 8
 

@@ -6,7 +6,10 @@ Created on Tue Apr 19 07:35:21 2022
 @author: ubuntu
 """
 
+import multiprocessing
 import itertools
+import time
+import pickle
 
 import osmnx
 import numpy as np
@@ -18,6 +21,15 @@ from bokeh.models import HoverTool
 import scipy.optimize as so
 from scipy.special import binom
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+from matplotlib.offsetbox import AnchoredText, AnchoredOffsetbox
+import contextily as cx
+from more_itertools import distinct_permutations
+
+from sympy.utilities.iterables import multiset_permutations
+    
+from shapely.geometry import Polygon
 
 import interactive_plot_utils as ipu
 import bikeshare as bs
@@ -94,6 +106,26 @@ def get_intersections(polygon=None, data=None, station_df=None, merge_tolerance=
 
 
 def get_point_info(data, nodes, land_use, census_df):
+    """
+    Get info of points with column 'geometry' and 'coords' both in epsg 4326
+
+    Parameters
+    ----------
+    data : TYPE
+        DESCRIPTION.
+    nodes : TYPE
+        DESCRIPTION.
+    land_use : TYPE
+        DESCRIPTION.
+    census_df : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    point_info : TYPE
+        DESCRIPTION.
+
+    """
     neighborhoods = ipu.point_neighborhoods(nodes['geometry'], land_use)
 
     nodes = nodes.join(neighborhoods)
@@ -112,6 +144,7 @@ def get_point_info(data, nodes, land_use, census_df):
     point_info['pop_density'] = np.array(pop_density)
     point_info['nearest_subway_dist'] = nearest_subway['nearest_subway_dist']
     point_info['nearest_railway_dist'] = nearest_subway['nearest_railway_dist']
+    point_info['center_dist'] = ipu.geodesic_distance(nodes, bs.city_center_dict[data.city])
     
     return point_info
 
@@ -170,7 +203,7 @@ def asdf_months(data, months, variables=None):
     return avg_stat_df_year
     
 
-def plot_intersections(nodes, nodes2=None, websocket_origin=None, polygons=None, vdims=None):
+def plot_intersections(nodes, nodes2=None, websocket_origin=None, polygons=None, vdims=None, return_panel=False):
 
     tiles = gv.tile_sources.StamenTerrainRetina()
     tiles.opts(height=800, width=1600, active_tools=['wheel_zoom'])
@@ -190,38 +223,92 @@ def plot_intersections(nodes, nodes2=None, websocket_origin=None, polygons=None,
                          kdims=['lon', 'lat'],)
         plot.opts(fill_color='blue', line_color='black', size=8)
 
-    if nodes2 != None:
+    if nodes2 is not None:
         plot2 = gv.Points(nodes2[['lon', 'lat']],
                          kdims=['lon', 'lat'],)
         plot2.opts(fill_color='blue', line_color='black', size=8)
-
-        panelplot = pn.Column(tiles*plot, tiles*plot2)
+        combined_plot = tiles*plot
+        panelplot = pn.Column(combined_plot, tiles*plot2)
     elif polygons is not None:
         plot2 = gv.Polygons(polygons['geometry'])
         plot2.opts(alpha=0.7)
-        panelplot = pn.Column(tiles*plot2*plot)
+        combined_plot = tiles*plot2*plot
+        panelplot = pn.Column(combined_plot)
     else:
-        panelplot = pn.Column(tiles*plot)
+        combined_plot = tiles*plot
+        panelplot = pn.Column(combined_plot)
     
 
     tooltips = [
         ('highway', '@highway'),
         ('street count', '@street_count'),
         ('existing', '@existing'),
+        ('stat_id', '@stat_id')
     ]
 
     hover = HoverTool(tooltips=tooltips)
     plot.opts(tools=[hover])
-
-    bokeh_plot = panelplot.show(port=3000, websocket_origin=websocket_origin)
+    
+    if return_panel == True:
+        bokeh_plot = combined_plot
+    else:
+        bokeh_plot = panelplot.show(port=3000, websocket_origin=websocket_origin)
     
     return bokeh_plot
+
+
+def parallel_apply_along_axis(func1d, axis, arr, *args, **kwargs):
+    """
+    Like numpy.apply_along_axis(), but takes advantage of multiple
+    cores.
+    """        
+    # Effective axis where apply_along_axis() will be applied by each
+    # worker (any non-zero axis number would work, so as to allow the use
+    # of `np.array_split()`, which is only done on axis 0):
+    effective_axis = 1 if axis == 0 else axis
+    if effective_axis != axis:
+        arr = arr.swapaxes(axis, effective_axis)
+
+    # Chunks for the mapping (only a few chunks):
+    chunks = [(func1d, effective_axis, sub_arr, args, kwargs)
+              for sub_arr in np.array_split(arr, multiprocessing.cpu_count())]
+
+    pool = multiprocessing.Pool()
+    individual_results = pool.map(unpacking_apply_along_axis, chunks)
+    # Freeing the workers:
+    pool.close()
+    pool.join()
+
+    return np.concatenate(individual_results)
+
+def unpacking_apply_along_axis(all_args):
+    (func1d, axis, arr, args, kwargs) = all_args
+    """
+    Like numpy.apply_along_axis(), but with arguments in a tuple
+    instead.
+
+    This function is useful with multiprocessing.Pool().map(): (1)
+    map() only handles functions that take a single argument, and (2)
+    this function can generally be imported from a module, as required
+    by map().
+    """
+    return np.apply_along_axis(func1d, axis, arr, *args, **kwargs)
+
+
+def grouper(iterable, n, fillvalue=None):
+    """
+    Collect data into fixed-length chunks or blocks
+    From https://docs.python.org/3.9/library/itertools.html#itertools-recipes
+    """
+    # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"
+    args = [iter(iterable)] * n
+    return itertools.zip_longest(*args, fillvalue=fillvalue)
 
 
 # #%%
 
 if __name__ == "__main__":
-#     city = 'nyc'
+    city = 'nyc'
 #     year = 2019
     
 #     data = bs.Data(city, year, None)
@@ -471,50 +558,13 @@ if __name__ == "__main__":
     
     #%% multi
     
-    import multiprocessing
-    
-    def parallel_apply_along_axis(func1d, axis, arr, *args, **kwargs):
-        """
-        Like numpy.apply_along_axis(), but takes advantage of multiple
-        cores.
-        """        
-        # Effective axis where apply_along_axis() will be applied by each
-        # worker (any non-zero axis number would work, so as to allow the use
-        # of `np.array_split()`, which is only done on axis 0):
-        effective_axis = 1 if axis == 0 else axis
-        if effective_axis != axis:
-            arr = arr.swapaxes(axis, effective_axis)
-    
-        # Chunks for the mapping (only a few chunks):
-        chunks = [(func1d, effective_axis, sub_arr, args, kwargs)
-                  for sub_arr in np.array_split(arr, multiprocessing.cpu_count())]
-    
-        pool = multiprocessing.Pool()
-        individual_results = pool.map(unpacking_apply_along_axis, chunks)
-        # Freeing the workers:
-        pool.close()
-        pool.join()
-    
-        return np.concatenate(individual_results)
-    
-    def unpacking_apply_along_axis(all_args):
-        (func1d, axis, arr, args, kwargs) = all_args
-        """
-        Like numpy.apply_along_axis(), but with arguments in a tuple
-        instead.
-    
-        This function is useful with multiprocessing.Pool().map(): (1)
-        map() only handles functions that take a single argument, and (2)
-        this function can generally be imported from a module, as required
-        by map().
-        """
-        return np.apply_along_axis(func1d, axis, arr, *args, **kwargs)
-    
-    # result = parallel_apply_along_axis(condition, 1, perms)
-    
-    # spaced_idx = np.where(result > 100)[0]
-    # spaced_candidates = perms[spaced_idx]
-    
+
+
+# result = parallel_apply_along_axis(condition, 1, perms)
+
+# spaced_idx = np.where(result > 100)[0]
+# spaced_candidates = perms[spaced_idx]
+
     def obj_fun(x):
         return -np.sum(x*pred)
     
@@ -726,209 +776,259 @@ if __name__ == "__main__":
     # selection_so[selection_idx] = 1
     
     
-    # #%% Expansion subdivision
+    #%% Expansion subdivision
     
-    # # First step: Determine how many stations to place in each subpolygon.
+    # First step: Determine how many stations to place in each subpolygon.
     
-    # data = bs.Data('nyc', 2019, 9)
+    data = bs.Data('nyc', 2019, 9)
     
-    # station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)   
-    # sub_polygons = gpd.read_file('data/nyc/nyc_expansion_subdivision_2.geojson')
+    station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)   
+    sub_polygons = gpd.read_file('data/nyc/nyc_expansion_subdivision_2.geojson')
     
-    # months = [1,2,3,4,5,6,7,8,9]
-    # asdf = asdf_months(data, months)
+    months = [1,2,3,4,5,6,7,8,9]
+    asdf = asdf_months(data, months)
     
-    # pops = []
-    # for polygon in sub_polygons['geometry']:
-    #     intersections = census_df.intersection(polygon)
-    #     selection = ~intersections.is_empty
-    #     census_intersect = census_df.loc[selection, 'pop_density']
-    #     # Area in km²
-    #     areas = intersections[selection].to_crs(data.laea_crs).area/1000000
-    #     population = np.sum(areas * census_intersect)
-    #     pops.append(population)
+    pops = []
+    for polygon in sub_polygons['geometry']:
+        intersections = census_df.intersection(polygon)
+        selection = ~intersections.is_empty
+        census_intersect = census_df.loc[selection, 'pop_density']
+        # Area in km²
+        areas = intersections[selection].to_crs(data.laea_crs).area/1000000
+        population = np.sum(areas * census_intersect)
+        pops.append(population)
     
-    # sub_polygons['population'] = pops
+    sub_polygons['population'] = pops
     
-    # # Number of stations per person
-    # station_density = len(station_df) / station_df['population'].sum()
+    # Number of stations per person
+    station_density = len(station_df) / station_df['population'].sum()
     
-    # proportional_n_stations = sub_polygons['population'] * station_density
+    proportional_n_stations = sub_polygons['population'] * station_density
     
-    # # Scale up and round to add up to 60
-    # n_stations = np.floor(proportional_n_stations*3.15)
+    # Scale up and round to add up to 60
+    n_stations = np.floor(proportional_n_stations*3.15)
     
-    # sub_polygons['n_stations'] = n_stations
+    sub_polygons['n_stations'] = n_stations
     
-    # traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
-    # cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
-    #         'pop_density', 'nearest_subway_dist', 'nearest_railway_dist']
-    # day_type = 'business_days'
-    # min_trips = 8
-    # clustering = 'k_means'
-    # k = 5
-    # seed = 42
-    # triptype = 'b_trips'
-    # asdf, clusters, labels = get_clusters(
-    #     traffic_matrices, asdf, day_type, min_trips, clustering, k, seed)
+    traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
+    cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
+            'pop_density', 'nearest_subway_dist', 'nearest_railway_dist']
+    day_type = 'business_days'
+    min_trips = 8
+    clustering = 'k_means'
+    k = 5
+    seed = 42
+    triptype = 'b_trips'
+    asdf, clusters, labels = get_clusters(
+        traffic_matrices, asdf, day_type, min_trips, clustering, k, seed)
 
-    # if data.city in ['helsinki', 'oslo', 'madrid', 'london']:
-    #     df_cols = [col for col in cols if col != 'percent_industrial']
-    # else:
-    #     df_cols = cols
+    if data.city in ['helsinki', 'oslo', 'madrid', 'london']:
+        df_cols = [col for col in cols if col != 'percent_industrial']
+    else:
+        df_cols = cols
 
-    # model_results = ipu.linear_regression(asdf, df_cols, triptype)
+    model_results = ipu.linear_regression(asdf, df_cols, triptype)
     
-    # minima = []
-    # n_per = 50000
+    minima = {}
+    # scores = [[]]*len(sub_polygons)
+    
+    n_per = 10000000
     
     # rng = np.random.default_rng(42)
     
-    # for i, polygon in sub_polygons.iterrows():
-    #     int_exp = get_intersections(polygon['geometry'], data=data)
+    spacings = [100, 150, 200, 250, 300]
+    
+    for i, polygon in sub_polygons.iterrows():
+        t_start = time.time()
+        int_exp = get_intersections(polygon['geometry'], data=data)
        
-    #     existing_stations = gpd.sjoin(station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
+        existing_stations = gpd.sjoin(station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
        
-    #     existing_stations['lon'] = existing_stations['long']
-    #     existing_stations['geometry'] = existing_stations['coords']
+        existing_stations['lon'] = existing_stations['long']
+        existing_stations['geometry'] = existing_stations['coords']
        
-    #     n_existing = len(existing_stations)
+        n_existing = len(existing_stations)
        
-    #     print(f"{n_existing} existing, {polygon['n_stations']} total")
+        print(f"{n_existing} existing, {polygon['n_stations']} total")
        
-    #     int_exp = pd.concat((existing_stations[['lat', 'lon', 'coords', 'geometry']], int_exp))
-    #     int_exp = int_exp.reset_index()
-
+        int_exp = pd.concat((existing_stations[['lat', 'lon', 'coords', 'geometry']], int_exp))
+        int_exp = int_exp.reset_index()
         
-    #     point_info = get_point_info(data, int_exp, land_use, census_df)
+        print(f"There are {len(int_exp)} Intersections")
         
-    #     months = [1,2,3,4,5,6,7,8,9]
-    #     # asdf = asdf_months(data, months)
+        point_info = get_point_info(data, int_exp, land_use, census_df)
         
-    #     int_proj = int_exp.to_crs(data.laea_crs)
+        months = [1,2,3,4,5,6,7,8,9]
+        # asdf = asdf_months(data, months)
         
-    #     n_stations = polygon['n_stations']
+        int_proj = int_exp.to_crs(data.laea_crs)
         
-    #     n_combinations = binom(len(int_exp), n_stations)
-    #     fig, ax = plt.subplots()
-    #     gpd.GeoSeries(polygon['geometry']).plot(ax=ax)
-    #     int_exp.plot(ax=ax, color='red')
-    #     ax.set_title(f"{n_stations} stations : {n_combinations} combinations")
-    #     print(n_combinations)
+        n_stations = polygon['n_stations']
         
-    #     n = len(point_info)
+        n_combinations = binom(len(int_exp) - n_existing, n_stations)
+        fig, ax = plt.subplots()
+        gpd.GeoSeries(polygon['geometry']).plot(ax=ax)
+        int_exp.plot(ax=ax, color='red')
+        ax.set_title(f"{n_stations} stations : {n_combinations} combinations")
+        print(n_combinations)
         
-    #     n_select = int(n_stations)
+        n = len(point_info)
         
-    #     n_total = n_select + n_existing
+        n_select = int(n_stations)
         
-    #     distances = np.zeros((n, n))
-    #     for i in range(n):
-    #         distances[i] = int_proj.distance(int_proj.geometry.loc[i])
+        n_total = n_select + n_existing
+        
+        distances = np.zeros((n, n))
+        for j in range(n):
+            distances[j] = int_proj.distance(int_proj.geometry.loc[j])
             
         
-    #     pred = model_results.predict(point_info[['const', *df_cols]])
+        pred = model_results.predict(point_info[['const', *df_cols]])
         
-    #     def obj_fun(x):
-    #         return -np.sum(x*pred)
+        def obj_fun(x):
+            return -np.sum(x*pred)
         
-    #     def condition(x):
-    #         xb = x.astype(bool)
-    #         return np.min(distances[xb][:,xb][distances[xb][:,xb] != 0])
+        def condition(x):
+            xb = x.astype(bool)
+            return np.min(distances[xb][:,xb][distances[xb][:,xb] != 0])
         
-    #     sum_constraint = so.LinearConstraint(np.array([[1]*n]), n_select, n_select)
-    #     sum_constraint = so.NonlinearConstraint(condition, 200, n_select)
-    #     bounds = so.Bounds([0]*n, [1]*n)
+        sum_constraint = so.LinearConstraint(np.array([[1]*n]), n_select, n_select)
+        sum_constraint = so.NonlinearConstraint(condition, 200, n_select)
+        bounds = so.Bounds([0]*n, [1]*n)
         
-    #     x0 = np.zeros(n-n_existing)
-    #     x0[:n_select] = 1
-    #     np.random.seed(42)
-    #     x0 = np.random.permutation(x0)
+        x0 = np.zeros(n-n_existing)
+        x0[:n_select] = 1
+        # np.random.seed(42)
+        # x0 = np.random.permutation(x0)
         
-    #     n_permutations = np.floor(np.min((n_per, n_combinations*100))).astype(int)
+        # n_permutations = np.floor(np.min((n_per, n_combinations*100))).astype(int)
         
-    #     population = rng.permuted(np.tile(x0, n_permutations).reshape(n_permutations, x0.size), axis=1)
+        perm_generator = distinct_permutations(x0)
+        grouped_perms = grouper(perm_generator, n_per, fillvalue=tuple(x0))
         
-    #     existing_population = np.ones((n_permutations, n_existing))
+        print(n_combinations/n_per)
         
-    #     population = np.hstack((existing_population, population))
+        best_scores = {}
         
-    #     score = parallel_apply_along_axis(obj_fun, 1, population)
-    #     if n_select > 1:
-    #         cond = parallel_apply_along_axis(condition, 1, population)
-    #     else:
-    #         cond = np.sum(population, axis=1)*400
-    #     mask = np.where(cond < 250)
-    #     if len(score[mask]) == len(score):
-    #         print('mask condition not fulfilled, changing to 200')
-    #         mask = np.where(cond < 200)
-    #         if len(score[mask]) == len(score):
-    #             print('mask condition not fulfilled, changing to 100')
-    #             mask = np.where(cond < 100)
+        for spacing in spacings:
+            minima[(i, spacing)] = (None,0)
+            
         
-    #     score[mask] = 0
+        for population in grouped_perms:
         
-    #     print(f"min: {population[np.argmin(score)]}, score: {np.min(score)}, condition = {cond}")
+            # population = rng.permuted(np.tile(x0, n_permutations).reshape(n_permutations, x0.size), axis=1)
+            
+            existing_population = np.ones((n_per, n_existing))
+            
+            population = np.hstack((existing_population, population))
+            
+            score = parallel_apply_along_axis(obj_fun, 1, population)
+            if n_select > 1:
+                cond = parallel_apply_along_axis(condition, 1, population)
+            else:
+                cond = np.sum(population, axis=1)*400
+            
+            # spacing = 250
+            # mask = np.where(cond < 250)
+            # if len(score[mask]) == len(score):
+            #     print('mask condition not fulfilled, changing to 200')
+            #     spacing = 200
+            #     mask = np.where(cond < 200)
+            #     if len(score[mask]) == len(score):
+            #         print('mask condition not fulfilled, changing to 150')
+            #         spacing = 150
+            #         mask = np.where(cond < 150)
+            #         if len(score[mask]) == len(score):
+            #             print('mask condition not fulfilled, changing to 100')
+            #             spacing = 100
+            #             mask = np.where(cond < 100)
+            #             if len(score[mask]) == len(score):
+            #                 print('mask condition not fulfilled, changing to 80')
+            #                 spacing = 80
+            #                 mask = np.where(cond < 80)
+            
+            
+            
+            for spacing in spacings:
+                mask = np.where(cond < spacing)
+                
+                score[mask] = 0
+                
+                best = population[np.argmin(score)]
+                min_score = np.min(score)
+                
+                if spacing == 250:
+                    print(f"min: {best}, score: {min_score}")
+            
+            
+                # minimum = so.minimize(obj_fun, x0=x0, constraints=(sum_constraint), bounds=bounds, method='SLSQP', options={'maxiter': 10})
+                # print(minimum.message)
+                # minima.append(minimum)
+                # selection_idx = np.argpartition(minimum.x, -n_select)[-n_select:]
+                # minima.append([np.min(score[mask]), population[np.argmin(score[mask])]])
+                
+                
+                
+                if min_score < minima[(i, spacing)][1]:
+                    minima[(i,spacing)] = (best, min_score)
+
+        print(minima)
+        print(f"time taken: {(time.time() - t_start)/60:.1f} min.")
         
-        
-    #     # minimum = so.minimize(obj_fun, x0=x0, constraints=(sum_constraint), bounds=bounds, method='SLSQP', options={'maxiter': 10})
-    #     # print(minimum.message)
-    #     # minima.append(minimum)
-    #     # selection_idx = np.argpartition(minimum.x, -n_select)[-n_select:]
-    #     # minima.append([np.min(score[mask]), population[np.argmin(score[mask])]])
-    #     score[mask] = 0
-    #     minima.append(population[np.argmin(score)]) 
-    # #%% Results
+        save_minima = [minima[(i, spacing)] for spacing in spacings]
+        save_minima = pd.DataFrame(save_minima, index=spacings, columns=('solution', 'score'))
+        with open(f'./python_variables/nyc_expansion_optimization_polygon_{i:02d}.pickle', 'wb') as file:
+            pickle.dump(save_minima, file)
+    #%% Results
     
-    # results = [
-    #     [0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
-    #     [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,],
-    #     [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,],
-    #     [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0,],
-    #     [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,],
-    #     [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
-    #     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
-    #     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,],
-    #     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,],
-    #     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,],
-    #     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0,],
-    #     [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
-    #     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
-    #     ]
+    minima_res = {}
+    for i in range(len(sub_polygons)):
+        with open(f'./python_variables/nyc_expansion_optimization_polygon_{i:02d}.pickle', 'rb') as file:
+            minima_res[i] = pickle.load(file)
+            
+    mini = pd.concat(minima_res.values(), keys=minima_res.keys())
     
-    # results = [np.array(res) for res in results]
-    # results = minima 
-    # selected_intersections = []
+    bestmini = pd.DataFrame()
+    for i in range(len(sub_polygons)):
+        new_row = mini.xs(i, level=0)[~mini.xs(i, level=0)['solution'].isna()].iloc[[-1]]
+        new_row = new_row.rename_axis('spacing').reset_index()
+        new_row.index = [i]
+        bestmini = pd.concat((bestmini, new_row))
     
-    # for i, polygon in sub_polygons.iterrows():
-    #     int_exp = get_intersections(polygon['geometry'], data=data)
-        
-    #     existing_stations = gpd.sjoin(station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
-
-    #     existing_stations['lon'] = existing_stations['long']
-    #     existing_stations['geometry'] = existing_stations['coords']
-
-    #     n_existing = len(existing_stations)
-
-    #     print(f"{n_existing} existing, {polygon['n_stations']} total")
-        
-    #     int_exp['existing'] = False
-        
-    #     existing_stations['existing'] = True
-
-    #     int_exp = pd.concat((existing_stations[['lat', 'lon', 'coords', 'geometry', 'existing']], int_exp))
-    #     int_exp = int_exp.reset_index()
-
-    #     selected_intersections.append(int_exp[results[i] == 1])
-        
-    # selected_intersections = pd.concat(selected_intersections)
+    results = bestmini['solution']
     
-    # #%%
-    # # int_exp[selection_so == 1]
-    # bk = plot_intersections(selected_intersections, websocket_origin=['130.225.39.60', 'localhost:3000'], polygons=sub_polygons, vdims=['existing'])
-    # '''
-    # bk.stop()
-    # '''
+    
+    selected_intersections = []
+    
+    for i, polygon in sub_polygons.iterrows():
+        int_exp = get_intersections(polygon['geometry'], data=data)
+        
+        existing_stations = gpd.sjoin(station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
+
+        existing_stations['lon'] = existing_stations['long']
+        existing_stations['geometry'] = existing_stations['coords']
+
+        n_existing = len(existing_stations)
+
+        print(f"{n_existing} existing, {polygon['n_stations']} total")
+        
+        int_exp['existing'] = False
+        
+        existing_stations['existing'] = True
+
+        int_exp = pd.concat((existing_stations[['lat', 'lon', 'coords', 'geometry', 'existing']], int_exp))
+        int_exp = int_exp.reset_index()
+
+        selected_intersections.append(int_exp[results[i] == 1])
+        
+    selected_intersections = pd.concat(selected_intersections)
+    
+    #%%
+    # int_exp[selection_so == 1]
+    bk = plot_intersections(selected_intersections, websocket_origin=['130.225.39.60', 'localhost:3000'], polygons=sub_polygons, vdims=['existing'])
+    '''
+    bk.stop()
+    '''
 
 
     #%% Complete area random samples
@@ -1144,3 +1244,327 @@ if __name__ == "__main__":
     '''
     bk.stop()
     '''
+
+
+    #%% Prior existing stations
+    
+    data = bs.Data('nyc', 2019, 9)
+    
+    station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)   
+    expansion_area = gpd.read_file('data/nyc/expansion_2019_area.geojson')
+    
+    polygon = expansion_area.loc[0]
+    
+    polygon['n_stations'] = 58
+    
+    # int_exp = get_intersections(polygon['geometry'], data=data)
+   
+    existing_stations = gpd.sjoin(station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
+   
+    existing_stations['lon'] = existing_stations['long']
+    existing_stations['geometry'] = existing_stations['coords']
+    
+    existing_stations['existing'] = True
+
+    sept_stations = existing_stations
+
+    #%% Real stations
+    
+    data = bs.Data('nyc', 2019, 11)
+    
+    station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)   
+    expansion_area = gpd.read_file('data/nyc/expansion_2019_area.geojson')
+    
+    polygon = expansion_area.loc[0]
+    
+    polygon['n_stations'] = 58
+    
+    # int_exp = get_intersections(polygon['geometry'], data=data)
+   
+    existing_stations = gpd.sjoin(station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
+   
+    existing_stations['lon'] = existing_stations['long']
+    existing_stations['geometry'] = existing_stations['coords']
+    
+    existing_stations['existing'] = False
+    
+    existing_stations.loc[existing_stations['stat_id'].isin(sept_stations['stat_id']), 'existing'] = True
+
+    
+    all_stations = pd.concat([sept_stations, existing_stations])
+    
+    # point_info = get_point_info(data, existing_stations, land_use, census_df)
+    
+    months = [1,2,3,4,5,6,7,8,9, 10, 11]
+    asdf = asdf_months(data, months)
+    
+    traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
+    cols = ['percent_residential', 'percent_commercial', 'percent_industrial', 'percent_recreational',
+            'pop_density', 'nearest_subway_dist', 'nearest_railway_dist']
+    day_type = 'business_days'
+    min_trips = 8
+    clustering = 'k_means'
+    k = 5
+    seed = 42
+    triptype = 'b_trips'
+    asdf, clusters, labels = get_clusters(
+        traffic_matrices, asdf, day_type, min_trips, clustering, k, seed)
+
+    if data.city in ['helsinki', 'oslo', 'madrid', 'london']:
+        df_cols = [col for col in cols if col != 'percent_industrial']
+    else:
+        df_cols = cols
+
+    model_results = ipu.linear_regression(asdf, df_cols, triptype)
+    
+    existing_stations['const'] = 1
+    
+    pred = model_results.predict(existing_stations[['const', *df_cols]])
+    
+    def obj_fun(x):
+        return -np.sum(x*pred)
+    
+    score = -np.sum(pred)
+    
+    bk = plot_intersections(existing_stations, websocket_origin=['130.225.39.60', 'localhost:3000'], polygons=polygon, vdims=['existing', 'stat_id'])
+    '''
+    bk.stop()
+    '''
+    #%% Figure existing and new stations
+    
+    extend = (existing_stations['lat'].min(), existing_stations['long'].min(), 
+              existing_stations['lat'].max(), existing_stations['long'].max())
+    
+    ex_pro = existing_stations.to_crs(data.laea_crs)
+    
+    pol_pro = expansion_area.to_crs(data.laea_crs)
+    
+    old = ex_pro[ex_pro['existing'] == True]
+    new = ex_pro[ex_pro['existing'] == False]
+    
+    
+    fig, ax = plt.subplots(figsize=(4.5, 10))
+    
+    pol_pro.plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="tab:orange")
+    old.plot(label='Existing stations',ax=ax, color="tab:blue")
+    new.plot(label='New stations', ax=ax, color="tab:red")
+    
+    legend = ax.legend()
+    ax.axis('off')
+    patch = mpatches.Patch(color='tab:orange', label='Expansion Area', alpha=0.6)
+    
+    handles, labels = ax.get_legend_handles_labels()
+    # handles is a list, so append manual patch
+    handles.append(patch) 
+    
+    # plot the legend
+    plt.legend(handles=handles)
+    
+    scalebar = AnchoredSizeBar(ax.transData, 1000, 
+                                f'{1} km', 'lower left', 
+                                pad=1, color='black', frameon=False, 
+                                size_vertical=5)
+    ax.add_artist(scalebar)
+    
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
+    plt.savefig("figures/nyc existing and new expansion.png", bbox_inches='tight', dpi=100)
+    
+    #%% Figure expansion area in whole city
+
+    
+    
+    
+    corner_points = Polygon(
+            [(station_df['long'].min(), station_df['lat'].min()),
+             (station_df['long'].min(), station_df['lat'].max()),
+             (station_df['long'].max(), station_df['lat'].max()),
+             (station_df['long'].max(), station_df['lat'].min())])
+    
+    cpoints = gpd.GeoDataFrame(geometry=[corner_points], crs="epsg:4326").to_crs(data.laea_crs)
+    
+    data = bs.Data('nyc', 2019, 9)
+    
+    station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)   
+    
+    fig, ax = plt.subplots(figsize=(7, 10))
+    
+    cpoints.plot(alpha=0, ax=ax)
+    pol_pro.plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="tab:orange")
+    station_df.to_crs(data.laea_crs).plot(ax=ax, label='Existing stations Sept. 2019', markersize=15)
+    # old.plot(label='Existing stations',ax=ax, color="tab:orange")
+    # new.plot(label='New stations', ax=ax, color="tab:brown")
+    
+    ax.legend()
+    ax.axis('off')
+    patch = mpatches.Patch(color='tab:orange', label='Expansion Area', alpha=0.6)
+    
+    handles, labels = ax.get_legend_handles_labels()
+    # handles is a list, so append manual patch
+    handles.append(patch) 
+    
+    # plot the legend
+    plt.legend(handles=handles)
+    
+    scalebar = AnchoredSizeBar(ax.transData, 1000, 
+                                f'{1} km', 'lower left', 
+                                pad=1, color='black', frameon=False, 
+                                size_vertical=5)
+    ax.add_artist(scalebar)
+    
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
+    plt.savefig("figures/nyc_expansion_area.png", bbox_inches='tight', dpi=150)
+    
+    #%% Figure intersections
+    
+    extend = (existing_stations['lat'].min(), existing_stations['long'].min(), 
+              existing_stations['lat'].max(), existing_stations['long'].max())
+    
+    ex_pro = existing_stations.to_crs(data.laea_crs)
+    
+    pol_pro = expansion_area.to_crs(data.laea_crs)
+    
+    old = ex_pro[ex_pro['existing'] == True]
+    
+    expansion_area = gpd.read_file('data/nyc/expansion_2019_area.geojson')
+    int_exp = get_intersections(expansion_area.loc[0, 'geometry'], data=data)
+    
+
+    
+    fig, ax = plt.subplots(figsize=(4.5, 10))
+    
+    sub_polygons.to_crs(data.laea_crs).plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="black", linewidth=2)
+    # pol_pro.plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="tab:orange")
+    old.plot(label='Existing stations',ax=ax, color="tab:blue", alpha=1, zorder=1.5)
+    int_exp.to_crs(data.laea_crs).plot(label='Intersections', ax=ax, color="tab:red", alpha=1, markersize=10)
+
+    legend = ax.legend()
+    ax.axis('off')
+    patch = mpatches.Patch(color='tab:orange', label='Expansion Area', alpha=0.6)
+    
+    handles, labels = ax.get_legend_handles_labels()
+    # handles is a list, so append manual patch
+    handles.append(patch) 
+    
+    # plot the legend
+    plt.legend(handles=handles)
+    
+    scalebar = AnchoredSizeBar(ax.transData, 1000, 
+                                f'{1} km', 'lower left', 
+                                pad=1, color='black', frameon=False, 
+                                size_vertical=5)
+    ax.add_artist(scalebar)
+
+    
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
+    plt.savefig("figures/nyc_exp_intersections.png", bbox_inches='tight', dpi=100)
+    
+    #%% Figure subdivision (run again with better settings)
+    
+    extend = (existing_stations['lat'].min(), existing_stations['long'].min(), 
+              existing_stations['lat'].max(), existing_stations['long'].max())
+    
+    ex_pro = existing_stations.to_crs(data.laea_crs)
+    
+    pol_pro = expansion_area.to_crs(data.laea_crs)
+    
+    old = ex_pro[ex_pro['existing'] == True]
+    
+ 
+    
+    fig, ax = plt.subplots(figsize=(4.5, 10))
+    
+    sub_polygons.to_crs(data.laea_crs).plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="black")
+    old.plot(label='Existing stations',ax=ax, color="tab:blue", alpha=1, zorder=1.5)
+    selected_intersections.to_crs(data.laea_crs).plot(label='Selected intersections', ax=ax, color="tab:red", alpha=1, markersize=30)
+
+    legend = ax.legend()
+    ax.axis('off')
+    patch = mpatches.Patch(color='tab:orange', label='Expansion Area', alpha=0.6)
+    
+    handles, labels = ax.get_legend_handles_labels()
+    # handles is a list, so append manual patch
+    handles.append(patch) 
+    
+    # plot the legend
+    plt.legend(handles=handles)
+    
+    scalebar = AnchoredSizeBar(ax.transData, 1000, 
+                                f'{1} km', 'lower left', 
+                                pad=1, color='black', frameon=False, 
+                                size_vertical=5)
+    ax.add_artist(scalebar)
+
+    
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
+    plt.savefig("figures/nyc_exp_selected_intersections.png", bbox_inches='tight', dpi=100)
+    
+    #%% Figure subdivision (run again with better settings)
+    
+    extend = (existing_stations['lat'].min(), existing_stations['long'].min(), 
+              existing_stations['lat'].max(), existing_stations['long'].max())
+    
+    ex_pro = existing_stations.to_crs(data.laea_crs)
+    
+    pol_pro = expansion_area.to_crs(data.laea_crs)
+    
+    old = ex_pro[ex_pro['existing'] == True]
+    new = ex_pro[ex_pro['existing'] == False]
+ 
+    
+    fig, ax = plt.subplots(figsize=(4.5, 10))
+    
+    sub_polygons.to_crs(data.laea_crs).plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="black")
+    old.plot(label='Existing stations',ax=ax, color="tab:blue", alpha=1, zorder=1.5)
+    # selected_intersections.to_crs(data.laea_crs).plot(label='Selected intersections', ax=ax, color="tab:red", alpha=1, markersize=30)
+    new.plot(label='Real new stations',ax=ax, color="tab:red", alpha=1, zorder=1.5)
+    legend = ax.legend()
+    ax.axis('off')
+    patch = mpatches.Patch(color='tab:orange', label='Expansion Area', alpha=0.6)
+    
+    handles, labels = ax.get_legend_handles_labels()
+    # handles is a list, so append manual patch
+    handles.append(patch) 
+    
+    # plot the legend
+    plt.legend(handles=handles)
+    
+    scalebar = AnchoredSizeBar(ax.transData, 1000, 
+                                f'{1} km', 'lower left', 
+                                pad=1, color='black', frameon=False, 
+                                size_vertical=5)
+    ax.add_artist(scalebar)
+
+    
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
+    plt.savefig("figures/nyc_exp_selected_real.png", bbox_inches='tight', dpi=100)
+    
+    #%% Full model predictions of placed station traffic
+    
+    import full_model
+    
+    selected_intersections = selected_intersections.reset_index()
+    
+    data = bs.Data('nyc', 2019, 9)
+    
+    station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)   
+    selected_point_info = get_point_info(data, selected_intersections[['geometry', 'coords']], land_use, census_df)
+    
+    
+    variables_list = ['percent_residential', 'percent_commercial',
+                      'percent_recreational', 
+                      'pop_density', 'nearest_subway_dist',
+                      'nearest_railway_dist', 'center_dist']
+    
+    months = [1,2,3,4,5,6,7,8,9]
+    asdf = asdf_months(data, months)
+    
+    traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
+    
+    asdf, b, c = get_clusters(traffic_matrices, asdf, day_type='business_days', min_trips=8, clustering='k_means', k=5)
+    
+    
+    
+    # data, asdf, traf_mat = full_model.load_city('nyc')
+
+    model = full_model.FullModel(variables_list)
+    asdf2 = model.fit(asdf, traffic_matrices)
