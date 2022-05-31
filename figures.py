@@ -545,8 +545,9 @@ def make_LR_table(year=2019, k=5, const=True, method = 'LR'):
         column_renamer = dict(zip(cities, [bs.name_dict[city] for city in cities]))
         
         if const:
-            index_list.insert(0, 'Const.')
-        
+            index_list.insert(0, 'const')
+            index_renamer['const'] = 'Const.'
+            
         index_list = [x for x in index_list if x in table.index.get_level_values(1)]
         
         tables = dict()
@@ -581,7 +582,7 @@ def make_LR_table(year=2019, k=5, const=True, method = 'LR'):
         column_renamer = dict(zip(cities, [bs.name_dict[city] for city in cities]))
 
         if const:
-            index_list.insert(0, 'Const.')
+            index_list.insert(0, 'const')
 
         index_list = [x for x in index_list if x in table.index.get_level_values(0)]
         
@@ -1089,7 +1090,7 @@ if __name__ == "__main__":
     #                                return_fig=True)
     
     # sum_stat_table=make_summary_statistics_table()
-    # LR_table=make_LR_table(2019, k=5, const=True, method='LR')
+    # LR_table=make_LR_table(2019, k=5, const=True, method='OLS')
     
     # sr = city_tests(k=5, test_seed=6)
     

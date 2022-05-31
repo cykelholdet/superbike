@@ -1653,9 +1653,9 @@ if __name__ == '__main__':
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
               'london', 'helsinki', 'oslo', 'madrid']
     
-    # cluster_algo_test_table = cluster_algo_test(cluster_seed=42,
-    #                                             savefig=False, overwrite=True, 
-    #                                             use_dtw=True)
+    cluster_algo_test_table = cluster_algo_test(cluster_seed=42,
+                                                savefig=False, overwrite=True, 
+                                                use_dtw=True)
     
     # linkage_test_table = linkage_test(cluster_seed=42,
     #                                   savefig=True, overwrite=True)
