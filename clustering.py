@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 import skimage.color as skcolor
 import smopy as sm
+import contextily as cx
 
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.mixture import GaussianMixture
@@ -782,10 +783,11 @@ def plot_cluster_centers(city, k=5, year=2019, month=None, day=None,
                 # Make figure
                 
                 for i in range(k):
-                    ax[row,col].plot(clusters[i], label=cluster_name_dict[i])
+                    ax[row,col].plot(np.arange(24)+0.5, clusters[i],
+                                     label=cluster_name_dict[i])
                 
                 ax[row,col].set_xticks(range(24))
-                ax[row,col].set_xlim(0,23)
+                ax[row,col].set_xlim(0,24)
                 ax[row,col].set_ylim(-0.15,0.15)
                 
                 # if row != 3:
@@ -1547,47 +1549,57 @@ def plot_stations(city, year=2019, month=None, day=None,
     asdf['new_color'] = asdf['label'].apply(lambda l: new_color_dict[l] 
                                             if not pd.isna(l) else 'grey')
     
-    extend = (stat_df['lat'].min(), stat_df['long'].min(), 
-          stat_df['lat'].max(), stat_df['long'].max())
+    stat_df['new_color'] = asdf['new_color']
     
-    tileserver = 'https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg' # Stamen Terrain
-    # tileserver = 'http://a.tile.stamen.com/toner/{z}/{x}/{y}.png' # Stamen Toner
-    # tileserver = 'http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.png' # Stamen Watercolor
-    # tileserver = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' # OSM Default
+    # extend = (stat_df['lat'].min(), stat_df['long'].min(), 
+    #       stat_df['lat'].max(), stat_df['long'].max())
     
-    m = sm.Map(extend, tileserver=tileserver)
+    # tileserver = 'https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg' # Stamen Terrain
+    # # tileserver = 'http://a.tile.stamen.com/toner/{z}/{x}/{y}.png' # Stamen Toner
+    # # tileserver = 'http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.png' # Stamen Watercolor
+    # # tileserver = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' # OSM Default
     
-    xlim_dict = {'nyc' : (150, 600), 'chicago' : (150,600), 
-                 'washdc' : (0,390), 'boston' : (0, 300),
-                 'london' : (30,800), 'helsinki' : (130,767),
-                 'oslo' : (0,600), 'madrid' : (0,511)}
-    ylim_dict = {'nyc' : (767.5,100), 'chicago' : (900,150),
-                 'washdc' : (580,180), 'boston' : (600,225),
-                 'london' : (550,30), 'helsinki' : (560,230),
-                 'oslo' : (500,100), 'madrid' : (750, 50)}
+    # m = sm.Map(extend, tileserver=tileserver)
+    
+    # xlim_dict = {'nyc' : (150, 600), 'chicago' : (150,600), 
+    #              'washdc' : (0,390), 'boston' : (0, 300),
+    #              'london' : (30,800), 'helsinki' : (130,767),
+    #              'oslo' : (0,600), 'madrid' : (0,511)}
+    # ylim_dict = {'nyc' : (767.5,100), 'chicago' : (900,150),
+    #              'washdc' : (580,180), 'boston' : (600,225),
+    #              'london' : (550,30), 'helsinki' : (560,230),
+    #              'oslo' : (500,100), 'madrid' : (750, 50)}
    
-    ms_dict = {'nyc' : 6, 'chicago' : 6, 'washc' : 6, 'boston' : 6,
-               'london' : 3, 'helsinki' : 2, 'oslo' : 3, 'madrid' : 6}
+    # ms_dict = {'nyc' : 6, 'chicago' : 6, 'washc' : 6, 'boston' : 6,
+    #            'london' : 3, 'helsinki' : 2, 'oslo' : 3, 'madrid' : 6}
     
-    fig, ax = plt.subplots(figsize=(7,10))
+    # fig, ax = plt.subplots(figsize=(7,10))
     
-    m.show_mpl(ax=ax)
+    # m.show_mpl(ax=ax)
     
-    if city in ms_dict.keys():
-        ms = ms_dict[city]
-    else:
-        ms=6
+    # if city in ms_dict.keys():
+    #     ms = ms_dict[city]
+    # else:
+    #     ms=6
     
-    for i, stat in asdf.iterrows():
-        x, y = m.to_pixels(stat_df[stat_df.stat_id==stat.stat_id]['lat'], 
-                           stat_df[stat_df.stat_id==stat.stat_id]['long'])
-        ax.plot(x, y, 'o', ms=ms, color = stat['new_color'])
+    # for i, stat in asdf.iterrows():
+    #     x, y = m.to_pixels(stat_df[stat_df.stat_id==stat.stat_id]['lat'], 
+    #                        stat_df[stat_df.stat_id==stat.stat_id]['long'])
+    #     ax.plot(x, y, 'o', ms=ms, color = stat['new_color'])
     
-    if city in xlim_dict.keys():
-        ax.set_xlim(xlim_dict[city])
+    # if city in xlim_dict.keys():
+    #     ax.set_xlim(xlim_dict[city])
     
-    if city in ylim_dict.keys():
-        ax.set_ylim(ylim_dict[city])
+    # if city in ylim_dict.keys():
+    #     ax.set_ylim(ylim_dict[city])
+    
+    fig, ax = plt.subplots(figsize=(10,10))
+    
+    stat_df.to_crs(data.laea_crs).plot(ax=ax, color=stat_df['new_color'])
+    
+    cx.add_basemap(ax, crs=data.laea_crs,
+                   attribution="(C) Stamen Design, (C) OpenStreetMap Contributors",
+                   zoom=12)
     
     ax.axis('off')
     plt.tight_layout()
@@ -1604,38 +1616,38 @@ def plot_stations(city, year=2019, month=None, day=None,
     
     # Add scalebar
     
-    scalebar_size_km = 5
+    scalebar_size_km = 1
     
     c0 = (stat_df.iloc[0].easting, stat_df.iloc[0].northing)
     c1 = (stat_df.iloc[1].easting, stat_df.iloc[1].northing)
     
     geo_dist = np.linalg.norm(np.array(c0) - np.array(c1))
     
-    pix0 = m.to_pixels(stat_df.iloc[0].lat, stat_df.iloc[0].long)
-    pix1 = m.to_pixels(stat_df.iloc[1].lat, stat_df.iloc[1].long)
+    # pix0 = m.to_pixels(stat_df.iloc[0].lat, stat_df.iloc[0].long)
+    # pix1 = m.to_pixels(stat_df.iloc[1].lat, stat_df.iloc[1].long)
     
-    pix_dist = np.linalg.norm(np.array(pix0) - np.array(pix1))
+    # pix_dist = np.linalg.norm(np.array(pix0) - np.array(pix1))
     
-    scalebar_size = pix_dist/geo_dist*1000*scalebar_size_km
-    
+    # scalebar_size = pix_dist/geo_dist*1000*scalebar_size_km
+    scalebar_size = scalebar_size_km*1000
     
     scalebar = AnchoredSizeBar(ax.transData, scalebar_size, 
                                 f'{scalebar_size_km} km', 'lower right', 
-                                pad=0.2, color='black', frameon=False, 
-                                size_vertical=2)
+                                pad=1, color='black', frameon=False, 
+                                size_vertical=50)
     ax.add_artist(scalebar)
     
     # Add OSM attribute
     
-    attr = AnchoredText("(C) Stamen Design. (C) OpenStreetMap contributors.",
-                        loc = 'lower left', frameon=True, pad=0.1, borderpad=0)
-    attr.patch.set_edgecolor('white')
-    ax.add_artist(attr)
+    # attr = AnchoredText("(C) Stamen Design. (C) OpenStreetMap contributors.",
+    #                     loc = 'lower left', frameon=True, pad=0.1, borderpad=0)
+    # attr.patch.set_edgecolor('white')
+    # ax.add_artist(attr)
     
     plt.tight_layout()
     
     if savefig:
-        fig.savefig(f'./figures/station_cluster_plot_{city}.pdf', bbox_inches='tight')
+        fig.savefig(f'./figures/station_cluster_plot_{city}.pdf', bbox_inches='tight', dpi=150)
     
     return fig, ax
     
@@ -1653,6 +1665,9 @@ if __name__ == '__main__':
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
               'london', 'helsinki', 'oslo', 'madrid']
     
+    for city in cities:
+        plot_stations(city)
+    
     # cluster_algo_test_table = cluster_algo_test(cluster_seed=42,
     #                                             savefig=False, overwrite=True, 
     #                                             use_dtw=True)
@@ -1663,9 +1678,9 @@ if __name__ == '__main__':
     # k_table = k_test_table(clustering='k_means', 
     #                         savefig=True, overwrite=False, use_dtw=True)
     
-    # clusters, n_table = plot_cluster_centers('all', k=5, clustering='k_means',
-    #                                           use_dtw=True, linkage='complete', 
-    #                                           n_table=True, savefig=True)
+    clusters, n_table = plot_cluster_centers('all', k=5, clustering='k_means',
+                                              use_dtw=True, linkage='complete', 
+                                              n_table=True, savefig=True)
     
     
     # clusters_list = []

@@ -17,6 +17,7 @@ import shapely
 import calendar
 import time
 import pickle
+import contextily as cx
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from holoviews import opts
@@ -24,6 +25,7 @@ from holoviews import opts
 from matplotlib.patches import Polygon
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 from matplotlib.offsetbox import AnchoredText, AnchoredOffsetbox
+from matplotlib import patheffects
 from geopy.distance import geodesic
 
 import bikeshare as bs
@@ -62,109 +64,132 @@ def service_area_figure(city, year, month, day, return_fig=False):
     
     stat_df= ipu.make_station_df(data, holidays=False)
     
-    extend = (stat_df['lat'].min(), stat_df['long'].min(), 
-              stat_df['lat'].max(), stat_df['long'].max())
+    # extend = (stat_df['lat'].min(), stat_df['long'].min(), 
+    #           stat_df['lat'].max(), stat_df['long'].max())
     
-    tileserver = 'https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg' # Stamen Terrain
-    # tileserver = 'http://a.tile.stamen.com/toner/{z}/{x}/{y}.png' # Stamen Toner
-    # tileserver = 'http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.png' # Stamen Watercolor
-    # tileserver = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' # OSM Default
+    # tileserver = 'https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg' # Stamen Terrain
+    # # tileserver = 'http://a.tile.stamen.com/toner/{z}/{x}/{y}.png' # Stamen Toner
+    # # tileserver = 'http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.png' # Stamen Watercolor
+    # # tileserver = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' # OSM Default
     
-    m = sm.Map(extend, tileserver=tileserver)
+    # m = sm.Map(extend, tileserver=tileserver)
     
     fig, ax = plt.subplots(figsize=(7,10))
     
-    m.show_mpl(ax=ax)
+    # m.show_mpl(ax=ax)
     # fig.add_axes(ax)
+    ax.axis('off')
     
-    for i, stat in stat_df.iterrows():
-        x, y = m.to_pixels(stat['lat'], stat['long'])
-        ax.plot(x, y, 'ob', ms=2, mew=1.5)
-        
-        if isinstance(stat['service_area'], shapely.geometry.multipolygon.MultiPolygon):
-            
-            for poly in stat['service_area']:
-                coords = np.zeros(shape=(len(poly.exterior.xy[0]),2))    
-                
-                for j in range(len(coords)):
-                    coords[j,0] = poly.exterior.xy[1][j]
-                    coords[j,1] = poly.exterior.xy[0][j]
-                
-                pixels = m.to_pixels(coords)
-                
-                p = Polygon(list(zip(pixels[:,0], pixels[:,1])), 
-                            alpha=0.5, facecolor='tab:cyan', edgecolor='k')
-            
-                ax.add_artist(p)
-                
-                # ax.plot(pixels[:,0], pixels[:,1], c='k')
-                
-        else:
-            coords = np.zeros(shape=(len(stat['service_area'].exterior.xy[0]),2))    
-            # coords = []    
-            
-            for j in range(len(stat['service_area'].exterior.xy[0])):
-                coords[j,0] = stat['service_area'].exterior.xy[1][j]
-                coords[j,1] = stat['service_area'].exterior.xy[0][j]
-                
-                # coords.append((stat['service_area'].exterior.xy[0][j], 
-                #                stat['service_area'].exterior.xy[1][j]))
-            
-            pixels = m.to_pixels(coords)
-            
-            p = Polygon(list(zip(pixels[:,0], pixels[:,1])), 
-                        alpha=0.5, facecolor='tab:cyan', edgecolor='k')
-            
-            ax.add_artist(p)
-            
-            ax.fill(pixels[:,0], pixels[:,1], c='b')
-            ax.plot(pixels[:,0], pixels[:,1], c='k')
-            
-    xlim_dict = {'nyc' : (150, 600)}
-    ylim_dict = {'nyc' : (767.5,100)}
+    stat_df['service_area'].to_crs(data.laea_crs).plot(ax=ax, alpha=0.5, facecolor='tab:cyan', edgecolor='k', label='banana')
+    stat_df.to_crs(data.laea_crs).plot(color='b', ax=ax,  markersize=2.5, label='Station')
     
+    scalebar = AnchoredSizeBar(ax.transData, 1000, 
+                                f'{1} km', 'lower right', 
+                                pad=1, color='black', frameon=False, 
+                                size_vertical=50)
+    ax.add_artist(scalebar)
     
-    if data.city in xlim_dict.keys():
-        ax.set_xlim(xlim_dict[data.city])
+    cx.add_basemap(ax, crs=data.laea_crs,
+                   attribution="(C) Stamen Design, (C) OpenStreetMap Contributors",
+                   )
     
-    if data.city in ylim_dict.keys():
-        ax.set_ylim(ylim_dict[data.city])
-    
-    ax.plot(0, 0, 'ob', ms=2, mew=1.5, label='Station')
     p0 = Polygon([(0,0), (0,1), (1,0)], alpha=0.5, 
                   facecolor='tab:cyan', edgecolor='k', label='Service Area')
     ax.add_patch(p0)
-    ax.legend()
-    
-    scalebar_size_km = 5
-    
-    c0 = (stat_df.iloc[0].easting, stat_df.iloc[0].northing)
-    c1 = (stat_df.iloc[1].easting, stat_df.iloc[1].northing)
-    
-    geo_dist = np.linalg.norm(np.array(c0) - np.array(c1))
-    
-    pix0 = m.to_pixels(stat_df.iloc[0].lat, stat_df.iloc[0].long)
-    pix1 = m.to_pixels(stat_df.iloc[1].lat, stat_df.iloc[1].long)
-    
-    pix_dist = np.linalg.norm(np.array(pix0) - np.array(pix1))
-    
-    scalebar_size = pix_dist/geo_dist*1000*scalebar_size_km
-    
-    
-    scalebar = AnchoredSizeBar(ax.transData, scalebar_size, 
-                                f'{scalebar_size_km} km', 'lower right', 
-                                pad=0.2, color='black', frameon=False, 
-                                size_vertical=2)
-    ax.add_artist(scalebar)
-    attr = AnchoredText("(C) Stamen Design. (C) OpenStreetMap contributors.",
-                        loc = 'lower left', frameon=True, pad=0.1, borderpad=0)
-    attr.patch.set_edgecolor('white')
-    ax.add_artist(attr)
-    
-    ax.axis('off')    
+    plt.legend()
     
     plt.tight_layout()
-    plt.savefig(f'./figures/paper_figures/service_areas_{data.city}_{data.year}{data.month:02d}.pdf')
+    plt.savefig(f'./figures/paper_figures/service_areas_{data.city}_{data.year}{data.month:02d}.pdf', dpi=300)
+      
+    
+    # for i, stat in stat_df.iterrows():
+    #     x, y = m.to_pixels(stat['lat'], stat['long'])
+    #     ax.plot(x, y, 'ob', ms=2, mew=1.5)
+        
+    #     if isinstance(stat['service_area'], shapely.geometry.multipolygon.MultiPolygon):
+            
+    #         for poly in stat['service_area']:
+    #             coords = np.zeros(shape=(len(poly.exterior.xy[0]),2))    
+                
+    #             for j in range(len(coords)):
+    #                 coords[j,0] = poly.exterior.xy[1][j]
+    #                 coords[j,1] = poly.exterior.xy[0][j]
+                
+    #             pixels = m.to_pixels(coords)
+                
+    #             p = Polygon(list(zip(pixels[:,0], pixels[:,1])), 
+    #                         alpha=0.5, facecolor='tab:cyan', edgecolor='k')
+            
+    #             ax.add_artist(p)
+                
+    #             # ax.plot(pixels[:,0], pixels[:,1], c='k')
+                
+    #     else:
+    #         coords = np.zeros(shape=(len(stat['service_area'].exterior.xy[0]),2))    
+    #         # coords = []    
+            
+    #         for j in range(len(stat['service_area'].exterior.xy[0])):
+    #             coords[j,0] = stat['service_area'].exterior.xy[1][j]
+    #             coords[j,1] = stat['service_area'].exterior.xy[0][j]
+                
+    #             # coords.append((stat['service_area'].exterior.xy[0][j], 
+    #             #                stat['service_area'].exterior.xy[1][j]))
+            
+    #         pixels = m.to_pixels(coords)
+            
+    #         p = Polygon(list(zip(pixels[:,0], pixels[:,1])), 
+    #                     alpha=0.5, facecolor='tab:cyan', edgecolor='k')
+            
+    #         ax.add_artist(p)
+            
+    #         # ax.fill(pixels[:,0], pixels[:,1], c='b')
+    #         # ax.plot(pixels[:,0], pixels[:,1], c='k')
+            
+    # xlim_dict = {'nyc' : (150, 600)}
+    # ylim_dict = {'nyc' : (767.5,100)}
+    
+    
+    # if data.city in xlim_dict.keys():
+    #     ax.set_xlim(xlim_dict[data.city])
+    
+    # if data.city in ylim_dict.keys():
+    #     ax.set_ylim(ylim_dict[data.city])
+    
+    # ax.plot(0, 0, 'ob', ms=2, mew=1.5, label='Station')
+    # p0 = Polygon([(0,0), (0,1), (1,0)], alpha=0.5, 
+    #               facecolor='tab:cyan', edgecolor='k', label='Service Area')
+    # ax.add_patch(p0)
+    # ax.legend()
+    
+    # scalebar_size_km = 5
+    
+    # c0 = (stat_df.iloc[0].easting, stat_df.iloc[0].northing)
+    # c1 = (stat_df.iloc[1].easting, stat_df.iloc[1].northing)
+    
+    # geo_dist = np.linalg.norm(np.array(c0) - np.array(c1))
+    
+    # pix0 = m.to_pixels(stat_df.iloc[0].lat, stat_df.iloc[0].long)
+    # pix1 = m.to_pixels(stat_df.iloc[1].lat, stat_df.iloc[1].long)
+    
+    # pix_dist = np.linalg.norm(np.array(pix0) - np.array(pix1))
+    
+    # scalebar_size = pix_dist/geo_dist*1000*scalebar_size_km
+    
+    
+    # scalebar = AnchoredSizeBar(ax.transData, scalebar_size, 
+    #                             f'{scalebar_size_km} km', 'lower right', 
+    #                             pad=0.2, color='black', frameon=False, 
+    #                             size_vertical=2)
+    # ax.add_artist(scalebar)
+    # attr = AnchoredText("(C) Stamen Design. (C) OpenStreetMap contributors.",
+    #                     loc = 'lower left', frameon=True, pad=0.1, borderpad=0)
+    # attr.patch.set_edgecolor('white')
+    # ax.add_artist(attr)
+    
+    # ax.axis('off')    
+    
+    # plt.tight_layout()
+    # plt.savefig(f'./figures/paper_figures/service_areas_{data.city}_{data.year}{data.month:02d}.pdf')
         
     if return_fig:
         return fig, ax
@@ -545,8 +570,9 @@ def make_LR_table(year=2019, k=5, const=True, method = 'LR'):
         column_renamer = dict(zip(cities, [bs.name_dict[city] for city in cities]))
         
         if const:
-            index_list.insert(0, 'Const.')
-        
+            index_list.insert(0, 'const')
+            index_renamer['const'] = 'Const.'
+            
         index_list = [x for x in index_list if x in table.index.get_level_values(1)]
         
         tables = dict()
@@ -581,7 +607,7 @@ def make_LR_table(year=2019, k=5, const=True, method = 'LR'):
         column_renamer = dict(zip(cities, [bs.name_dict[city] for city in cities]))
 
         if const:
-            index_list.insert(0, 'Const.')
+            index_list.insert(0, 'const')
 
         index_list = [x for x in index_list if x in table.index.get_level_values(0)]
         
@@ -1051,7 +1077,7 @@ def cm_mean_fig(city_train, city_test, plotfig=True, savefig=True):
         plt.tight_layout()
         
         if savefig:
-            plt.savefig(f'./figures/cm_plots/cm_mean_2019_{city_train}_{city_test}.png')
+            plt.savefig(f'./figures/cm_plots/cm_mean_2019_{city_train}_{city_test}.png', dpi=150)
         
     return cm_mean
 
@@ -1085,15 +1111,15 @@ if __name__ == "__main__":
     # chaining_effect_fig()
     
     # fig, ax = daily_traffic_figure(519, 'nyc', 2019, normalise=True, 
-    #                                traffic_type='traffic', std=False,
-    #                                return_fig=True)
+    #                                 traffic_type='traffic', std=False,
+    #                                 return_fig=True)
     
     # sum_stat_table=make_summary_statistics_table()
-    # LR_table=make_LR_table(2019, k=5, const=True, method='LR')
+    # LR_table=make_LR_table(2019, k=5, const=True, method='OLS')
     
     # sr = city_tests(k=5, test_seed=6)
     
-    # fig, ax = service_area_figure('nyc', 2019, 9, 5, return_fig=True)
+    fig, ax = service_area_figure('nyc', 2019, 9, 5, return_fig=True)
     
     # seed_range = range(50,75)
     # sr = np.zeros(shape=(8,8))
@@ -1101,11 +1127,11 @@ if __name__ == "__main__":
     #     sr += city_tests(k=5, test_seed=seed)
     # sr_mean = sr/len(seed_range)
     
-    for city_train in cities:
-        for city_test in cities:
-            cm_mean = cm_mean_fig(city_train, city_test)
+    # for city_train in cities:
+    #     for city_test in cities:
+    #         cm_mean = cm_mean_fig(city_train, city_test)
     
-    
+    service_area_figure('nyc', 2019, 10, 23, return_fig=False)
     # pre_process_table = pre_processing_table()
    
     # for city_train in cities:
