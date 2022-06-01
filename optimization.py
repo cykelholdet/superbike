@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 from matplotlib.offsetbox import AnchoredText, AnchoredOffsetbox
+from matplotlib import patheffects
 import contextily as cx
 from more_itertools import distinct_permutations
 
@@ -832,13 +833,13 @@ if __name__ == "__main__":
     minima = {}
     # scores = [[]]*len(sub_polygons)
     
-    n_per = 10000000
+    n_per = 10000
     
     # rng = np.random.default_rng(42)
     
     spacings = [100, 150, 200, 250, 300]
     
-    for i, polygon in sub_polygons.iterrows():
+    for i, polygon in sub_polygons.loc[[11]].iterrows():
         t_start = time.time()
         int_exp = get_intersections(polygon['geometry'], data=data)
        
@@ -988,6 +989,12 @@ if __name__ == "__main__":
             
     mini = pd.concat(minima_res.values(), keys=minima_res.keys())
     
+    maxdist = 100
+    
+    sps = [spacing for spacing in spacings if spacing <= maxdist]
+    
+    mini = mini.loc[pd.IndexSlice[:, sps], :]
+    
     bestmini = pd.DataFrame()
     for i in range(len(sub_polygons)):
         new_row = mini.xs(i, level=0)[~mini.xs(i, level=0)['solution'].isna()].iloc[[-1]]
@@ -1003,20 +1010,20 @@ if __name__ == "__main__":
     for i, polygon in sub_polygons.iterrows():
         int_exp = get_intersections(polygon['geometry'], data=data)
         
-        existing_stations = gpd.sjoin(station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
+        existing_stations_sub = gpd.sjoin(station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
 
-        existing_stations['lon'] = existing_stations['long']
-        existing_stations['geometry'] = existing_stations['coords']
+        existing_stations_sub['lon'] = existing_stations_sub['long']
+        existing_stations_sub['geometry'] = existing_stations_sub['coords']
 
-        n_existing = len(existing_stations)
+        n_existing = len(existing_stations_sub)
 
         print(f"{n_existing} existing, {polygon['n_stations']} total")
         
         int_exp['existing'] = False
         
-        existing_stations['existing'] = True
+        existing_stations_sub['existing'] = True
 
-        int_exp = pd.concat((existing_stations[['lat', 'lon', 'coords', 'geometry', 'existing']], int_exp))
+        int_exp = pd.concat((existing_stations_sub[['lat', 'lon', 'coords', 'geometry', 'existing']], int_exp))
         int_exp = int_exp.reset_index()
 
         selected_intersections.append(int_exp[results[i] == 1])
@@ -1325,9 +1332,9 @@ if __name__ == "__main__":
         return -np.sum(x*pred)
     
     score = -np.sum(pred)
-    
-    bk = plot_intersections(existing_stations, websocket_origin=['130.225.39.60', 'localhost:3000'], polygons=polygon, vdims=['existing', 'stat_id'])
     '''
+    bk = plot_intersections(existing_stations, websocket_origin=['130.225.39.60', 'localhost:3000'], polygons=polygon, vdims=['existing', 'stat_id'])
+
     bk.stop()
     '''
     #%% Figure existing and new stations
@@ -1366,8 +1373,11 @@ if __name__ == "__main__":
                                 size_vertical=5)
     ax.add_artist(scalebar)
     
-    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
-    plt.savefig("figures/nyc existing and new expansion.png", bbox_inches='tight', dpi=100)
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="")
+    text = "(C) Stamen Design, (C) OpenStreetMap Contributors"
+    ax.text(0.005, 0.005, text, transform=ax.transAxes, size=8,
+            path_effects=[patheffects.withStroke(linewidth=2, foreground="w")], wrap=True,)
+    plt.savefig("figures/nyc existing and new expansion.png", bbox_inches='tight', dpi=150)
     
     #%% Figure expansion area in whole city
 
@@ -1403,7 +1413,7 @@ if __name__ == "__main__":
     handles.append(patch) 
     
     # plot the legend
-    plt.legend(handles=handles)
+    plt.legend(handles=handles, loc="upper right")
     
     scalebar = AnchoredSizeBar(ax.transData, 1000, 
                                 f'{1} km', 'lower left', 
@@ -1411,7 +1421,10 @@ if __name__ == "__main__":
                                 size_vertical=5)
     ax.add_artist(scalebar)
     
-    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="")
+    text = "(C) Stamen Design, (C) OpenStreetMap Contributors"
+    ax.text(0.005, 0.005, text, transform=ax.transAxes, size=8,
+            path_effects=[patheffects.withStroke(linewidth=2, foreground="w")], wrap=True,)
     plt.savefig("figures/nyc_expansion_area.png", bbox_inches='tight', dpi=150)
     
     #%% Figure intersections
@@ -1432,7 +1445,7 @@ if __name__ == "__main__":
     
     fig, ax = plt.subplots(figsize=(4.5, 10))
     
-    sub_polygons.to_crs(data.laea_crs).plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="black", linewidth=2)
+    sub_polygons.to_crs(data.laea_crs).plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="black", linewidth=1)
     # pol_pro.plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="tab:orange")
     old.plot(label='Existing stations',ax=ax, color="tab:blue", alpha=1, zorder=1.5)
     int_exp.to_crs(data.laea_crs).plot(label='Intersections', ax=ax, color="tab:red", alpha=1, markersize=10)
@@ -1455,8 +1468,11 @@ if __name__ == "__main__":
     ax.add_artist(scalebar)
 
     
-    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
-    plt.savefig("figures/nyc_exp_intersections.png", bbox_inches='tight', dpi=100)
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="")
+    text = "(C) Stamen Design, (C) OpenStreetMap Contributors"
+    ax.text(0.005, 0.005, text, transform=ax.transAxes, size=8,
+            path_effects=[patheffects.withStroke(linewidth=2, foreground="w")], wrap=True,)
+    plt.savefig("figures/nyc_exp_intersections.png", bbox_inches='tight', dpi=150)
     
     #%% Figure subdivision (run again with better settings)
     
@@ -1479,7 +1495,7 @@ if __name__ == "__main__":
 
     legend = ax.legend()
     ax.axis('off')
-    patch = mpatches.Patch(color='tab:orange', label='Expansion Area', alpha=0.6)
+    patch = mpatches.Patch(color='tab:orange', label='Expansion area', alpha=0.6)
     
     handles, labels = ax.get_legend_handles_labels()
     # handles is a list, so append manual patch
@@ -1491,14 +1507,20 @@ if __name__ == "__main__":
     scalebar = AnchoredSizeBar(ax.transData, 1000, 
                                 f'{1} km', 'lower left', 
                                 pad=1, color='black', frameon=False, 
-                                size_vertical=5)
-    ax.add_artist(scalebar)
+                                size_vertical=5, path_effects=[patheffects.withStroke(linewidth=20, foreground="w")])
+    
+    scalebar.set_path_effects([patheffects.Stroke(linewidth=3, foreground='w'),])
+    sc = ax.add_artist(scalebar)
 
     
-    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
-    plt.savefig("figures/nyc_exp_selected_intersections.png", bbox_inches='tight', dpi=100)
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="")
+    text = "(C) Stamen Design, (C) OpenStreetMap Contributors"
+    ax.text(0.005, 0.005, text, transform=ax.transAxes, size=8,
+            path_effects=[patheffects.withStroke(linewidth=2, foreground="w")], wrap=True,)
     
-    #%% Figure subdivision (run again with better settings)
+    plt.savefig(f"figures/nyc_exp_selected_intersections_{maxdist}.png", bbox_inches='tight', dpi=150)
+    
+    #%% Figure subdivision real (run existing_stations with november)
     
     extend = (existing_stations['lat'].min(), existing_stations['long'].min(), 
               existing_stations['lat'].max(), existing_stations['long'].max())
@@ -1519,7 +1541,7 @@ if __name__ == "__main__":
     new.plot(label='Real new stations',ax=ax, color="tab:red", alpha=1, zorder=1.5)
     legend = ax.legend()
     ax.axis('off')
-    patch = mpatches.Patch(color='tab:orange', label='Expansion Area', alpha=0.6)
+    patch = mpatches.Patch(color='tab:orange', label='Expansion area', alpha=0.6)
     
     handles, labels = ax.get_legend_handles_labels()
     # handles is a list, so append manual patch
@@ -1531,12 +1553,15 @@ if __name__ == "__main__":
     scalebar = AnchoredSizeBar(ax.transData, 1000, 
                                 f'{1} km', 'lower left', 
                                 pad=1, color='black', frameon=False, 
-                                size_vertical=5)
+                                size_vertical=5, )
     ax.add_artist(scalebar)
 
     
-    cx.add_basemap(ax, crs=data.laea_crs, attribution="(C) Stamen Design, (C) OpenStreetMap Contributors")
-    plt.savefig("figures/nyc_exp_selected_real.png", bbox_inches='tight', dpi=100)
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="")
+    text = "(C) Stamen Design, (C) OpenStreetMap Contributors"
+    ax.text(0.005, 0.005, text, transform=ax.transAxes, size=8,
+            path_effects=[patheffects.withStroke(linewidth=2, foreground="w")], wrap=True,)
+    plt.savefig("figures/nyc_exp_selected_real.png", bbox_inches='tight', dpi=150)
     
     #%% Full model predictions of placed station traffic
     
