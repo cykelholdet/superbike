@@ -752,7 +752,7 @@ if __name__ == '__main__':
     
     #%% Test daily traffic prediction by cluster
     
-    split_clusters = True
+    split_clusters = False
     dep_or_arr = 'arr'
     test_ratio = 0.2
     np.random.seed(42)
@@ -850,8 +850,8 @@ if __name__ == '__main__':
             
             bigax[row,col].set_xticks(range(24))
             
-            bigax[row,col].set_ylim(-4,4)
-            bigax[row,col].set_yticks(np.linspace(-4,4,9))
+            bigax[row,col].set_ylim(-9,4)
+            bigax[row,col].set_yticks(np.linspace(-9,4,14))
             
             if col==0:
                 bigax[row,col].set_ylabel('Mean error')
@@ -908,7 +908,7 @@ if __name__ == '__main__':
                       'pop_density', 'nearest_subway_dist',
                       'nearest_railway_dist', 'center_dist']
     
-    dep_or_arr = 'arr'
+    dep_or_arr = 'dep'
 
     plt.style.use('seaborn-darkgrid')
     bigfig, bigax = plt.subplots(nrows=4, ncols=2, figsize=(10,10))

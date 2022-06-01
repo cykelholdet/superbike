@@ -782,10 +782,11 @@ def plot_cluster_centers(city, k=5, year=2019, month=None, day=None,
                 # Make figure
                 
                 for i in range(k):
-                    ax[row,col].plot(clusters[i], label=cluster_name_dict[i])
+                    ax[row,col].plot(np.arange(24)+0.5, clusters[i],
+                                     label=cluster_name_dict[i])
                 
                 ax[row,col].set_xticks(range(24))
-                ax[row,col].set_xlim(0,23)
+                ax[row,col].set_xlim(0,24)
                 ax[row,col].set_ylim(-0.15,0.15)
                 
                 # if row != 3:
@@ -1653,9 +1654,9 @@ if __name__ == '__main__':
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
               'london', 'helsinki', 'oslo', 'madrid']
     
-    cluster_algo_test_table = cluster_algo_test(cluster_seed=42,
-                                                savefig=False, overwrite=True, 
-                                                use_dtw=True)
+    # cluster_algo_test_table = cluster_algo_test(cluster_seed=42,
+    #                                             savefig=False, overwrite=True, 
+    #                                             use_dtw=True)
     
     # linkage_test_table = linkage_test(cluster_seed=42,
     #                                   savefig=True, overwrite=True)
@@ -1663,9 +1664,9 @@ if __name__ == '__main__':
     # k_table = k_test_table(clustering='k_means', 
     #                         savefig=True, overwrite=False, use_dtw=True)
     
-    # clusters, n_table = plot_cluster_centers('all', k=5, clustering='k_means',
-    #                                           use_dtw=True, linkage='complete', 
-    #                                           n_table=True, savefig=True)
+    clusters, n_table = plot_cluster_centers('all', k=5, clustering='k_means',
+                                              use_dtw=True, linkage='complete', 
+                                              n_table=True, savefig=True)
     
     
     # clusters_list = []

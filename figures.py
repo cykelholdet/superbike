@@ -117,8 +117,8 @@ def service_area_figure(city, year, month, day, return_fig=False):
             
             ax.add_artist(p)
             
-            ax.fill(pixels[:,0], pixels[:,1], c='b')
-            ax.plot(pixels[:,0], pixels[:,1], c='k')
+            # ax.fill(pixels[:,0], pixels[:,1], c='b')
+            # ax.plot(pixels[:,0], pixels[:,1], c='k')
             
     xlim_dict = {'nyc' : (150, 600)}
     ylim_dict = {'nyc' : (767.5,100)}
@@ -1052,7 +1052,7 @@ def cm_mean_fig(city_train, city_test, plotfig=True, savefig=True):
         plt.tight_layout()
         
         if savefig:
-            plt.savefig(f'./figures/cm_plots/cm_mean_2019_{city_train}_{city_test}.png')
+            plt.savefig(f'./figures/cm_plots/cm_mean_2019_{city_train}_{city_test}.png', dpi=150)
         
     return cm_mean
 
@@ -1086,15 +1086,15 @@ if __name__ == "__main__":
     # chaining_effect_fig()
     
     # fig, ax = daily_traffic_figure(519, 'nyc', 2019, normalise=True, 
-    #                                traffic_type='traffic', std=False,
-    #                                return_fig=True)
+    #                                 traffic_type='traffic', std=False,
+    #                                 return_fig=True)
     
     # sum_stat_table=make_summary_statistics_table()
     # LR_table=make_LR_table(2019, k=5, const=True, method='OLS')
     
     # sr = city_tests(k=5, test_seed=6)
     
-    # fig, ax = service_area_figure('nyc', 2019, 9, 5, return_fig=True)
+    fig, ax = service_area_figure('nyc', 2019, 9, 5, return_fig=True)
     
     # seed_range = range(50,75)
     # sr = np.zeros(shape=(8,8))
@@ -1102,9 +1102,9 @@ if __name__ == "__main__":
     #     sr += city_tests(k=5, test_seed=seed)
     # sr_mean = sr/len(seed_range)
     
-    for city_train in cities:
-        for city_test in cities:
-            cm_mean = cm_mean_fig(city_train, city_test)
+    # for city_train in cities:
+    #     for city_test in cities:
+    #         cm_mean = cm_mean_fig(city_train, city_test)
     
     
     # pre_process_table = pre_processing_table()
