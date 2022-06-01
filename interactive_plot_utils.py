@@ -726,6 +726,7 @@ def make_station_df(data, holidays=True, return_land_use=False,
         else:
             census_df = land_use[['Pop2018', 'area', 'geometry']]
             census_df.rename(columns={'Pop2018': 'population'}, inplace=True)
+            land_use.rename(columns={'Pop2018': 'population'}, inplace=True)
             census_df['pop_density'] = (census_df['population'] / census_df['area'])*1000000
             df = gpd.tools.sjoin(df, land_use, op='within', how='left')
             df.drop('index_right', axis=1, inplace=True)

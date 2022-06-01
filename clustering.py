@@ -1597,9 +1597,14 @@ def plot_stations(city, year=2019, month=None, day=None,
     
     stat_df.to_crs(data.laea_crs).plot(ax=ax, color=stat_df['new_color'])
     
+    zoom_levels = {'nyc' : 12, 'chicago' : 12, 
+                  'washdc' : 12, 'boston' : 12,
+                  'london' : 12, 'helsinki' : 12,
+                  'oslo' : 12, 'madrid' : 14}
+    
     cx.add_basemap(ax, crs=data.laea_crs,
                    attribution="(C) Stamen Design, (C) OpenStreetMap Contributors",
-                   zoom=12)
+                   zoom=zoom_levels[data.city])
     
     ax.axis('off')
     plt.tight_layout()
@@ -1665,7 +1670,7 @@ if __name__ == '__main__':
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
               'london', 'helsinki', 'oslo', 'madrid']
     
-    for city in cities:
+    for city in ['oslo']:
         plot_stations(city)
     
     # cluster_algo_test_table = cluster_algo_test(cluster_seed=42,
@@ -1678,9 +1683,9 @@ if __name__ == '__main__':
     # k_table = k_test_table(clustering='k_means', 
     #                         savefig=True, overwrite=False, use_dtw=True)
     
-    clusters, n_table = plot_cluster_centers('all', k=5, clustering='k_means',
-                                              use_dtw=True, linkage='complete', 
-                                              n_table=True, savefig=True)
+    # clusters, n_table = plot_cluster_centers('all', k=5, clustering='k_means',
+    #                                           use_dtw=True, linkage='complete', 
+    #                                           n_table=True, savefig=True)
     
     
     # clusters_list = []
