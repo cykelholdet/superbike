@@ -470,6 +470,10 @@ def load_city(city, year=2019, month=None, day=None, normalise=True):
     except IndexError:
         pass
 
+    data.stat.id_index = dict(zip(asdf['stat_id'].values, asdf.index.values))
+    new_names_dict = { i:data.stat.names[i] for i in data.stat.id_index.values()}
+    data.stat.names = new_names_dict
+    
     return data, asdf, traf_mat
 
 def table_formatter(x):
@@ -484,7 +488,7 @@ def table_formatter(x):
     
 if __name__ == '__main__':
     
-    CITY = 'nyc'
+    CITY = 'london'
     YEAR = 2019
     MONTH = None
     
@@ -501,7 +505,7 @@ if __name__ == '__main__':
     model = FullModel(variables_list)
     asdf=model.fit(asdf, traf_mat)
     
-    low_err, mid_err, high_err = test_model_stratisfied(asdf, traf_mat, variables_list, test_seed=42)
+    # low_err, mid_err, high_err = test_model_stratisfied(asdf, traf_mat, variables_list, test_seed=42)
     
     #%% residual plots
     
@@ -603,36 +607,44 @@ if __name__ == '__main__':
     
     traf_mat_true = load_city(CITY, normalise=False)[2]
     
-    stat_id = 520
+    stat_id = 154
     
-    traffic_est = model.predict_daily_traffic(asdf[asdf.stat_id==stat_id],
+    traffic_est = model.predict_daily_traffic(asdf[asdf.stat_id==stat_id].squeeze(),
                                               predict_cluster=True,
-                                              plotfig=False)
+                                              plotfig=False,
+                                              verbose=True)
     
     # Compare prediction to actual traffic
     
     traffic_true = traf_mat_true[data.stat.id_index[stat_id]]
     
     plt.style.use('seaborn-darkgrid')
-    fig_dep, ax_dep = plt.subplots(figsize=(10,5))
+    fig_dep, ax_dep = plt.subplots(figsize=(10,3))
     
-    ax_dep.plot(traffic_true[:24], label='True traffic')
-    ax_dep.plot(traffic_est[:24], label='Estimated traffic')
+    ax_dep.plot(np.arange(24)+0.5, traffic_true[:24], label='True traffic')
+    ax_dep.plot(np.arange(24)+0.5, traffic_est[:24], label='Estimated traffic')
+    
+    ax_dep.set_xlim(0,24)
+    ax_dep.set_xticks(range(24))
     
     ax_dep.set_xlabel('Hour')
     ax_dep.set_ylabel('# Trips')
-    ax_dep.set_title(f'Predicted number of departures each hour for {data.stat.names[data.stat.id_index[stat_id]]} (ID: {stat_id})')
+    # ax_dep.set_title(f'Predicted number of departures each hour for {data.stat.names[data.stat.id_index[stat_id]]} (ID: {stat_id})')
     
     ax_dep.legend()
     
-    fig_arr, ax_arr = plt.subplots(figsize=(10,5))
+    fig_arr, ax_arr = plt.subplots(figsize=(10,3))
     
-    ax_arr.plot(traffic_true[24:], label='True traffic')
-    ax_arr.plot(traffic_est[24:], label='Estimated traffic')
+    ax_arr.plot(np.arange(24)+0.5, traffic_true[24:], label='True traffic')
+    ax_arr.plot(np.arange(24)+0.5, traffic_est[24:], label='Estimated traffic')
+    
+    ax_arr.set_xlim(0,24)
+    ax_arr.set_xticks(range(24))
     
     ax_arr.set_xlabel('Hour')
     ax_arr.set_ylabel('# Trips')
-    ax_arr.set_title(f'Predicted number of arrivals each hour for {data.stat.names[data.stat.id_index[stat_id]]} (ID: {stat_id})')
+    # ax_arr.set_title(f'Predicted number of arrivals each hour for {data.stat.names[data.stat.id_index[stat_id]]} (ID: {stat_id})')
+    
     
     ax_arr.legend()
     
@@ -712,8 +724,10 @@ if __name__ == '__main__':
             arr_errors_mean = mean_error[24:]
             arr_errors_std = std_error[24:]
             
-            bigax[row,col].plot(dep_errors_mean, c='tab:blue', label='departures')
-            bigax[row,col].plot(arr_errors_mean, c='tab:orange', label='arrivals')
+            bigax[row,col].plot(np.arange(24)+0.5, dep_errors_mean, 
+                                c='tab:blue', label='departures')
+            bigax[row,col].plot(np.arange(24)+0.5, arr_errors_mean, 
+                                c='tab:orange', label='arrivals')
             
             if show_std:
                 
@@ -725,14 +739,15 @@ if __name__ == '__main__':
                     arr_fill_floor[i] = np.max(arr_errors_mean[i]-arr_errors_std[i], 0)
                 
                 
-                bigax[row,col].fill_between(np.arange(24), 0,
+                bigax[row,col].fill_between(np.arange(24)+0.5, 0,
                                             dep_errors_mean+dep_errors_std,
                                             facecolor='tab:blue', alpha=0.2, label=r'departures $\pm$ std. dev.')
-                bigax[row,col].fill_between(np.arange(24), 0,
+                bigax[row,col].fill_between(np.arange(24)+0.5, 0,
                                             arr_errors_mean+arr_errors_std,
                                             facecolor='tab:orange', alpha=0.2, label=r'arrivals $\pm$ std. dev.')
             
             bigax[row,col].set_xticks(range(24))
+            bigax[row,col].set_xlim(0,24)
             
             bigax[row,col].set_ylim(0,13)
             bigax[row,col].set_yticks(np.linspace(0,13,14))
