@@ -111,12 +111,12 @@ class FullModel:
                 print(f"Predicted label:   {label_predict.argmax()}")
                 print(f"Predicted # trips: {trips_predict}")
             
-            return label_predict.argmax(), trips_predict
+            return int(label_predict.argmax()), trips_predict
             
         
         elif isinstance(stat, pd.core.frame.DataFrame):
             
-            label_predicts = np.zeros(len(stat))
+            label_predicts = np.zeros(len(stat), dtype=int)
             trips_predicts = np.zeros(len(stat))
             
             for i in range(len(stat)):
@@ -318,12 +318,17 @@ def test_model(stat_df, traf_mat, variables, test_ratio=0.2, test_seed=None):
     tm_err = tm_test_est-tm_test_true
     
 
-def test_model_stratisfied(stat_df, traf_mat, variables, test_ratio=0.2, test_seed=None):
+def test_model_stratisfied(stat_df, traf_mat, variables, test_ratio=0.2, test_seed=None, combine=False):
     
     mask = ~stat_df['b_trips'].isna()
     
     stat_df = stat_df[mask].copy()
     traf_mat = traf_mat[mask]
+    
+    min_trips_mask = stat_df['b_trips'] >= 8
+    
+    stat_df = stat_df[min_trips_mask]
+    traf_mat = traf_mat[min_trips_mask]
     
     # Split data into training and test set
     
@@ -334,40 +339,39 @@ def test_model_stratisfied(stat_df, traf_mat, variables, test_ratio=0.2, test_se
             raise TypeError('test_seed should be of int type')
         
     # Cluster the stations into low-traffic, mid-traffic and high-traffic
-    trips = stat_df['b_trips'].to_numpy()
-    trip_classifier = KMeans(3).fit(trips.reshape(-1,1))
     
-    labels = trip_classifier.predict(trips.reshape(-1,1))
+    # trips = stat_df['b_trips'].to_numpy()
+    # trip_classifier = KMeans(3).fit(trips.reshape(-1,1))
+    # labels = trip_classifier.predict(trips.reshape(-1,1))
     
-    # reorder labels
+    traffic_split = [20,60,20]
     
-    label_dict = dict(zip(
-        np.argsort(trip_classifier.cluster_centers_.reshape(3)), range(3)))
-    labels = np.array([label_dict[label] for label in labels])
+    argsort = np.argsort(stat_df['b_trips'].to_numpy())
     
+    low_mid_index = int(np.round(traffic_split[0]/100*len(argsort)))
+    mid_high_index = int(np.round(traffic_split[2]/100*len(argsort)))
     
+    low_stats_i = argsort[:low_mid_index]
+    mid_stats_i = argsort[low_mid_index:-mid_high_index]
+    high_stats_i = argsort[-mid_high_index:]
     
     # # Divide up the data set into test sets and training set
     
-    n_stations = len(stat_df)
+    n_stats = len(stat_df)
     
-    n_low_stations = sum(labels==0)
-    n_mid_stations = sum(labels==1)
-    n_high_stations = sum(labels==2)
+    n_test = n_stats*test_ratio
     
-    n_test = n_stations*test_ratio
+    n_low_stats = len(low_stats_i)
+    n_mid_stats = len(mid_stats_i)
+    n_high_stats = len(high_stats_i)
     
-    low_stat_indices = stat_df[labels==0].index.to_numpy()
-    mid_stat_indices = stat_df[labels==1].index.to_numpy()
-    high_stat_indices = stat_df[labels==2].index.to_numpy()
+    np.random.shuffle(low_stats_i)
+    np.random.shuffle(mid_stats_i)
+    np.random.shuffle(high_stats_i)
     
-    np.random.shuffle(low_stat_indices)
-    np.random.shuffle(mid_stat_indices)
-    np.random.shuffle(high_stat_indices)
-    
-    low_stat_selected = low_stat_indices[:int(np.ceil(n_test*n_low_stations/n_stations))]
-    mid_stat_selected = mid_stat_indices[:int(np.ceil(n_test*n_mid_stations/n_stations))]
-    high_stat_selected = high_stat_indices[:int(np.ceil(n_test*n_high_stations/n_stations))]
+    low_stat_selected = low_stats_i[:int(np.round(n_test*n_low_stats/n_stats))]
+    mid_stat_selected = mid_stats_i[:int(np.round(n_test*n_mid_stats/n_stats))]
+    high_stat_selected = high_stats_i[:int(np.round(n_test*n_high_stats/n_stats))]
     
     low_stat_mask = stat_df.index.isin(low_stat_selected)
     mid_stat_mask = stat_df.index.isin(mid_stat_selected)
@@ -388,33 +392,51 @@ def test_model_stratisfied(stat_df, traf_mat, variables, test_ratio=0.2, test_se
     model = FullModel(variables)
     df_train=model.fit(df_train, tm_train)
     
-    tm_low_test_true = traf_mat[low_stat_mask]*df_low_test['b_trips'][:,None]
-    tm_mid_test_true = traf_mat[mid_stat_mask]*df_mid_test['b_trips'][:,None]
-    tm_high_test_true = traf_mat[high_stat_mask]*df_high_test['b_trips'][:,None]
-    
-    tm_low_test_est = np.zeros_like(tm_low_test_true)
-    for i in range(len(tm_low_test_est)):
-        tm_low_test_est[i,:] = model.predict_daily_traffic(df_low_test.iloc[i],
-                                                           plotfig=False,
-                                                           verbose=False)
-
-    tm_mid_test_est = np.zeros_like(tm_mid_test_true)
-    for i in range(len(tm_mid_test_est)):
-        tm_mid_test_est[i,:] = model.predict_daily_traffic(df_mid_test.iloc[i],
-                                                           plotfig=False,
-                                                           verbose=False)
+    if combine:
         
-    tm_high_test_est = np.zeros_like(tm_high_test_true)
-    for i in range(len(tm_high_test_est)):
-        tm_high_test_est[i,:] = model.predict_daily_traffic(df_high_test.iloc[i],
-                                                            plotfig=False,
-                                                            verbose=False)
-
-    tm_low_err = tm_low_test_est - tm_low_test_true
-    tm_mid_err = tm_mid_test_est - tm_mid_test_true
-    tm_high_err = tm_high_test_est - tm_high_test_true
-
-    return np.mean(tm_low_err, axis=0), np.mean(tm_mid_err, axis=0), np.mean(tm_high_err, axis=0)
+        df_test = stat_df[~train_mask]
+        tm_true = traf_mat[~train_mask]*df_test['b_trips'][:,None]
+        
+        tm_est = np.zeros_like(tm_true)
+        for i in range(len(tm_est)):
+            tm_est[i,:] = model.predict_daily_traffic(df_test.iloc[i],
+                                                      plotfig=False,
+                                                      verbose=False)
+    
+        tm_err = tm_est-tm_true
+        
+        return tm_err
+        
+        
+    else:
+        
+        tm_low_test_true = traf_mat[low_stat_mask]*df_low_test['b_trips'][:,None]
+        tm_mid_test_true = traf_mat[mid_stat_mask]*df_mid_test['b_trips'][:,None]
+        tm_high_test_true = traf_mat[high_stat_mask]*df_high_test['b_trips'][:,None]
+        
+        tm_low_test_est = np.zeros_like(tm_low_test_true)
+        for i in range(len(tm_low_test_est)):
+            tm_low_test_est[i,:] = model.predict_daily_traffic(df_low_test.iloc[i],
+                                                               plotfig=False,
+                                                               verbose=False)
+    
+        tm_mid_test_est = np.zeros_like(tm_mid_test_true)
+        for i in range(len(tm_mid_test_est)):
+            tm_mid_test_est[i,:] = model.predict_daily_traffic(df_mid_test.iloc[i],
+                                                               plotfig=False,
+                                                               verbose=False)
+            
+        tm_high_test_est = np.zeros_like(tm_high_test_true)
+        for i in range(len(tm_high_test_est)):
+            tm_high_test_est[i,:] = model.predict_daily_traffic(df_high_test.iloc[i],
+                                                                plotfig=False,
+                                                                verbose=False)
+    
+        tm_low_err = tm_low_test_est - tm_low_test_true
+        tm_mid_err = tm_mid_test_est - tm_mid_test_true
+        tm_high_err = tm_high_test_est - tm_high_test_true
+    
+        return tm_low_err, tm_mid_err, tm_high_err
 
 
 def load_city(city, year=2019, month=None, day=None, normalise=True):
@@ -458,12 +480,11 @@ def table_formatter(x):
     else:
         return f"${x:.4f}$"
 
-#%%
-if __name__ == '__main__':    
-
     #%% Do data
     
-    CITY = 'london'
+if __name__ == '__main__':
+    
+    CITY = 'nyc'
     YEAR = 2019
     MONTH = None
     
@@ -480,7 +501,7 @@ if __name__ == '__main__':
     model = FullModel(variables_list)
     asdf=model.fit(asdf, traf_mat)
     
-    test_model_stratisfied(asdf, traf_mat, variables_list)
+    low_err, mid_err, high_err = test_model_stratisfied(asdf, traf_mat, variables_list, test_seed=42)
     
     #%% residual plots
     
@@ -511,7 +532,7 @@ if __name__ == '__main__':
             
             count+=1
     
-    big_fig.tight_layout(w_pad=-10)
+    big_fig.tight_layout()
     
     #%% Relative error plots
     
@@ -615,12 +636,126 @@ if __name__ == '__main__':
     
     ax_arr.legend()
     
+    #%% Test daily traffic prediction
+    
+    cities = ['nyc', 'chicago', 'washdc', 'boston', 
+              'london', 'helsinki', 'oslo', 'madrid']
+    
+    variables_list = ['percent_residential', 'percent_commercial',
+                      'percent_recreational', 
+                      'pop_density', 'nearest_subway_dist',
+                      'nearest_railway_dist', 'center_dist']
     
     
+    error = 'MAE'
+    show_std = True
+    
+    plt.style.use('seaborn-darkgrid')
+    bigfig, bigax = plt.subplots(nrows=4, ncols=2, figsize=(10,10))
+    
+    count=0
+    for row in range(4):
+        for col in range(2):
+            
+            city = cities[count]
+            
+            data, asdf, traf_mat = load_city(city, normalise=True)
+            
+            model = FullModel(variables_list)
+            asdf=model.fit(asdf, traf_mat)
+            
+            # labels = asdf.copy()['label']
+            
+            data, asdf, traf_mat_unnormed = load_city(city, normalise=False)
+            # asdf_new['label'] = labels
+            
+            tm_err = test_model_stratisfied(asdf, traf_mat, variables_list, 
+                                            test_seed=42, combine=True)
+            
+            dep_errors_mean = []
+            dep_errors_std = []
+            
+            arr_errors_mean = []
+            arr_errors_std = []
+            
+            # min_trips_mask = asdf['b_trips'] >= model.min_trips
+            # labels_est, trips_est = model.predict(asdf[min_trips_mask])
+            # traffic_true = traf_mat_unnormed[min_trips_mask]
+            
+            # traffic_est = np.zeros_like(traffic_true)
+            
+            # for i, label in enumerate(labels_est):
+            #     traffic_est[i,:] = model.centers_traffic[label]*trips_est[i]
+            
+            if error == 'ME':
+                
+                mean_error = np.mean(tm_err, axis=0)
+                std_error = np.std(tm_err, axis=0)
+                ylabel = 'Mean error'
+            
+            elif error == 'MAE':
+                
+                mean_error = np.mean(np.abs(tm_err), axis=0)
+                std_error = np.std(np.abs(tm_err), axis=0)
+                ylabel = 'Mean absolute error'
+                
+                
+            # elif error == 'MRE':
+                
+            #     mean_error = np.mean(np.abs(traffic_est-traffic_true)/traffic_true, axis=0)
+            #     std_error = np.std(np.abs(traffic_est-traffic_true)/traffic_true, axis=0)
+            #     ylabel = 'Mean relative error'
+                
+            dep_errors_mean = mean_error[:24]
+            dep_errors_std = std_error[:24]
+            
+            arr_errors_mean = mean_error[24:]
+            arr_errors_std = std_error[24:]
+            
+            bigax[row,col].plot(dep_errors_mean, c='tab:blue', label='departures')
+            bigax[row,col].plot(arr_errors_mean, c='tab:orange', label='arrivals')
+            
+            if show_std:
+                
+                dep_fill_floor = np.zeros_like(dep_errors_std)
+                arr_fill_floor = np.zeros_like(arr_errors_std)
+                
+                for i in range(len(dep_errors_std)):
+                    dep_fill_floor[i] = np.max(dep_errors_mean[i]-dep_errors_std[i], 0)
+                    arr_fill_floor[i] = np.max(arr_errors_mean[i]-arr_errors_std[i], 0)
+                
+                
+                bigax[row,col].fill_between(np.arange(24), 0,
+                                            dep_errors_mean+dep_errors_std,
+                                            facecolor='tab:blue', alpha=0.2, label=r'departures $\pm$ std. dev.')
+                bigax[row,col].fill_between(np.arange(24), 0,
+                                            arr_errors_mean+arr_errors_std,
+                                            facecolor='tab:orange', alpha=0.2, label=r'arrivals $\pm$ std. dev.')
+            
+            bigax[row,col].set_xticks(range(24))
+            
+            bigax[row,col].set_ylim(0,13)
+            bigax[row,col].set_yticks(np.linspace(0,13,14))
+            
+            if col==0:
+                bigax[row,col].set_ylabel(ylabel)
+            
+            if row==3:
+                bigax[row,col].set_xlabel('Hour')
+            
+            bigax[row,col].set_title(bs.name_dict[city])
+            count+=1
+            
+    bigfig.tight_layout(h_pad=4)
+    lgd=bigax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.2), ncol=4)
+    bigfig.savefig('./figures/FullModel_MAE.pdf', bbox_extra_artsts=(lgd,), bbox_inches='tight')
     
     #%% Test daily traffic prediction by cluster
     
-    dep_or_arr = 'arrivals'
+    split_clusters = False
+    dep_or_arr = 'arr'
+    test_ratio = 0.2
+    np.random.seed(42)
     
     cluster_name_dict = {0 : 'Reference',
                          1 : 'High morning sink',
@@ -645,47 +780,78 @@ if __name__ == '__main__':
             
             data, asdf, traf_mat = load_city(city, normalise=True)
             
+            min_trips_mask = asdf['b_trips'] >= 8
+            df = asdf[min_trips_mask].copy()
+            traf_mat = traf_mat[min_trips_mask]
+            
+            
+            # Only get the correct labels
             model = FullModel(variables_list)
-            asdf=model.fit(asdf, traf_mat)
+            df = model.fit(df, traf_mat)
+            labels_true = df['label']
             
-            labels = asdf.copy()['label']
+            n_stats = len(labels_true)
+            n_test = n_stats*test_ratio
             
-            data, asdf_new, traf_mat_unnormed = load_city(city, normalise=False)
-            asdf_new['label'] = labels
+            test_dfs = []
+            test_selected = np.array([])
+            for j in range(model.k):
+                cluster_mask = labels_true == j
+                
+                n_cluster = sum(cluster_mask)
+                cluster_i = df[cluster_mask].index.to_numpy()
+                np.random.shuffle(cluster_i)
+                selected_i = cluster_i[:int(np.round(n_test*n_cluster/n_stats))]
+                
+                test_selected = np.concatenate((test_selected, selected_i))
+                test_dfs.append(df[df.index.isin(selected_i)])
+                
+            # Make train df    
             
-            errors_mean = []
-            errors_std = []
-            for l in range(model.k):
+            train_mask = ~df.index.isin(test_selected)
+            
+            df_train = df[train_mask]
+            tm_train = traf_mat[train_mask]
+            
+            df_test = df[~train_mask]
+            labels_true = df_test['label'].to_numpy()
+            
+            model = FullModel(variables_list)
+            df_train = model.fit(df_train, tm_train)
+            
+            data, asdf, tm_true = load_city(city, normalise=False)
+            tm_true = tm_true[min_trips_mask]
+            tm_true = tm_true[~train_mask]
+            
+            labels_est, trips_est = model.predict(df_test)
+            
+            tm_est = np.zeros_like(tm_true)
+            for i, label in enumerate(labels_est):
+                tm_est[i,:] = model.centers_traffic[label]*trips_est[i]
+            
+            tm_err = tm_est-tm_true
+            # tm_err = tm_true
+            
+            
+            if split_clusters:
                 
-                cluster = asdf_new['label'] == l
-                
-                cluster_stats = asdf[cluster]
-                cluster_traf_mat = traf_mat_unnormed[cluster]
-                
-                cluster_errors = np.zeros(shape=(len(cluster_stats), 24))
-                for i in range(len(cluster_stats)):
-                    traffic_est = model.predict_daily_traffic(cluster_stats.iloc[i],
-                                                              predict_cluster=True,
-                                                              plotfig=False,
-                                                              verbose=False)
-                    traffic_true = cluster_traf_mat[i]
+                for j in range(model.k):
+                    mean_err = np.mean(tm_err[labels_true == j], axis=0)
                     
-                    if dep_or_arr == 'departures':
-                        cluster_errors[i,:] = (traffic_est-traffic_true)[:24]
-                    else:
-                        cluster_errors[i,:] = (traffic_est-traffic_true)[24:] 
-                    
-                errors_mean.append(np.mean(cluster_errors, axis=0))
-                errors_std.append(np.std(cluster_errors, axis=0))
+                    if dep_or_arr == 'dep':
+                        bigax[row, col].plot(range(24), mean_err[:24], label=cluster_name_dict[j])
+                    elif dep_or_arr == 'arr':
+                        bigax[row, col].plot(range(24), mean_err[24:], label=cluster_name_dict[j])
             
-            for l in range(model.k):
-                bigax[row,col].plot(range(24), errors_mean[l], 
-                                    label=cluster_name_dict[l])
+            else:
+                mean_err = np.mean(tm_err, axis=0)
+                bigax[row,col].plot(range(24), mean_err[:24], label='departures')
+                bigax[row,col].plot(range(24), mean_err[24:], label='arrivals')
             
             bigax[row,col].set_xticks(range(24))
             
-            bigax[row,col].set_ylim(-4,4)
-            bigax[row,col].set_yticks(np.linspace(-4,4,9))
+            bigax[row,col].set_ylim(-9,4)
+            bigax[row,col].set_yticks(np.linspace(-9,4,14))
             
             if col==0:
                 bigax[row,col].set_ylabel('Mean error')
@@ -697,7 +863,7 @@ if __name__ == '__main__':
             count+=1
             
     plt.tight_layout(h_pad=4)
-    bigax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.15), ncol=len(bigax[3,0].get_lines()))
+    lgd=bigax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.2), ncol=5)
     
     
     #%% Plot predictions of all station vs. their true traffic
@@ -730,6 +896,7 @@ if __name__ == '__main__':
         ax.plot(traffic_est, label='predicted')
         ax.set_ylabel('# trips')
         ax.legend()
+
     
     #%% Stratified model test
     
@@ -742,7 +909,7 @@ if __name__ == '__main__':
                       'nearest_railway_dist', 'center_dist']
     
     dep_or_arr = 'dep'
-    
+
     plt.style.use('seaborn-darkgrid')
     bigfig, bigax = plt.subplots(nrows=4, ncols=2, figsize=(10,10))
     
@@ -757,6 +924,10 @@ if __name__ == '__main__':
             
             low_err, mid_err, high_err = test_model_stratisfied(asdf, traf_mat, variables_list, test_seed=42)
             
+            low_err = np.mean(low_err, axis=0)
+            mid_err = np.mean(mid_err, axis=0)
+            high_err = np.mean(high_err, axis=0)
+            
             if dep_or_arr == 'dep':
                 bigax[row,col].plot(range(24), low_err[:24], label='Low traffic stations')
                 bigax[row,col].plot(range(24), mid_err[:24], label='Mid traffic stations')
@@ -769,8 +940,8 @@ if __name__ == '__main__':
             
             bigax[row,col].set_xticks(range(24))
             
-            # bigax[row,col].set_ylim(-4,4)
-            # bigax[row,col].set_yticks(np.linspace(-4,4,9))
+            bigax[row,col].set_ylim(-7,3)
+            bigax[row,col].set_yticks(np.linspace(-7,3,11))
             
             if col==0:
                 bigax[row,col].set_ylabel('Mean error')
@@ -782,8 +953,13 @@ if __name__ == '__main__':
             count+=1
     
     plt.tight_layout(h_pad=4)
-    bigax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.15), ncol=len(bigax[3,0].get_lines()))
+    lgd=bigax[3,0].legend(loc='upper center', bbox_to_anchor=(1,-0.2), ncol=4)
     
+    if dep_or_arr == 'dep':
+        bigfig.savefig('./figures/FullModel_strat_dep.pdf', bbox_extra_artsts=(lgd,), bbox_inches='tight')
+    
+    elif dep_or_arr == 'arr':
+        bigfig.savefig('./figures/FullModel_strat_arr.pdf', bbox_extra_artsts=(lgd,), bbox_inches='tight')
     
     #%% Test demand model between cities
     
@@ -872,14 +1048,49 @@ if __name__ == '__main__':
                 err_table.loc[city_train, city_test] = err
         
     err_table = err_table.rename(index=bs.name_dict, columns=bs.name_dict)
-    print(err_table.to_latex(column_format='@{}l'+('r'*len(err_table.columns)) + '@{}', formatters = [table_formatter]*len(err_table.columns), escape=False))
+    print(err_table.to_latex(column_format='@{}l'+('r'*len(err_table.columns)) + '@{}', float_format="{:0.1f}".format, escape=False))
     
     
+    err_mat = err_table.to_numpy()
+    a = np.zeros(shape=(len(cities), len(cities)))
     
+    for i in range(len(cities)):     
+        for j in range(len(cities)):
+            a[i,j] = err_mat[i,j]
     
+    plt.style.use('default')
+    fig, ax = plt.subplots()
     
+    im = ax.matshow(a, cmap=plt.cm.Blues)
     
+    fig.colorbar(im, label='Mean Absolute Error')
     
+    for i in range(len(cities)):
+        for j in range(len(cities)):
+            c = a[j,i]
+                
+            # if res == 'confusion':
+            #     ax.text(i, j, f'{c:.2f}', va='center', ha='center', c='white')
+            # else:
+            ax.text(i, j, f'{c:.1f}', va='center', ha='center')
+    
+    city_names = [bs.name_dict[city] for city in cities]
+    
+    ax.set_xticks(range(len(cities)))
+    ax.set_yticks(range(len(cities)))
+    ax.set_xticklabels(city_names)
+    ax.set_yticklabels(city_names)
+    ax.tick_params(axis="x", bottom=False, labelbottom=False, top=True, labeltop=True)
+    plt.setp([tick.label2 for tick in ax.xaxis.get_major_ticks()], rotation=45,
+         ha="left", va="center",rotation_mode="anchor")
+    
+    ax.set_xlabel('Test city')
+    ax.set_ylabel('Train city')
+    plt.tight_layout()
+    
+
+
+
 
 
 
