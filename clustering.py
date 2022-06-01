@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 import skimage.color as skcolor
 import smopy as sm
-import contextily as cx
+# import contextily as cx
 
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.mixture import GaussianMixture
