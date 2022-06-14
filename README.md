@@ -2,7 +2,7 @@
 
 Scripts for the analysis of bike-sharing data. These scipts have been developed for the purpose of a masters project in Mathematical Engineering at Aalborg University:
 
-D. B. van Diepen and N. A. Weinreich, Aalborg University, Denmark, 2022
+Prediction of Traffic Patterns in Bike Sharing Systems, Daniel B. van Diepen and Nicolai A. Weinreich, Aalborg University, Denmark, 2022
 
 
 ## Dependencies
@@ -15,6 +15,8 @@ numpy
 pandas
 scipy
 sklearn
+holoviews
+geopandas
 ```
 
 ### Conda environment
@@ -74,6 +76,9 @@ The data should be organised as follows. Please create directories `data`, `pyth
 ├── chicago
 │   └── Divvy_Trips_2019_Q3.csv
 |
+├── helsinki
+│   └── 2019-09-helsinki.csv
+|
 ├── london
 |   ├── 177JourneyDataExtract28Aug2019-03Sep2019.csv
 |   ├── 178JourneyDataExtract04Sep2019-10Sep2019.csv
@@ -85,10 +90,13 @@ The data should be organised as follows. Please create directories `data`, `pyth
 ├── madrid
 |   ├── 201908_movements.json
 |   ├── 201909_movements.json
-|   └──  201909_stations_madrid.json
+|   └── 201909_stations_madrid.json
 |
 ├── nyc
 │   └── 201909-citibike-tripdata.csv
+|
+├── oslo
+│   └── 201909-oslo.csv
 |
 └── washdc
     ├── 201909-capitalbikeshare-tripdata.csv
