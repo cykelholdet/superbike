@@ -1,6 +1,6 @@
-# Analysis of Bike-Sharing Schemes
+# Analysis of Bike Sharing Systems
 
-Scripts for the analysis of bike-sharing data. These scipts have been developed for the purpose of a masters project in Mathematical Engineering at Aalborg University:
+Scripts for the analysis of bike sharing data. These scipts have been developed for the purpose of a masters project in Mathematical Engineering at Aalborg University:
 
 Prediction of Traffic Patterns in Bike Sharing Systems, Daniel B. van Diepen and Nicolai A. Weinreich, Aalborg University, Denmark, 2022
 
@@ -115,6 +115,12 @@ The data should be organised as follows. Please create directories `data`, `pyth
 
 `bikeshare.py`
 	- Module script containing various functions used in the other scripts. Includes importing data, computing adjacency matrices etc.
+
+`interactive_plot.py`
+	- Interactive plotting of the implemented clustering methods in the browser using Bokeh.
+
+`interactive_plot_utils.py`
+	- Functions used to make the interactive plot.
 
 
 # Data Sources
