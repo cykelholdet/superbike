@@ -574,12 +574,12 @@ import smopy
 
 # For point, get percentages and pop density and nearest subway dist
 
-def heatmap_grid(data, land_use, census_df, bounds, resolution):
+def heatmap_grid(data, land_use, census_df, bounds, resolution, voronoi=True):
     latmin, lonmin, latmax, lonmax = bounds
     grid_points = []
     for lat in np.arange(latmin, latmax, resolution):
         for lon in np.arange(lonmin, lonmax, resolution):
-            grid_points.append(Point((round(lat,4), round(lon,4))))
+            grid_points.append(Point((round(lon,4), round(lat,4))))
     
     
     grid_points = gpd.GeoDataFrame(geometry=grid_points, crs=data.laea_crs)
@@ -592,7 +592,7 @@ def heatmap_grid(data, land_use, census_df, bounds, resolution):
 
     grid_points = grid_points.join(neighborhoods)
 
-    service_area = ipu.get_service_area(data, grid_points, land_use)
+    service_area = ipu.get_service_area(data, grid_points, land_use, voronoi=voronoi)
     
     grid_points['service_area'] = service_area[0]
     
@@ -614,7 +614,7 @@ def heatmap_grid(data, land_use, census_df, bounds, resolution):
     return grid_points, point_info
 
 
-def plot_heatmap(z, grid_points, point_info, zlabel="Demand (Average daily business day departures)", cmap='magma', ax=None, vdims=(None,None)):
+def plot_heatmap(z, grid_points, point_info, zlabel="Demand (Average daily business day departures)", cmap='magma', ax=None, vdims=(None,None), drawpoly=None, bounds=None):
     if isinstance(z, str):
         color = point_info[z]
     elif isinstance(z, (list, pd.Series, np.ndarray)):
@@ -622,14 +622,28 @@ def plot_heatmap(z, grid_points, point_info, zlabel="Demand (Average daily busin
     else:
         color = z(point_info)
     grid_points['color'] = color
-
-    sas = grid_points.set_geometry('service_area')
-    sas.plot('color', legend=True, legend_kwds={'label': zlabel}, cmap=plt.get_cmap(cmap), ax=ax, vmin=vdims[0], vmax=vdims[1],rasterized=True)
+    
+    if ax is None:
+        fig, ax = plt.subplots()
+    
+    sas = grid_points.set_geometry('service_area')        
+    sas.plot('color', legend=True, legend_kwds={'label': zlabel}, cmap=plt.get_cmap(cmap), ax=ax, vmin=vdims[0], vmax=vdims[1],rasterized=False)
+    
+    if drawpoly is not None:
+        drawpoly.plot(ax=ax, facecolor="none", 
+              edgecolor='darkgray', lw=3, )#, lw=0.7)
+        
+    if bounds is not None:
+        ax.set_xlim(bounds[1], bounds[3])
+        ax.set_ylim(bounds[0], bounds[2])
+    
+    ax.axis('off')
+    plt.savefig('testorino.png', dpi=900)
     
     return grid_points, point_info
 
 
-def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title='heatmaps'):
+def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title='heatmaps', bounds=None, drawpoly=None):
     w_adjust = {'nyc': 0}
     names = ['Reference', 'High morning sink', 'Low morning sink', 'Low morning source', 'High morning source']
     ncols = 3
@@ -643,33 +657,35 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
     ntotal = nvars + npred
     nrows = int(np.ceil(ntotal / ncols))
     
+    sas = grid_points.set_geometry('service_area').to_crs(data.laea_crs)
+    
     plt.style.use('seaborn-darkgrid')
     fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(10, 13))
     plt.setp(ax, xticks=[], yticks=[])
     if npred > 1:
         for pred_col in range(npred):
-            plot_heatmap(pred[pred_col], grid_points, point_info,
-                         ax=ax[pred_col // ncols, pred_col%ncols], zlabel=f'P({names[pred_col]})', vdims=(0,1))
+            plot_heatmap(pred[pred_col], sas, point_info,
+                         ax=ax[pred_col // ncols, pred_col%ncols], zlabel=f'P({names[pred_col]})', vdims=(0,1), drawpoly=drawpoly, bounds=bounds)
     
     else:
-        plot_heatmap(pred, grid_points, point_info, ax=ax[0,0])
+        plot_heatmap(pred, sas, point_info, ax=ax[0,0], drawpoly=drawpoly, bounds=bounds)#, vdims=(40,200))
     
     n = npred
-    plot_heatmap('pop_density', grid_points, point_info, zlabel='Pop. Density (pop/100m²)', ax=ax[n//ncols,n%ncols])
+    plot_heatmap('pop_density', sas, point_info, zlabel='Pop. Density (pop/100m²)', ax=ax[n//ncols,n%ncols], drawpoly=drawpoly, bounds=bounds)
     n += 1
-    plot_heatmap('percent_residential', grid_points, point_info, zlabel='Share of residential use', ax=ax[n//ncols,n%ncols], vdims=(0,1))
+    plot_heatmap('percent_residential', sas, point_info, zlabel='Share of residential use', ax=ax[n//ncols,n%ncols], vdims=(0,1), drawpoly=drawpoly, bounds=bounds)
     n += 1
-    plot_heatmap('percent_commercial', grid_points, point_info, zlabel='Share of commercial use', ax=ax[n//ncols,n%ncols], vdims=(0,1))
+    plot_heatmap('percent_commercial', sas, point_info, zlabel='Share of commercial use', ax=ax[n//ncols,n%ncols], vdims=(0,1), drawpoly=drawpoly, bounds=bounds)
     n += 1
-    plot_heatmap('percent_recreational', grid_points, point_info, zlabel='Share of recreational use', ax=ax[n//ncols,n%ncols], vdims=(0,1))
+    plot_heatmap('percent_recreational', sas, point_info, zlabel='Share of recreational use', ax=ax[n//ncols,n%ncols], vdims=(0,1), drawpoly=drawpoly, bounds=bounds)
     n += 1
     # plot_heatmap('percent_industrial', grid_points, point_info, zlabel='Share of industrial use', ax=ax[n//ncols,n%ncols], vdims=(0,1))
     # n += 1
-    plot_heatmap('nearest_subway_dist', grid_points, point_info, zlabel='Nearest subway dist. (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
+    plot_heatmap('nearest_subway_dist', sas, point_info, zlabel='Nearest subway dist. (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols], drawpoly=drawpoly, bounds=bounds)
     n += 1
-    plot_heatmap('nearest_railway_dist', grid_points, point_info, zlabel='Nearest railway dist. (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
+    plot_heatmap('nearest_railway_dist', sas, point_info, zlabel='Nearest railway dist. (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols], drawpoly=drawpoly, bounds=bounds)
     n += 1
-    plot_heatmap('center_dist', grid_points, point_info, zlabel='Dist. to center (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols])
+    plot_heatmap('center_dist', sas, point_info, zlabel='Dist. to center (km)', cmap='magma_r', ax=ax[n//ncols,n%ncols], drawpoly=drawpoly, bounds=bounds)
     n += 1
     
     # Hide axis for remaining plot
@@ -687,7 +703,7 @@ def plot_multi_heatmaps(data, grid_points, point_info, pred, savefig=True, title
 def make_model_and_plot_heatmaps(
         city, year=2019, month=None, cols=None, modeltype='OLS', triptype='b_departures',
         resolution=200, day_type='business_days', min_trips=8,
-        clustering='k_means', k=5, seed=42, train_cities=None, use_dtw=False):
+        clustering='k_means', k=5, seed=42, train_cities=None, use_dtw=False, bounds=None, drawpoly=None):
     
     if train_cities == None:
         train_cities = [city]
@@ -703,8 +719,12 @@ def make_model_and_plot_heatmaps(
         #     traffic_matrices, station_df, day_type, min_trips, clustering, k, seed)
         
         # asdf, clusters, labels = get_clusters(traf_mats, asdf, 'business_days', 10, 'k_means', k, 42)
+        if month is None:
+            monstr = ""
+        else:
+            monstr = f"{month:02d}"
         try:
-            with open(f'./python_variables/{data.city}{year}_avg_stat_df.pickle', 'rb') as file:
+            with open(f'./python_variables/{data.city}{year}{monstr}_avg_stat_df.pickle', 'rb') as file:
                 asdf = pickle.load(file)
         except FileNotFoundError:
             raise FileNotFoundError(f'The average station DataFrame for {data.city} in {year} was not found. Please make it using interactive_plot_utils.pickle_asdf()')        
@@ -761,10 +781,12 @@ def make_model_and_plot_heatmaps(
     
     polygon = gpd.GeoSeries(polygon, crs='epsg:4326').to_crs(data.laea_crs)
     
-    bounds = (polygon.bounds['miny'][0]-1000,
-              polygon.bounds['minx'][0]-1000,
-              polygon.bounds['maxy'][0]+1000,
-              polygon.bounds['maxy'][0]+1000)
+    if bounds is None:
+         bounds = (polygon.bounds['miny'][0]-1000,
+                    polygon.bounds['minx'][0]-1000,
+                    polygon.bounds['maxy'][0]+1000,
+                    polygon.bounds['maxx'][0]+1000)
+    
     
     grid_points, point_info = heatmap_grid(data, land_use, census_df, bounds, resolution)
     
@@ -779,9 +801,12 @@ def make_model_and_plot_heatmaps(
         
         title_prefix = f"{title_test_prefix}_train_{tr_city}"
         
-        plot_multi_heatmaps(data, grid_points, point_info, pred, title=f"{title_prefix}_{resolution}m_heatmap")
+        plot_multi_heatmaps(data, grid_points, point_info, pred, title=f"{title_prefix}_{resolution}m_heatmap", bounds=bounds, drawpoly=drawpoly)
         
     return grid_points, point_info
+
+
+
 
 # def make_cluster_and_plot_heatmaps(city, year, month, cols, resolution=250):
 #     data = bs.Data(city, year, month)
@@ -846,7 +871,7 @@ if __name__ == "__main__":
     cols = ['percent_residential', 'percent_commercial', 'percent_recreational',
             'pop_density', 'nearest_subway_dist', 'nearest_railway_dist', 'center_dist']
     triptype = 'b_trips'  # Only relevant for OLS
-    resolution = 200  # Grid size in m
+    resolution = 50  # Grid size in m
     modeltype = 'OLS'  # LR or OLS
     k = 5
     min_trips = 8
@@ -868,3 +893,29 @@ if __name__ == "__main__":
         resolution=resolution, k=k, train_cities=['boston', 'chicago', 'nyc', 'washdc', 'helsinki', 'madrid', 'london', 'oslo'],
         min_trips=min_trips)
 
+    #%%
+    data = bs.Data('nyc', 2019, 9)
+    
+    
+
+    # station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)
+    
+
+    
+    expansion_area = gpd.read_file('data/nyc/expansion_2019_area.geojson')
+    
+    expansion_area = expansion_area.to_crs(data.laea_crs)
+    
+    polygon = expansion_area['geometry']
+    
+    bounds = (polygon.bounds['miny'][0]-500,
+              polygon.bounds['minx'][0]-500,
+              polygon.bounds['maxy'][0]+500,
+              polygon.bounds['maxx'][0]+500)
+    
+    grid_points, point_info = make_model_and_plot_heatmaps(
+        'nyc', 2019, 9, cols, modeltype=modeltype, triptype=triptype,
+        resolution=resolution, k=k, min_trips=min_trips, bounds=bounds, drawpoly=polygon)
+    
+
+    

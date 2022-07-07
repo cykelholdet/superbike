@@ -1332,6 +1332,7 @@ if __name__ == "__main__":
         return -np.sum(x*pred)
     
     score = -np.sum(pred)
+    print(f"{score=}")
     '''
     bk = plot_intersections(existing_stations, websocket_origin=['130.225.39.60', 'localhost:3000'], polygons=polygon, vdims=['existing', 'stat_id'])
 
@@ -1593,3 +1594,11 @@ if __name__ == "__main__":
 
     model = full_model.FullModel(variables_list)
     asdf2 = model.fit(asdf, traffic_matrices)
+    
+    #%% Compute objective function value
+    
+    pi = get_point_info(data, selected_intersections.reset_index(), land_use, census_df)
+    
+    solution_score = model_results.predict(pi[['const', *df_cols]])
+    
+    print(sum(solution_score))

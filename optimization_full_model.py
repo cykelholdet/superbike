@@ -9,6 +9,15 @@ Created on Fri May 27 13:48:02 2022
 import numpy as np
 import geopandas as gpd
 import pandas as pd
+import contextily as cx
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+from matplotlib.offsetbox import AnchoredText, AnchoredOffsetbox
+from matplotlib import patheffects
+from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
 
 import bikeshare as bs
 import interactive_plot_utils as ipu
@@ -237,16 +246,16 @@ for i, polygon in sub_polygons.iterrows():
     
     selected_point_info = selected_point_info[['const', *variables_list]]
     
-    months = [1,2,3,4,5,6,7,8,9]
-    asdf = asdf_months(data, months)
+    # months = [1,2,3,4,5,6,7,8,9]
+    # asdf = asdf_months(data, months)
     
-    traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
+    # traffic_matrices = data.pickle_daily_traffic(holidays=False, user_type='Subscriber')
     
-    asdf, b, c = get_clusters(traffic_matrices, asdf, day_type='business_days', min_trips=8, clustering='k_means', k=5)
+    # asdf, b, c = get_clusters(traffic_matrices, asdf, day_type='business_days', min_trips=8, clustering='k_means', k=5)
     
     
     
-    data, asdf, traf_mat = full_model.load_city('nyc')
+    data, asdf, traf_mat = full_model.load_city('nyc', 2019, 9)
     
     model = full_model.FullModel(variables_list)
     asdf2 = model.fit(asdf, traf_mat)
@@ -271,14 +280,248 @@ for i, polygon in sub_polygons.iterrows():
     
     plt.plot(vectors.T)
     
+    
+    expansion_area = gpd.read_file('data/nyc/expansion_2019_area.geojson')
+    
+    polygon = expansion_area.loc[0]
+    
+    polygon['n_stations'] = 58
+    
+    # int_exp = get_intersections(polygon['geometry'], data=data)
+   
+    existing_stations = gpd.sjoin(station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
+   
+    existing_stations['lon'] = existing_stations['long']
+    existing_stations['geometry'] = existing_stations['coords']
+    
+    existing_stations['existing'] = True
+       
+    extend = (existing_stations['lat'].min(), existing_stations['long'].min(), 
+              existing_stations['lat'].max(), existing_stations['long'].max())
+    
+    ex_pro = existing_stations.to_crs(data.laea_crs)
+    
+    pol_pro = expansion_area.to_crs(data.laea_crs)
+    
+   
+    
+    old = ex_pro[ex_pro['existing'] == True]
+    
+    new = ex_pro[ex_pro['existing'] == False]
+    
+    sept_stations = existing_stations
+    
+    #%%
+    
+    sept_data = bs.Data('nyc', 2019, 9)
+    
+    sept_station_df, sept_land_use, sept_census_df = ipu.make_station_df(sept_data, holidays=False, return_land_use=True, return_census=True)   
+    expansion_area = gpd.read_file('data/nyc/expansion_2019_area.geojson')
+    
+    polygon = expansion_area.loc[0]
+    
+    polygon['n_stations'] = 58
+    
+    # int_exp = get_intersections(polygon['geometry'], data=data)
+   
+    sept_stations = gpd.sjoin(sept_station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
+   
+    sept_stations['lon'] = sept_stations['long']
+    sept_stations['geometry'] = sept_stations['coords']
+    
+    sept_stations['existing'] = True
+
+    
+    data = bs.Data('nyc', 2020, 3)
+    
+    station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)   
+    expansion_area = gpd.read_file('data/nyc/expansion_2019_area.geojson')
+    
+    polygon = expansion_area.loc[0]
+    
+    polygon['n_stations'] = 58
+    
+    traffic_matrices = data.pickle_daily_traffic(holidays=False)
+    
+    station_df, clusters, labels = get_clusters(traffic_matrices, station_df, 
+                                                    'business_days', 9, 
+                                                    'k_means', 5, 42)
+    
+    
+    # int_exp = get_intersections(polygon['geometry'], data=data)
+   
+    real_stations = gpd.sjoin(station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
+   
+    real_stations['lon'] = real_stations['long']
+    real_stations['geometry'] = real_stations['coords']
+    
+    real_stations['existing'] = False
+    
+    real_stations.loc[real_stations['stat_id'].isin(sept_stations['stat_id']), 'existing'] = True
+
+    
+    all_stations = pd.concat([sept_stations, real_stations])
+    
+    
+    selected_point_info = get_point_info(data, real_stations.reset_index()[['geometry', 'coords']], land_use, census_df)
+    
+    
+    
+    station_df['const'] = 1
+    
+    variables_list = ['percent_residential', 'percent_commercial',
+                      'percent_recreational', 
+                      'pop_density', 'nearest_subway_dist',
+                      'nearest_railway_dist', 'center_dist']
+    
+    selected_point_info = selected_point_info[['const', *variables_list]]
+    
+    clusters = []
+    volume = []
+    vectors = []
+    
+    
+    for i, row in selected_point_info.iterrows():
+        log_pred = model.logit_model.predict(row)
+        log_best = int(np.argmax(log_pred))
+        clusters.append(log_best)
+        lin_pred = model.linear_model.predict(row)
+        volume.append(lin_pred)
+        
+        vectors.append(model.centers[log_best] * float(lin_pred))
+ 
+    #%%
+    fig, ax = plt.subplots(figsize=(4.5, 10))
+    
+    
+    
+    selected_intersections['cluster'] = clusters
+    
+    col_dict = {0: 'tab:blue',
+                1: 'tab:orange',
+                2: 'tab:green',
+                3: 'tab:red',
+                4: 'tab:purple',
+        }
+    
+    colors = [col_dict[clus] for clus in clusters]
+    
+    sizes = np.array(volume)
+    
+    sub_polygons.to_crs(data.laea_crs).plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="black")
+    # old.plot(label='Existing stations',ax=ax, color="tab:blue", alpha=1, zorder=1.5)
+    selected_intersections.to_crs(data.laea_crs).plot(label='Selected intersections', ax=ax, color=colors, alpha=1, markersize=sizes)
+
+
+    legend_elements = [
+        Line2D([0], [0], marker='o', linestyle='None', color='tab:blue', label='Reference'),
+        Line2D([0], [0], marker='o', linestyle='None', color='tab:orange', label='High morning sink'),
+        Line2D([0], [0], marker='o', linestyle='None', color='tab:green', label='Low morning sink'),
+        Line2D([0], [0], marker='o', linestyle='None', color='tab:red', label='Low morning source'),
+        Line2D([0], [0], marker='o', linestyle='None', color='tab:purple', label='High morning source'),
+        Line2D([0], [0], marker='o', linestyle='None', color='tab:gray', label='Unclustered'),
+        Patch(color='tab:orange', label='Expansion area', alpha=0.6),
+        ]
+   
+    legend = ax.legend(handles=legend_elements)
+    # legend = ax.legend()
+    ax.axis('off')
+    # patch = mpatches.Patch(color='tab:orange', label='Expansion area', alpha=0.6)
+    
+    # handles, labels = ax.get_legend_handles_labels()
+    # # handles is a list, so append manual patch
+    # handles.append(patch) 
+    
+    # # plot the legend
+    # plt.legend(handles=handles)
+    
+    scalebar = AnchoredSizeBar(ax.transData, 1000, 
+                                f'{1} km', 'lower left', 
+                                pad=1, color='black', frameon=False, 
+                                size_vertical=5, path_effects=[patheffects.withStroke(linewidth=20, foreground="w")])
+    
+    scalebar.set_path_effects([patheffects.Stroke(linewidth=3, foreground='w'),])
+    sc = ax.add_artist(scalebar)
+
+    
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="")
+    text = "(C) Stamen Design, (C) OpenStreetMap Contributors"
+    ax.text(0.005, 0.005, text, transform=ax.transAxes, size=8,
+            path_effects=[patheffects.withStroke(linewidth=2, foreground="w")], wrap=True,)
+    #%%
+    
+    plt.savefig(f"figures/nyc_exp_selected_intersections_predicted_sizecolor_sep.png", bbox_inches='tight', dpi=150)
     # volume = np.array(volume)
 
+    
+#%%
     
     
     # for cl, vol in zip(clusters, volume):
     #     vectors.append(model.centers[cl] * volume)
         
-
+    fig, ax = plt.subplots(figsize=(4.5, 10))
+    
+    
+    volume = real_stations['b_trips']
+    clusters = real_stations['label']
+    
+    clusters[clusters.isna()] = 9
+    
+    # selected_intersections['cluster'] = clusters
+    
+    col_dict = {0: 'tab:blue',
+                1: 'tab:orange',
+                2: 'tab:green',
+                3: 'tab:red',
+                4: 'tab:purple',
+                9: 'tab:gray'
+        }
+    
+    colors = [col_dict[clus] for clus in clusters]
+    
+    sizes = np.array(volume)
+    
+    sub_polygons.to_crs(data.laea_crs).plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="black")
+    # old.plot(label='Existing stations',ax=ax, color="tab:blue", alpha=1, zorder=1.5)
+    real_stations.to_crs(data.laea_crs).plot(label='Stations', ax=ax, color=colors, alpha=1, markersize=sizes)
+    
+    legend_elements = [
+        Line2D([0], [0], marker='o', linestyle='None', color='tab:blue', label='Reference'),
+        Line2D([0], [0], marker='o', linestyle='None', color='tab:orange', label='High morning sink'),
+        Line2D([0], [0], marker='o', linestyle='None', color='tab:green', label='Low morning sink'),
+        Line2D([0], [0], marker='o', linestyle='None', color='tab:red', label='Low morning source'),
+        Line2D([0], [0], marker='o', linestyle='None', color='tab:purple', label='High morning source'),
+        Line2D([0], [0], marker='o', linestyle='None', color='tab:gray', label='Unclustered'),
+        Patch(color='tab:orange', label='Expansion area', alpha=0.6),
+        ]
+  
+    legend = ax.legend(handles=legend_elements)
+    ax.axis('off')
+    # patch = mpatches.Patch(color='tab:orange', label='Expansion area', alpha=0.6)
+    
+    # handles, labels = ax.get_legend_handles_labels()
+    # # handles is a list, so append manual patch
+    # handles.append(patch) 
+    
+    # # plot the legend
+    # plt.legend(handles=handles)
+    
+    scalebar = AnchoredSizeBar(ax.transData, 1000, 
+                                f'{1} km', 'lower left', 
+                                pad=1, color='black', frameon=False, 
+                                size_vertical=5, path_effects=[patheffects.withStroke(linewidth=20, foreground="w")])
+    
+    scalebar.set_path_effects([patheffects.Stroke(linewidth=3, foreground='w'),])
+    sc = ax.add_artist(scalebar)
+  
+    
+    cx.add_basemap(ax, crs=data.laea_crs, attribution="")
+    text = "(C) Stamen Design, (C) OpenStreetMap Contributors"
+    ax.text(0.005, 0.005, text, transform=ax.transAxes, size=8,
+            path_effects=[patheffects.withStroke(linewidth=2, foreground="w")], wrap=True,)
+    
+    plt.savefig(f"figures/nyc_exp_selected_intersections_real_sizecolor_mar.png", bbox_inches='tight', dpi=150)
     
 
     # zone_columns = variables_list

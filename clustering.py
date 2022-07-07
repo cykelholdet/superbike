@@ -1600,7 +1600,7 @@ def plot_stations(city, year=2019, month=None, day=None,
     zoom_levels = {'nyc' : 12, 'chicago' : 12, 
                   'washdc' : 12, 'boston' : 12,
                   'london' : 12, 'helsinki' : 12,
-                  'oslo' : 12, 'madrid' : 14}
+                  'oslo' : 13, 'madrid' : 14}
     
     cx.add_basemap(ax, crs=data.laea_crs,
                    attribution="(C) Stamen Design, (C) OpenStreetMap Contributors",
@@ -1666,11 +1666,12 @@ lab_color_list = [lab_color_dict[i] for i in range(10)]
 
 
 if __name__ == '__main__':
+    import contextily as cx
     
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
               'london', 'helsinki', 'oslo', 'madrid']
     
-    for city in ['oslo']:
+    for city in ['nyc']:
         plot_stations(city)
     
     # cluster_algo_test_table = cluster_algo_test(cluster_seed=42,
