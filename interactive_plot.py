@@ -36,10 +36,6 @@ MONTH = None
 CITY = 'oslo'
 
 
-#station_df = ipu.make_station_df(data, holidays=False)
-#station_df, land_use = ipu.make_station_df(data, holidays=False, return_land_use=True)
-#station_df.dropna(inplace=True)
-    
 
 def plot_center(traffic_matrix, labels, cluster_j, c_center, plot_traf_or_diff,
                 title_pre="Mean", plot_std=True):
@@ -1031,7 +1027,7 @@ panel_column = pn.Column(title_row, business_row)
 panel_column.servable() # Run with: panel serve interactive_plot.py --autoreload
 
 """
-bokeh_server = panel_column.show(port=3000, websocket_origin=('130.225.39.60'))
+bokeh_server = panel_column.show(port=3000, websocket_origin=('130.225.39.60', 'localhost'))
 """
 
 # plot_daily_traffic(5, bike_params.param.day_type, bike_params.param.city, 

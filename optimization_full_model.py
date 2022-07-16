@@ -30,7 +30,7 @@ data = bs.Data('nyc', 2019, 9)
 station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)   
 sub_polygons = gpd.read_file('data/nyc/nyc_expansion_subdivision_2.geojson')
 
-months = [1,2,3,4,5,6,7,8,9]
+months = [3]
 asdf = asdf_months(data, months)
 
 pops = []
@@ -332,7 +332,7 @@ for i, polygon in sub_polygons.iterrows():
     sept_stations['existing'] = True
 
     
-    data = bs.Data('nyc', 2020, 3)
+    data = bs.Data('nyc', 2020, 2)
     
     station_df, land_use, census_df = ipu.make_station_df(data, holidays=False, return_land_use=True, return_census=True)   
     expansion_area = gpd.read_file('data/nyc/expansion_2019_area.geojson')
@@ -521,7 +521,7 @@ for i, polygon in sub_polygons.iterrows():
     ax.text(0.005, 0.005, text, transform=ax.transAxes, size=8,
             path_effects=[patheffects.withStroke(linewidth=2, foreground="w")], wrap=True,)
     
-    plt.savefig(f"figures/nyc_exp_selected_intersections_real_sizecolor_mar.png", bbox_inches='tight', dpi=150)
+    plt.savefig(f"figures/nyc_exp_selected_intersections_real_sizecolor_feb.png", bbox_inches='tight', dpi=150)
     
 
     # zone_columns = variables_list
@@ -545,4 +545,9 @@ for i, polygon in sub_polygons.iterrows():
     # best_log = np.argmax(np.array(log_pred), axis=1)
     
     # lin_pred = linear_model.predict(selected_point_info[['const', *variables_list]])
+    
+    #%% Capacity
+    import capacity_opt
+    
+    
     

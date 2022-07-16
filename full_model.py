@@ -488,7 +488,7 @@ def table_formatter(x):
     
 if __name__ == '__main__':
     
-    CITY = 'london'
+    CITY = 'nyc'
     YEAR = 2019
     MONTH = None
     
@@ -647,6 +647,21 @@ if __name__ == '__main__':
     
     
     ax_arr.legend()
+    
+    #%% Predict daily traffic all stations
+    
+    traf_est = pd.DataFrame()
+    traf_true = pd.DataFrame()
+    
+    for stat_id in asdf['stat_id']:
+        traffic_est = model.predict_daily_traffic(asdf[asdf.stat_id==stat_id].squeeze(),
+                                                  predict_cluster=True,
+                                                  plotfig=False,
+                                                  verbose=True)
+        traffic_true = traf_mat_true[data.stat.id_index[stat_id]]
+        
+        traf_est[stat_id] = traffic_est
+        traf_true[stat_id] = traffic_true
     
     #%% Test daily traffic prediction
     

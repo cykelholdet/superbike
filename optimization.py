@@ -989,7 +989,7 @@ if __name__ == "__main__":
             
     mini = pd.concat(minima_res.values(), keys=minima_res.keys())
     
-    maxdist = 100
+    maxdist = 300
     
     sps = [spacing for spacing in spacings if spacing <= maxdist]
     
@@ -1008,7 +1008,10 @@ if __name__ == "__main__":
     selected_intersections = []
     
     for i, polygon in sub_polygons.iterrows():
-        int_exp = get_intersections(polygon['geometry'], data=data)
+        merge_tolerance=20
+        if i == 11:
+            merge_tolerance = 21
+        int_exp = get_intersections(polygon['geometry'], data=data, merge_tolerance=merge_tolerance)
         
         existing_stations_sub = gpd.sjoin(station_df, gpd.GeoDataFrame(geometry=[polygon['geometry']], crs='epsg:4326'), op='within')
 
