@@ -1549,6 +1549,8 @@ def plot_stations(city, year=2019, month=None, day=None,
     asdf['new_color'] = asdf['label'].apply(lambda l: new_color_dict[l] 
                                             if not pd.isna(l) else 'grey')
     
+    stat_df = stat_df.loc[np.arange(788)]
+    
     stat_df['new_color'] = asdf['new_color']
     
     # extend = (stat_df['lat'].min(), stat_df['long'].min(), 
@@ -1671,7 +1673,7 @@ if __name__ == '__main__':
     cities = ['nyc', 'chicago', 'washdc', 'boston', 
               'london', 'helsinki', 'oslo', 'madrid']
     
-    for city in ['nyc']:
+    for city in ['chicago']:
         plot_stations(city)
     
     # cluster_algo_test_table = cluster_algo_test(cluster_seed=42,
