@@ -556,38 +556,39 @@ plt.savefig(f"figures/nyc_exp_selected_intersections_real_sizecolor_feb.png", bb
 #%% Capacity
 import capacity_opt
 
-T_START = 6
+T_START = 12
 K = 18
 tau = 1/6
 
 traf_est = pd.DataFrame()
 
-for stat_id in selected_point_info.index:
-    traffic_est = model.predict_daily_traffic(selected_point_info.loc[stat_id],
-                                              predict_cluster=True,
-                                              plotfig=False,
-                                              verbose=True)
+# for stat_id in selected_point_info.index:
+#     traffic_est = model.predict_daily_traffic(selected_point_info.loc[stat_id],
+#                                               predict_cluster=True,
+#                                               plotfig=False,
+#                                               verbose=True)
     
-    traf_est[stat_id] = traffic_est
+#     traf_est[stat_id] = traffic_est
     
 
     
-def capacity_helper(vec):
-    d = vec[:24]
-    a = vec[24:]
-    d = list(d)[T_START:]
-    a = list(a)[T_START:]
-    return capacity_opt.min_size(a,d,tau,K,0.9)
+# def capacity_helper(vec):
+#     d = vec[:24]
+#     a = vec[24:]
+#     d = list(d)[T_START:]
+#     a = list(a)[T_START:]
+#     return capacity_opt.min_size(a,d,tau,K,0.9)
     
-min_sizes_est = optimization.parallel_apply_along_axis(capacity_helper, 0, traf_est)
+# min_sizes_est = optimization.parallel_apply_along_axis(capacity_helper, 0, traf_est)
 
-print("")
-print(min_sizes_est)
-print("")
-with open(f'./python_variables/min_sizes_est_ours_T_start{T_START}_K{K}_tau{tau}.pickle', 'wb') as file:
-    pickle.dump(min_sizes_est, file)
+# print("")
+# print(min_sizes_est)
+# print("")
+# with open(f'./python_variables/min_sizes_est_ours_T_start{T_START}_K{K}_tau{tau}.pickle', 'wb') as file:
+#     pickle.dump(min_sizes_est, file)
 
-
+with open(f'./python_variables/min_sizes_est_ours_T_start{T_START}_K{K}_tau{tau}.pickle', 'rb') as file:
+    min_sizes_est = pickle.load(file)
 
 
 #%% Plot dimensioning
@@ -600,11 +601,14 @@ cax = divider.append_axes("right", size="10%", pad=0.1)
 selected_intersections['cluster'] = clusters
 
 cmap = 'viridis'
+vmin = 12
+vmax = 76
 
 sub_polygons.to_crs(data.laea_crs).plot(label='Expansion area', alpha=0.5, marker='s', ax=ax, color='tab:orange', edgecolor="black")
 # old.plot(label='Existing stations',ax=ax, color="tab:blue", alpha=1, zorder=1.5)
 intersections_to_plot = selected_intersections.to_crs(data.laea_crs)
-intersections_to_plot.plot(label='Selected intersections', ax=ax, c=min_sizes_est, alpha=1, markersize=40, legend=True)
+intersections_to_plot['color'] = min_sizes_est
+intersections_to_plot.plot(label='Selected intersections', ax=ax, column='color', alpha=1, markersize=40, vmin=vmin, vmax=vmax, cmap=cmap)
 
 # legend_elements = [
 #     Patch(color='tab:orange', label='Expansion area', alpha=0.6),
@@ -624,7 +628,7 @@ ax.axis('off')
 # # plot the legend
 # plt.legend(handles=handles)
 
-vmin, vmax = min(min_sizes_est), max(min_sizes_est)
+# vmin, vmax = min(min_sizes_est), max(min_sizes_est)
 
 fig = ax.get_figure()
 # cax = fig.add_axes([0.9, 0.1, 0.03, 0.8])
