@@ -1,8 +1,15 @@
 # Analysis of Bike Sharing Systems
 
-Scripts for the analysis of bike sharing data. These scipts have been developed for the purpose of a masters project in Mathematical Engineering at Aalborg University:
+Scripts for the analysis of bike sharing data. These scripts have been developed for the purpose of a masters project in Mathematical Engineering at Aalborg University:
 
 Prediction of Traffic Patterns in Bike Sharing Systems, Daniel B. van Diepen and Nicolai A. Weinreich, Aalborg University, Denmark, 2022
+
+[Access the project in the AAU project library.](https://projekter.aau.dk/projekter/en/studentthesis/prediction-of-traffic-patterns-in-bike-sharing-systems(ebf58545-dca2-499c-b368-0f7d01a3407b).html)
+
+## Interface
+The scripts include a dynamic dashboard for exploring the clustering results for different parameter choices alongside relevant spatial information. By selecting different clustering methods, number of clusters, city, month or year, the differences between bike share network traffic patterns can be explored.
+
+![Screenshot](https://user-images.githubusercontent.com/19616450/191848209-4c02eea8-18d3-49e1-84b4-b18d3132fef7.png)
 
 
 ## Dependencies
